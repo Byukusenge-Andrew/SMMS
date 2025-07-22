@@ -1,6 +1,6 @@
 import logging
 import random
-from datetime import date, timedelta
+from datetime import timedelta
 
 from django.conf import settings
 from django.contrib.auth.models import User
@@ -11,7 +11,7 @@ from django.utils import timezone
 
 from celery import shared_task
 
-from .models import AnalyticsData, AnalyticsInsight, BestPerformingPost, CommentAnalytics, PerformanceReport, PlatformAverage
+from .models import AnalyticsData, BestPerformingPost, CommentAnalytics, PerformanceReport, PlatformAverage
 
 logger = logging.getLogger(__name__)
 

@@ -1,6 +1,5 @@
-from django.shortcuts import render
 
-from rest_framework import generics, permissions, status
+from rest_framework import generics, status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -32,7 +31,7 @@ class CampaignListCreateView(generics.ListCreateAPIView):
         # If user is an influencer, show available campaigns
         if hasattr(self.request.user, "influencer_profile"):
             # Filter campaigns by influencer criteria
-            user_niches = self.request.user.influencer_profile.niche
+            self.request.user.influencer_profile.niche
             return Campaign.objects.filter(status="active")
         else:
             # Show campaigns created by this user

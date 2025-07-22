@@ -2,7 +2,6 @@
 Django settings for social_media_manager project.
 """
 
-import os
 from pathlib import Path
 
 import dj_database_url
@@ -148,6 +147,9 @@ CORS_ALLOW_CREDENTIALS = True
 
 # Celery Configuration
 CELERY_BROKER_URL = config("CELERY_BROKER_URL", default="redis://localhost:6379/0")
+
+from celery.schedules import crontab
+
 CELERY_RESULT_BACKEND = config("CELERY_RESULT_BACKEND", default="redis://localhost:6379/0")
 CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
@@ -158,15 +160,15 @@ CELERY_TIMEZONE = TIME_ZONE
 CELERY_BEAT_SCHEDULE = {
     "weekly-analytics-report": {
         "task": "apps.analytics.tasks.send_weekly_report",
-        "schedule": "crontab(hour=9, minute=0, day_of_week=1)",  # Monday 9 AM
+        "schedule": crontab(hour=9, minute=0, day_of_week=1),  # Monday 9 AM
     },
     "monthly-analytics-report": {
         "task": "apps.analytics.tasks.send_monthly_report",
-        "schedule": "crontab(hour=9, minute=0, day_of_month=1)",  # 1st day 9 AM
+        "schedule": crontab(hour=9, minute=0, day_of_month=1),  # 1st day 9 AM
     },
     "yearly-analytics-report": {
         "task": "apps.analytics.tasks.send_yearly_report",
-        "schedule": "crontab(hour=9, minute=0, day_of_month=1, month_of_year=1)",  # Jan 1st 9 AM
+        "schedule": crontab(hour=9, minute=0, day_of_month=1, month_of_year=1),  # Jan 1st 9 AM
     },
 }
 

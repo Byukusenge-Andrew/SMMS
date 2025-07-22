@@ -1,5 +1,4 @@
 # Stub file for the social media integration
-from typing import Any, Dict, List
 
 
 class SocialMediaManager:

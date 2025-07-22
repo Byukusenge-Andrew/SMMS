@@ -9,7 +9,6 @@ Run this after setting up your PostgreSQL database.
 import os
 
 import django
-from django.core.management import execute_from_command_line
 
 # Setup Django environment
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "social_media_manager.settings")

@@ -6,8 +6,8 @@ from rest_framework import permissions, status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 
-from .models import AnalyticsData, BestPerformingPost, CommentAnalytics, PerformanceReport, PlatformAverage
-from .serializers import AnalyticsDataSerializer, BestPerformingPostSerializer, PerformanceReportSerializer
+from .models import AnalyticsData, BestPerformingPost, PerformanceReport, PlatformAverage
+from .serializers import BestPerformingPostSerializer, PerformanceReportSerializer
 from .tasks import analyze_comment_sentiment, collect_analytics_data, generate_performance_report
 
 

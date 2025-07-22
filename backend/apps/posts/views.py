@@ -1,4 +1,3 @@
-from django.db.models import Q
 from django.utils import timezone
 
 from django_filters.rest_framework import DjangoFilterBackend
@@ -8,7 +7,6 @@ from rest_framework.filters import OrderingFilter, SearchFilter
 from rest_framework.generics import ListCreateAPIView, RetrieveUpdateDestroyAPIView
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
-from rest_framework.views import APIView
 
 from .models import Holiday, Post, PostSuggestion, PostTemplate, SocialSet
 from .serializers import (

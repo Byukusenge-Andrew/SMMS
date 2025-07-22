@@ -1,10 +1,8 @@
 from django.urls import path
 
 from .views import (
-    LoginView,
     LogoutView,
     ProfileView,
-    RegisterView,
     SocialMediaAccountListView,
     TeamMemberListView,
     health_check,
