@@ -2,13 +2,13 @@ from django.urls import path
 from .views import (
     RegisterView, LoginView, LogoutView, ProfileView,
     SocialMediaAccountListView, TeamMemberListView,
-    user_dashboard, health_check, register, login,
+    user_dashboard, health_check, register, login_user,
     verify_email, resend_verification_email
 )
 
 urlpatterns = [
     path('register/', register, name='register'),
-    path('login/', login, name='login'),
+    path('login/', login_user, name='login'),
     path('logout/', LogoutView.as_view(), name='logout'),
     path('profile/', ProfileView.as_view(), name='profile'),
     path('social-accounts/', SocialMediaAccountListView.as_view(), name='social-accounts'),

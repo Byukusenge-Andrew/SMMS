@@ -16,7 +16,6 @@ This is the Django backend for the Social Media Manager platform.
 - PostgreSQL
 - Redis
 
-
 ## Setup
 
 ### 1. Create and activate a virtual environment

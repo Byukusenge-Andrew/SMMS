@@ -46,6 +46,8 @@ class RegisterView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
+
+
 @extend_schema(
     request=LoginSerializer,
     responses={
@@ -276,3 +278,20 @@ def send_verification_email(user, token):
         [user.email],
         html_message=html_message,
     )
+
+@csrf_exempt
+@api_view(['POST'])
+@permission_classes([permissions.AllowAny])
+def login_user(request):
+    serializer = LoginSerializer(data=request.data)
+    if serializer.is_valid():
+        user = serializer.validated_data['user']
+        token, created = Token.objects.get_or_create(user=user)
+        login(request, user)
+        return Response({
+            'user': UserSerializer(user).data,
+            'token': token.key,
+            'profile': UserProfileSerializer(user.profile).data,
+            'message': 'Login successful'
+        }, status=status.HTTP_200_OK)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
