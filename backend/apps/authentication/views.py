@@ -1,3 +1,4 @@
+import logging
 from django.conf import settings
 from django.contrib.auth import login, logout
 from django.contrib.auth.models import User
@@ -11,9 +12,12 @@ from drf_spectacular.utils import OpenApiResponse, extend_schema
 from rest_framework import permissions, status
 from rest_framework.authtoken.models import Token
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.generics import ListCreateAPIView, RetrieveUpdateAPIView
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework.authentication import TokenAuthentication
+from rest_framework.decorators import authentication_classes
+from rest_framework.generics import RetrieveUpdateAPIView,ListCreateAPIView
 
 from .models import EmailVerificationToken, SocialMediaAccount, TeamMember, UserProfile
 from .serializers import (
@@ -26,6 +30,8 @@ from .serializers import (
     UserSerializer,
 )
 
+# Set up logger
+logger = logging.getLogger(__name__)
 
 @extend_schema(
     request=RegisterSerializer,
@@ -51,6 +57,7 @@ class RegisterView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
+@csrf_exempt
 @extend_schema(
     request=LoginSerializer,
     responses={
@@ -94,10 +101,73 @@ class LogoutView(APIView):
 
 class ProfileView(RetrieveUpdateAPIView):
     serializer_class = UserProfileSerializer
+    permission_classes = [IsAuthenticated]
+    authentication_classes = [TokenAuthentication]
 
     def get_object(self):
+        logger.info(f"ProfileView.get_object called for user: {self.request.user}")
+        logger.info(f"User authenticated: {self.request.user.is_authenticated}")
+        logger.info(f"User type: {type(self.request.user)}")
+        
+        if not self.request.user.is_authenticated:
+            logger.error("User is not authenticated in get_object")
+            raise Exception("User not authenticated")
+            
         profile, created = UserProfile.objects.get_or_create(user=self.request.user)
+        logger.info(f"Profile {'created' if created else 'retrieved'}: {profile}")
         return profile
+
+    def get(self, request, *args, **kwargs):
+        """Override get method to ensure proper authentication"""
+        logger.info(f"ProfileView.get called")
+        logger.info(f"Request user: {request.user}")
+        logger.info(f"Request user authenticated: {request.user.is_authenticated}")
+        logger.info(f"Auth header: {request.META.get('HTTP_AUTHORIZATION', 'Not provided')}")
+        logger.info(f"Request META keys: {list(request.META.keys())}")
+        
+        # Manual authentication check
+        auth = TokenAuthentication()
+        try:
+            user_auth_tuple = auth.authenticate(request)
+            logger.info(f"Manual auth result: {user_auth_tuple}")
+            if user_auth_tuple:
+                user, token = user_auth_tuple
+                logger.info(f"Manual auth successful: user={user.username}, token={token.key[:10]}...")
+            else:
+                logger.warning("Manual auth returned None")
+        except Exception as e:
+            logger.error(f"Manual auth error: {e}")
+        
+        try:
+            profile = self.get_object()
+            serializer = self.get_serializer(profile)
+            logger.info(f"Profile serialized successfully: {serializer.data}")
+            return Response(serializer.data)
+        except Exception as e:
+            logger.error(f"ProfileView.get error: {e}")
+            return Response(
+                {"error": f"Profile error: {str(e)}"}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    def put(self, request, *args, **kwargs):
+        """Override put method for updates"""
+        logger.info(f"ProfileView.put called for user: {request.user}")
+        try:
+            profile = self.get_object()
+            serializer = self.get_serializer(profile, data=request.data, partial=True)
+            if serializer.is_valid():
+                serializer.save()
+                logger.info(f"Profile updated successfully: {serializer.data}")
+                return Response(serializer.data)
+            logger.warning(f"Profile update validation errors: {serializer.errors}")
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            logger.error(f"ProfileView.put error: {e}")
+            return Response(
+                {"error": f"Profile update error: {str(e)}"}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 
 class SocialMediaAccountListView(ListCreateAPIView):
@@ -294,6 +364,53 @@ def send_verification_email(user, token):
         [user.email],
         html_message=html_message,
     )
+
+
+@api_view(["GET"])
+@authentication_classes([TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def debug_auth(request):
+    """Debug endpoint to check authentication"""
+    logger.info(f"debug_auth called")
+    logger.info(f"Request user: {request.user}")
+    logger.info(f"User authenticated: {request.user.is_authenticated}")
+    logger.info(f"Auth header: {request.META.get('HTTP_AUTHORIZATION', 'Not provided')}")
+    
+    return Response({
+        'authenticated': request.user.is_authenticated,
+        'user': request.user.username if request.user.is_authenticated else None,
+        'user_id': request.user.id if request.user.is_authenticated else None,
+        'auth_header': request.META.get('HTTP_AUTHORIZATION', 'Not provided'),
+        'user_active': request.user.is_active if request.user.is_authenticated else None,
+    })
+
+
+@api_view(["GET"])
+@permission_classes([permissions.AllowAny])
+def debug_auth_open(request):
+    """Open debug endpoint to check what's happening with auth"""
+    auth_header = request.META.get('HTTP_AUTHORIZATION', 'Not provided')
+    
+    # Try to manually authenticate
+    from rest_framework.authentication import TokenAuthentication
+    auth = TokenAuthentication()
+    try:
+        user_auth_tuple = auth.authenticate(request)
+        if user_auth_tuple:
+            user, token = user_auth_tuple
+            auth_result = f"Manual auth successful: {user.username}"
+        else:
+            auth_result = "Manual auth returned None"
+    except Exception as e:
+        auth_result = f"Manual auth error: {str(e)}"
+    
+    return Response({
+        'auth_header': auth_header,
+        'request_user': str(request.user),
+        'request_user_authenticated': request.user.is_authenticated,
+        'manual_auth_result': auth_result,
+        'settings_auth_classes': settings.REST_FRAMEWORK.get('DEFAULT_AUTHENTICATION_CLASSES', 'Not found'),
+    })
 
 
 @csrf_exempt

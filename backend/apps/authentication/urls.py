@@ -5,6 +5,8 @@ from .views import (
     ProfileView,
     SocialMediaAccountListView,
     TeamMemberListView,
+    debug_auth,
+    debug_auth_open,  # Add this
     health_check,
     login_user,
     register,
@@ -18,6 +20,8 @@ urlpatterns = [
     path("login/", login_user, name="login"),
     path("logout/", LogoutView.as_view(), name="logout"),
     path("profile/", ProfileView.as_view(), name="profile"),
+    path("debug-auth/", debug_auth, name="debug-auth"),
+    path("debug-auth-open/", debug_auth_open, name="debug-auth-open"),  # Add this
     path("social-accounts/", SocialMediaAccountListView.as_view(), name="social-accounts"),
     path("team-members/", TeamMemberListView.as_view(), name="team-members"),
     path("dashboard/", user_dashboard, name="dashboard"),
