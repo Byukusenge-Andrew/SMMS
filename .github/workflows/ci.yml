@@ -67,7 +67,8 @@ jobs:
         cd backend
         pip install -r requirements.txt
 
-  
+    - name: Install Pillow
+      run: pip install Pillow
 
     - name: Collect static files
       run: |
