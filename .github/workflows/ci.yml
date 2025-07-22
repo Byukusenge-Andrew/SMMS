@@ -128,16 +128,17 @@ jobs:
       with:
         python-version: ${{ env.PYTHON_VERSION }}
 
+
     - name: Install security tools
       run: |
         python -m pip install --upgrade pip
-        pip install safety bandit
+        pip install safety==2.3.5 bandit
 
     - name: Check dependencies for security vulnerabilities
       run: |
         cd backend
         pip install -r requirements.txt
-        safety scan
+        safety check
 
     - name: Run security linting with bandit
       run: |
