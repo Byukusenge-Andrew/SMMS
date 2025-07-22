@@ -1,12 +1,13 @@
 from django.urls import path
 
+from .views import debug_auth_open  # Add this
 from .views import (
     LogoutView,
     ProfileView,
     SocialMediaAccountListView,
     TeamMemberListView,
+    TeamMemberInviteView,  # Add this
     debug_auth,
-    debug_auth_open,  # Add this
     health_check,
     login_user,
     register,
@@ -28,4 +29,8 @@ urlpatterns = [
     path("health/", health_check, name="health"),
     path("verify-email/<str:token>/", verify_email, name="verify_email"),
     path("resend-verification/", resend_verification_email, name="resend_verification"),
+]
+
+urlpatterns += [
+    path("team/invite/", TeamMemberInviteView.as_view(), name="team-invite"),  # Add this
 ]

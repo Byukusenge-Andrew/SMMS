@@ -85,6 +85,12 @@ class SocialMediaAccount(models.Model):
         return timezone.now() > self.token_expires_at
 
 
+class Team(models.Model):
+    name = models.CharField(max_length=255)
+    owner = models.ForeignKey(User, related_name="owned_teams", on_delete=models.CASCADE)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+
 class TeamMember(models.Model):
     ROLE_CHOICES = [
         ("owner", "Owner"),
@@ -92,20 +98,13 @@ class TeamMember(models.Model):
         ("editor", "Editor"),
         ("viewer", "Viewer"),
     ]
-
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="team_memberships")
-    team_owner = models.ForeignKey(User, on_delete=models.CASCADE, related_name="team_members")
-    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default="viewer")
+    team = models.ForeignKey(Team, related_name="members", on_delete=models.CASCADE)
+    user = models.ForeignKey(User, related_name="team_memberships", on_delete=models.CASCADE)
+    role = models.CharField(max_length=10, choices=ROLE_CHOICES, default="viewer")
+    invited_email = models.EmailField(blank=True, null=True)
+    is_active = models.BooleanField(default=False)
     invited_at = models.DateTimeField(auto_now_add=True)
-    accepted_at = models.DateTimeField(blank=True, null=True)
-    is_active = models.BooleanField(default=True)
-
-    class Meta:
-        unique_together = ["user", "team_owner"]
-        db_table = "team_members"
-
-    def __str__(self):
-        return f"{self.user.username} - {self.team_owner.username} ({self.role})"
+    joined_at = models.DateTimeField(null=True, blank=True)
 
 
 class EmailVerificationToken(models.Model):

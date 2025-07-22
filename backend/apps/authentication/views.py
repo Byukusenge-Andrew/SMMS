@@ -1,4 +1,5 @@
 import logging
+
 from django.conf import settings
 from django.contrib.auth import login, logout
 from django.contrib.auth.models import User
@@ -9,17 +10,16 @@ from django.utils.html import strip_tags
 from django.views.decorators.csrf import csrf_exempt
 
 from drf_spectacular.utils import OpenApiResponse, extend_schema
-from rest_framework import permissions, status
+from rest_framework import generics, permissions, status
+from rest_framework.authentication import TokenAuthentication
 from rest_framework.authtoken.models import Token
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, authentication_classes, permission_classes
+from rest_framework.generics import ListCreateAPIView, RetrieveUpdateAPIView
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework.authentication import TokenAuthentication
-from rest_framework.decorators import authentication_classes
-from rest_framework.generics import RetrieveUpdateAPIView, ListCreateAPIView
 
-from .models import EmailVerificationToken, SocialMediaAccount, TeamMember, UserProfile
+from .models import EmailVerificationToken, SocialMediaAccount, Team, TeamMember, UserProfile
 from .serializers import (
     LoginSerializer,
     RegisterSerializer,
@@ -432,3 +432,19 @@ def login_user(request):
             status=status.HTTP_200_OK,
         )
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class TeamMemberInviteView(generics.CreateAPIView):
+    serializer_class = TeamMemberSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def perform_create(self, serializer):
+        invited_email = self.request.data.get("invited_email")
+        team_id = self.request.data.get("team")
+        team = Team.objects.get(id=team_id)
+        # Only owner or admin can invite
+        member = TeamMember.objects.filter(team=team, user=self.request.user).first()
+        if not member or member.role not in ['owner', 'admin']:
+            raise PermissionDenied("Only owner or admin can invite members.")
+        serializer.save(team=team, invited_email=invited_email, is_active=False)
+        # TODO: send invitation email here
