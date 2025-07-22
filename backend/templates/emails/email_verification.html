@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Email Verification</title>
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .button { 
+            display: inline-block; 
+            padding: 12px 24px; 
+            background-color: #007bff; 
+            color: white; 
+            text-decoration: none; 
+            border-radius: 5px; 
+            margin: 20px 0;
+        }
+        .footer { margin-top: 30px; color: #666; font-size: 12px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Welcome to Social Media Manager!</h2>
+        
+        <p>Hi {{ user.username }},</p>
+        
+        <p>Thank you for registering with Social Media Manager. To complete your registration, please verify your email address by clicking the button below:</p>
+        
+        <a href="{{ verification_url }}" class="button">Verify Email Address</a>
+        
+        <p>Or copy and paste this link into your browser:</p>
+        <p>{{ verification_url }}</p>
+        
+        <p>This verification link will expire in 24 hours.</p>
+        
+        <p>If you didn't create an account with us, please ignore this email.</p>
+        
+        <div class="footer">
+            <p>Best regards,<br>The Social Media Manager Team</p>
+        </div>
+    </div>
+</body>
+</html>
