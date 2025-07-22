@@ -1,14 +1,17 @@
-from celery import shared_task
-from django.utils import timezone
-from django.contrib.auth.models import User
-from django.core.mail import EmailMultiAlternatives
-from django.template.loader import render_to_string
-from django.conf import settings
-from django.db import models
-from datetime import timedelta, date
 import logging
 import random
-from .models import AnalyticsData, PerformanceReport, CommentAnalytics, PlatformAverage, BestPerformingPost, AnalyticsInsight
+from datetime import date, timedelta
+
+from django.conf import settings
+from django.contrib.auth.models import User
+from django.core.mail import EmailMultiAlternatives
+from django.db import models
+from django.template.loader import render_to_string
+from django.utils import timezone
+
+from celery import shared_task
+
+from .models import AnalyticsData, AnalyticsInsight, BestPerformingPost, CommentAnalytics, PerformanceReport, PlatformAverage
 
 logger = logging.getLogger(__name__)
 

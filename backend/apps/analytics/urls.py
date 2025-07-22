@@ -1,10 +1,11 @@
 from django.urls import path
+
 from .views import (
     analytics_dashboard,
+    best_performing_posts,
     collect_analytics,
     comment_sentiment_analysis,
     performance_reports,
-    best_performing_posts,
     platform_averages,
 )
 

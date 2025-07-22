@@ -1,5 +1,6 @@
 from django.contrib import admin
-from .models import Post, PostTemplate, Holiday, PostSuggestion, SocialSet
+
+from .models import Holiday, Post, PostSuggestion, PostTemplate, SocialSet
 
 
 @admin.register(Post)

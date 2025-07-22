@@ -1,11 +1,12 @@
 from django.urls import path
+
 from .views import (
-    WorkspaceListCreateView,
-    WorkspaceDetailView,
-    WorkspaceMemberListView,
+    CommentListCreateView,
     PostCollaborationView,
     ReviewListCreateView,
-    CommentListCreateView,
+    WorkspaceDetailView,
+    WorkspaceListCreateView,
+    WorkspaceMemberListView,
 )
 
 urlpatterns = [

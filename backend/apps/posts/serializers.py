@@ -1,5 +1,6 @@
 from rest_framework import serializers
-from .models import Post, PostTemplate, Holiday, PostSuggestion, SocialSet
+
+from .models import Holiday, Post, PostSuggestion, PostTemplate, SocialSet
 
 
 class SocialSetSerializer(serializers.ModelSerializer):

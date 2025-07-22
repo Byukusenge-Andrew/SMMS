@@ -1,29 +1,30 @@
-from rest_framework import status, permissions
-from rest_framework.decorators import api_view, permission_classes
-from drf_spectacular.utils import extend_schema, OpenApiResponse
-from rest_framework.response import Response
-from rest_framework.authtoken.models import Token
-from rest_framework.views import APIView
-from rest_framework.generics import ListCreateAPIView, RetrieveUpdateAPIView
-from django.contrib.auth import login, logout, authenticate
+from django.conf import settings
+from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.models import User
 from django.core.mail import send_mail
 from django.template.loader import render_to_string
-from django.utils.html import strip_tags
-from django.conf import settings
 from django.utils import timezone
-from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
-from .models import UserProfile, SocialMediaAccount, TeamMember, EmailVerificationToken
-from .models import UserProfile, SocialMediaAccount, TeamMember, EmailVerificationToken
+from django.utils.html import strip_tags
+from django.views.decorators.csrf import csrf_exempt
+
+from drf_spectacular.utils import OpenApiResponse, extend_schema
+from rest_framework import permissions, status
+from rest_framework.authtoken.models import Token
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.generics import ListCreateAPIView, RetrieveUpdateAPIView
+from rest_framework.response import Response
+from rest_framework.views import APIView
+
+from .models import EmailVerificationToken, SocialMediaAccount, TeamMember, UserProfile
 from .serializers import (
-    UserSerializer,
-    UserProfileSerializer,
-    RegisterSerializer,
     LoginSerializer,
+    RegisterSerializer,
     SocialMediaAccountSerializer,
     TeamMemberSerializer,
+    UserProfileSerializer,
     UserRegistrationSerializer,
+    UserSerializer,
 )
 
 

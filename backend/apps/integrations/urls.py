@@ -1,5 +1,6 @@
 from django.urls import path
-from .views import slack_integration, canva_integration, google_drive_integration, dropbox_integration, oauth_callback
+
+from .views import canva_integration, dropbox_integration, google_drive_integration, oauth_callback, slack_integration
 
 urlpatterns = [
     path("slack/", slack_integration, name="slack-integration"),

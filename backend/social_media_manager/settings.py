@@ -4,8 +4,9 @@ Django settings for social_media_manager project.
 
 import os
 from pathlib import Path
-from decouple import config
+
 import dj_database_url
+from decouple import config
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -279,8 +280,8 @@ SPECTACULAR_SETTINGS = {
 # Sentry for error tracking
 if not DEBUG:
     import sentry_sdk
-    from sentry_sdk.integrations.django import DjangoIntegration
     from sentry_sdk.integrations.celery import CeleryIntegration
+    from sentry_sdk.integrations.django import DjangoIntegration
 
     sentry_sdk.init(
         dsn=config("SENTRY_DSN", default=""),

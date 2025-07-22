@@ -1,7 +1,8 @@
-from rest_framework import status, permissions
+from django.conf import settings
+
+from rest_framework import permissions, status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
-from django.conf import settings
 
 
 @api_view(["GET", "POST"])

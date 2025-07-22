@@ -1,8 +1,10 @@
-from rest_framework import serializers
-from django.contrib.auth.models import User
 from django.contrib.auth import authenticate
+from django.contrib.auth.models import User
 from django.contrib.auth.password_validation import validate_password
-from .models import UserProfile, SocialMediaAccount, TeamMember
+
+from rest_framework import serializers
+
+from .models import SocialMediaAccount, TeamMember, UserProfile
 
 
 class UserSerializer(serializers.ModelSerializer):

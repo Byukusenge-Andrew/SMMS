@@ -1,11 +1,14 @@
-from rest_framework import status, permissions
+from datetime import timedelta
+
+from django.utils import timezone
+
+from rest_framework import permissions, status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
-from django.utils import timezone
-from datetime import timedelta
-from .models import AnalyticsData, PerformanceReport, BestPerformingPost, PlatformAverage, CommentAnalytics
-from .serializers import AnalyticsDataSerializer, PerformanceReportSerializer, BestPerformingPostSerializer
-from .tasks import collect_analytics_data, generate_performance_report, analyze_comment_sentiment
+
+from .models import AnalyticsData, BestPerformingPost, CommentAnalytics, PerformanceReport, PlatformAverage
+from .serializers import AnalyticsDataSerializer, BestPerformingPostSerializer, PerformanceReportSerializer
+from .tasks import analyze_comment_sentiment, collect_analytics_data, generate_performance_report
 
 
 @api_view(["GET"])

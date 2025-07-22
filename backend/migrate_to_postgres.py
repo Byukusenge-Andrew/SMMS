@@ -7,6 +7,7 @@ Run this after setting up your PostgreSQL database.
 """
 
 import os
+
 import django
 from django.core.management import execute_from_command_line
 

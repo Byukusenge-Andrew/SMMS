@@ -1,9 +1,10 @@
 from django.urls import path
+
 from .views import (
-    InfluencerProfileView,
-    CampaignListCreateView,
-    CampaignDetailView,
     CampaignApplicationListCreateView,
+    CampaignDetailView,
+    CampaignListCreateView,
+    InfluencerProfileView,
     influencer_dashboard,
 )
 

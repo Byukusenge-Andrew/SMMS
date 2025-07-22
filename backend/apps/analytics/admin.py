@@ -1,5 +1,6 @@
 from django.contrib import admin
-from .models import AnalyticsData, PerformanceReport, BestPerformingPost, CommentAnalytics, PlatformAverage
+
+from .models import AnalyticsData, BestPerformingPost, CommentAnalytics, PerformanceReport, PlatformAverage
 
 
 @admin.register(AnalyticsData)

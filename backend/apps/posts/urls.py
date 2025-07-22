@@ -1,17 +1,18 @@
 from django.urls import path
+
 from .views import (
-    PostListCreateView,
-    PostDetailView,
-    PostTemplateListCreateView,
-    PostTemplateDetailView,
-    SocialSetListCreateView,
-    SocialSetDetailView,
     HolidayListView,
+    PostDetailView,
+    PostListCreateView,
     PostSuggestionListView,
-    generate_suggestions,
+    PostTemplateDetailView,
+    PostTemplateListCreateView,
+    SocialSetDetailView,
+    SocialSetListCreateView,
     bulk_post_actions,
     calendar_view,
     dashboard_stats,
+    generate_suggestions,
 )
 
 urlpatterns = [

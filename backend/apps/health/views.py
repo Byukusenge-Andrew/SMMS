@@ -1,13 +1,15 @@
-from django.http import JsonResponse
+import datetime
+import platform
+import socket
+import time
+
+from django.conf import settings
 from django.db import connections
 from django.db.utils import OperationalError
-from django.conf import settings
-import redis
-import socket
-import platform
-import time
-import datetime
+from django.http import JsonResponse
+
 import psutil
+import redis
 
 
 def health_check(request):

@@ -1,8 +1,11 @@
-from celery import shared_task
-from django.utils import timezone
-from django.contrib.auth.models import User
-from .models import Post
 import logging
+
+from django.contrib.auth.models import User
+from django.utils import timezone
+
+from celery import shared_task
+
+from .models import Post
 
 logger = logging.getLogger(__name__)
 

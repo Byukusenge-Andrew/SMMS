@@ -1,5 +1,6 @@
 from rest_framework import serializers
-from .models import AnalyticsData, CommentAnalytics, PerformanceReport, BestPerformingPost, PlatformAverage, AnalyticsInsight
+
+from .models import AnalyticsData, AnalyticsInsight, BestPerformingPost, CommentAnalytics, PerformanceReport, PlatformAverage
 
 
 class AnalyticsDataSerializer(serializers.ModelSerializer):
