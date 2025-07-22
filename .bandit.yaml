@@ -1,0 +1,9 @@
+# Bandit configuration to ignore B311 (random module) and B106 (hardcoded password in tests)
+# and only fail on medium or high severity issues
+exclude:
+  - tests
+skips:
+  - B311
+  - B106
+severity: MEDIUM
+confidence: HIGH
