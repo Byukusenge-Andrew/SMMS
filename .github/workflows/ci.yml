@@ -148,8 +148,8 @@ jobs:
     - name: Run security linting with bandit
       run: |
         cd backend
-        bandit -r . -x tests/ -c ../../.bandit.yaml -f json -o bandit-report.json || true
-        bandit -r . -x tests/ -c ../../.bandit.yaml
+        bandit -r . -x tests/ -c .bandit.yaml -f json -o bandit-report.json || true
+        bandit -r . -x tests/ -c .bandit.yaml
 
   build:
     name: Build Check
