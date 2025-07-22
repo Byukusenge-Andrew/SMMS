@@ -5,14 +5,16 @@ from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.utils import timezone
 
+
 class UserProfile(models.Model):
     """Extended user profile model"""
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
-    company_name = models.CharField(max_length=255, blank=True, default='')  
-    avatar = models.ImageField(upload_to='avatars/', null=True, blank=True)
-    subscription_type = models.CharField(max_length=20, default='free')
-    time_format = models.CharField(max_length=20, default='standard')
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="profile")
+    company_name = models.CharField(max_length=255, blank=True, default="")
+    avatar = models.ImageField(upload_to="avatars/", null=True, blank=True)
+    subscription_type = models.CharField(max_length=20, default="free")
+    time_format = models.CharField(max_length=20, default="standard")
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -20,16 +22,18 @@ class UserProfile(models.Model):
     slack_notifications = models.BooleanField(default=False)
 
     class Meta:
-        db_table = 'user_profiles'
+        db_table = "user_profiles"
 
     def __str__(self):
         return f"{self.user.username} - {self.company_name or 'Personal'}"
+
 
 # Signal to create user profile when a new user is created
 @receiver(post_save, sender=User)
 def create_user_profile(sender, instance, created, **kwargs):
     if created:
         UserProfile.objects.create(user=instance)
+
 
 @receiver(post_save, sender=User)
 def save_user_profile(sender, instance, **kwargs):
@@ -41,18 +45,18 @@ def save_user_profile(sender, instance, **kwargs):
 
 class SocialMediaAccount(models.Model):
     PLATFORM_CHOICES = [
-        ('instagram', 'Instagram'),
-        ('facebook', 'Facebook'),
-        ('twitter', 'Twitter/X'),
-        ('linkedin', 'LinkedIn'),
-        ('tiktok', 'TikTok'),
-        ('youtube', 'YouTube'),
-        ('pinterest', 'Pinterest'),
-        ('snapchat', 'Snapchat'),
-        ('reddit', 'Reddit'),
+        ("instagram", "Instagram"),
+        ("facebook", "Facebook"),
+        ("twitter", "Twitter/X"),
+        ("linkedin", "LinkedIn"),
+        ("tiktok", "TikTok"),
+        ("youtube", "YouTube"),
+        ("pinterest", "Pinterest"),
+        ("snapchat", "Snapchat"),
+        ("reddit", "Reddit"),
     ]
-    
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='social_accounts')
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="social_accounts")
     platform = models.CharField(max_length=20, choices=PLATFORM_CHOICES)
     username = models.CharField(max_length=255)
     access_token = models.TextField()
@@ -61,19 +65,19 @@ class SocialMediaAccount(models.Model):
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    
+
     # Platform-specific data
     platform_user_id = models.CharField(max_length=255, blank=True)
     follower_count = models.IntegerField(default=0)
     following_count = models.IntegerField(default=0)
-    
+
     class Meta:
-        unique_together = ['user', 'platform', 'username']
-        db_table = 'social_media_accounts'
-    
+        unique_together = ["user", "platform", "username"]
+        db_table = "social_media_accounts"
+
     def __str__(self):
         return f"{self.user.username} - {self.platform} ({self.username})"
-    
+
     def is_token_expired(self):
         if not self.token_expires_at:
             return False
@@ -82,23 +86,23 @@ class SocialMediaAccount(models.Model):
 
 class TeamMember(models.Model):
     ROLE_CHOICES = [
-        ('owner', 'Owner'),
-        ('admin', 'Admin'),
-        ('editor', 'Editor'),
-        ('viewer', 'Viewer'),
+        ("owner", "Owner"),
+        ("admin", "Admin"),
+        ("editor", "Editor"),
+        ("viewer", "Viewer"),
     ]
-    
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='team_memberships')
-    team_owner = models.ForeignKey(User, on_delete=models.CASCADE, related_name='team_members')
-    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='viewer')
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="team_memberships")
+    team_owner = models.ForeignKey(User, on_delete=models.CASCADE, related_name="team_members")
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default="viewer")
     invited_at = models.DateTimeField(auto_now_add=True)
     accepted_at = models.DateTimeField(blank=True, null=True)
     is_active = models.BooleanField(default=True)
-    
+
     class Meta:
-        unique_together = ['user', 'team_owner']
-        db_table = 'team_members'
-    
+        unique_together = ["user", "team_owner"]
+        db_table = "team_members"
+
     def __str__(self):
         return f"{self.user.username} - {self.team_owner.username} ({self.role})"
 
