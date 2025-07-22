@@ -77,6 +77,9 @@ jobs:
         echo "EMAIL_HOST_PASSWORD=test-password" >> .env
         echo "FRONTEND_URL=http://localhost:3000" >> .env
 
+    - name: Create logs directory
+      run: mkdir -p backend/logs
+
     - name: Run database migrations
       run: |
         cd backend
@@ -134,7 +137,7 @@ jobs:
       run: |
         cd backend
         pip install -r requirements.txt
-        safety check
+        safety scan
 
     - name: Run security linting with bandit
       run: |
