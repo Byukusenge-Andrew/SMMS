@@ -3,6 +3,7 @@ import logging
 from django.conf import settings
 from django.contrib.auth import login, logout
 from django.contrib.auth.models import User
+from django.core.exceptions import PermissionDenied
 from django.core.mail import send_mail
 from django.template.loader import render_to_string
 from django.utils.decorators import method_decorator
@@ -25,6 +26,7 @@ from .serializers import (
     RegisterSerializer,
     SocialMediaAccountSerializer,
     TeamMemberSerializer,
+    TeamSerializer,
     UserProfileSerializer,
     UserRegistrationSerializer,
     UserSerializer,
@@ -179,17 +181,28 @@ class TeamMemberListView(ListCreateAPIView):
     serializer_class = TeamMemberSerializer
 
     def get_queryset(self):
-        return TeamMember.objects.filter(team_owner=self.request.user)
+        return TeamMember.objects.filter(team__owner=self.request.user)
 
     def perform_create(self, serializer):
         # Logic to invite team members
         email = self.request.data.get("email")
+        team_id = self.request.data.get("team")
+
+        # Get the team object
+        try:
+            team = Team.objects.get(id=team_id, owner=self.request.user)
+        except Team.DoesNotExist:
+            raise PermissionDenied("Team not found or you don't have permission.")
+
         try:
             user = User.objects.get(email=email)
-            serializer.save(user=user, team_owner=self.request.user)
+            serializer.save(user=user, team=team)
         except User.DoesNotExist:
-            # Send invitation email
-            pass
+            # Send invitation email for non-existing users
+            serializer.save(invited_email=email, team=team)
+        except Exception as e:
+            logger.error(f"Error in TeamMemberListView.perform_create: {e}")
+            return Response({"error": "Error inviting team member"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @api_view(["GET"])
@@ -444,7 +457,18 @@ class TeamMemberInviteView(generics.CreateAPIView):
         team = Team.objects.get(id=team_id)
         # Only owner or admin can invite
         member = TeamMember.objects.filter(team=team, user=self.request.user).first()
-        if not member or member.role not in ['owner', 'admin']:
+        if not member or member.role not in ["owner", "admin"]:
             raise PermissionDenied("Only owner or admin can invite members.")
         serializer.save(team=team, invited_email=invited_email, is_active=False)
         # TODO: send invitation email here
+
+
+class TeamListCreateView(generics.ListCreateAPIView):
+    serializer_class = TeamSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return Team.objects.filter(owner=self.request.user)
+
+    def perform_create(self, serializer):
+        serializer.save(owner=self.request.user)

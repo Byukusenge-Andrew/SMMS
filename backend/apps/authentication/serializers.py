@@ -4,7 +4,14 @@ from django.contrib.auth.password_validation import validate_password
 
 from rest_framework import serializers
 
-from .models import SocialMediaAccount, TeamMember, UserProfile
+from .models import SocialMediaAccount, Team, TeamMember, UserProfile
+
+
+class TeamSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Team
+        fields = ["id", "name", "owner", "created_at"]
+        read_only_fields = ["id", "owner", "created_at"]
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -114,11 +121,12 @@ class SocialMediaAccountSerializer(serializers.ModelSerializer):
 
 class TeamMemberSerializer(serializers.ModelSerializer):
     user = UserSerializer(read_only=True)
+    team = TeamSerializer(read_only=True)
 
     class Meta:
         model = TeamMember
-        fields = ["id", "user", "role", "invited_at", "accepted_at", "is_active"]
-        read_only_fields = ["id", "invited_at", "accepted_at"]
+        fields = ["id", "team", "user", "role", "invited_email", "is_active", "invited_at", "joined_at"]
+        read_only_fields = ["id", "invited_at", "joined_at"]
 
 
 class UserRegistrationSerializer(serializers.ModelSerializer):

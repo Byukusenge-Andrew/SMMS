@@ -1,12 +1,13 @@
 from django.urls import path
 
+from .views import TeamMemberInviteView  # Add this
 from .views import debug_auth_open  # Add this
 from .views import (
     LogoutView,
     ProfileView,
     SocialMediaAccountListView,
+    TeamListCreateView,
     TeamMemberListView,
-    TeamMemberInviteView,  # Add this
     debug_auth,
     health_check,
     login_user,
@@ -32,5 +33,6 @@ urlpatterns = [
 ]
 
 urlpatterns += [
-    path("team/invite/", TeamMemberInviteView.as_view(), name="team-invite"),  # Add this
+    path("team/invite/", TeamMemberInviteView.as_view(), name="team-invite"),
+    path("teams/", TeamListCreateView.as_view(), name="teams"),
 ]

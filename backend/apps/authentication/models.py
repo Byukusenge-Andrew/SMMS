@@ -45,6 +45,7 @@ def save_user_profile(sender, instance, **kwargs):
 
 
 class SocialMediaAccount(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     PLATFORM_CHOICES = [
         ("instagram", "Instagram"),
         ("facebook", "Facebook"),
@@ -86,28 +87,40 @@ class SocialMediaAccount(models.Model):
 
 
 class Team(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=255)
     owner = models.ForeignKey(User, related_name="owned_teams", on_delete=models.CASCADE)
     created_at = models.DateTimeField(auto_now_add=True)
 
 
 class TeamMember(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     ROLE_CHOICES = [
         ("owner", "Owner"),
         ("admin", "Admin"),
         ("editor", "Editor"),
         ("viewer", "Viewer"),
     ]
-    team = models.ForeignKey(Team, related_name="members", on_delete=models.CASCADE)
+
+    team = models.ForeignKey(
+        Team, related_name="members", on_delete=models.CASCADE, null=True, blank=True  # Temporarily nullable for migration
+    )
     user = models.ForeignKey(User, related_name="team_memberships", on_delete=models.CASCADE)
     role = models.CharField(max_length=10, choices=ROLE_CHOICES, default="viewer")
     invited_email = models.EmailField(blank=True, null=True)
     is_active = models.BooleanField(default=False)
     invited_at = models.DateTimeField(auto_now_add=True)
-    joined_at = models.DateTimeField(null=True, blank=True)
+    joined_at = models.DateTimeField(null=True, blank=True)  # Renamed from accepted_at
+
+    class Meta:
+        unique_together = ["team", "user"]
+
+    def __str__(self):
+        return f"{self.user.username} - {self.team.name} ({self.role})"
 
 
 class EmailVerificationToken(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     token = models.UUIDField(default=uuid.uuid4, unique=True)
     created_at = models.DateTimeField(auto_now_add=True)

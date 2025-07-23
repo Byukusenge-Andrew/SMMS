@@ -1,3 +1,5 @@
+import uuid
+
 from django.contrib.auth.models import User
 from django.db import models
 
@@ -8,6 +10,7 @@ from apps.posts.models import Post
 class AnalyticsData(models.Model):
     """Store analytics data for posts and accounts"""
 
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     METRIC_TYPES = [
         ("impressions", "Impressions"),
         ("reach", "Reach"),
@@ -50,9 +53,9 @@ class AnalyticsData(models.Model):
         db_table = "analytics_data"
         unique_together = ["social_account", "post", "metric_type", "date", "country", "city"]
         indexes = [
-            models.Index(fields=["user", "date"]),
-            models.Index(fields=["platform", "metric_type"]),
-            models.Index(fields=["post", "metric_type"]),
+            models.Index(fields=["user", "date"], name="analytics_user_date_idx"),
+            models.Index(fields=["platform", "metric_type"], name="analytics_platform_metric_idx"),
+            models.Index(fields=["post", "metric_type"], name="analytics_post_metric_idx"),
         ]
 
     def __str__(self):
@@ -62,6 +65,7 @@ class AnalyticsData(models.Model):
 class CommentAnalytics(models.Model):
     """Store comment analytics and sentiment analysis"""
 
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     SENTIMENT_CHOICES = [
         ("positive", "Positive"),
         ("negative", "Negative"),
@@ -95,6 +99,7 @@ class CommentAnalytics(models.Model):
 class PerformanceReport(models.Model):
     """Generated performance reports"""
 
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     REPORT_TYPES = [
         ("weekly", "Weekly"),
         ("monthly", "Monthly"),
@@ -141,6 +146,7 @@ class PerformanceReport(models.Model):
 class BestPerformingPost(models.Model):
     """Track best performing posts"""
 
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     PERFORMANCE_METRICS = [
         ("engagement_rate", "Engagement Rate"),
         ("reach", "Reach"),
@@ -179,6 +185,7 @@ class BestPerformingPost(models.Model):
 class PlatformAverage(models.Model):
     """Store platform and overall averages"""
 
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="platform_averages")
     platform = models.CharField(max_length=20, blank=True)  # Empty for overall averages
 
@@ -198,7 +205,7 @@ class PlatformAverage(models.Model):
     # Time period
     period_start = models.DateField()
     period_end = models.DateField()
-    period_type = models.CharField(max_length=20)  # weekly, monthly, yearly
+    period_type = models.CharField(max_length=20, default="monthly")  # weekly, monthly, yearly
 
     calculated_at = models.DateTimeField(auto_now=True)
 
@@ -214,6 +221,7 @@ class PlatformAverage(models.Model):
 class AnalyticsInsight(models.Model):
     """AI-generated insights from analytics data"""
 
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     INSIGHT_TYPES = [
         ("trend", "Trend Analysis"),
         ("anomaly", "Anomaly Detection"),

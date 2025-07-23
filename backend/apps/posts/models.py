@@ -1,3 +1,5 @@
+import uuid
+
 from django.contrib.auth.models import User
 from django.db import models
 
@@ -7,6 +9,7 @@ from apps.authentication.models import SocialMediaAccount
 class SocialSet(models.Model):
     """Group of social media accounts for coordinated posting"""
 
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="social_sets")
     name = models.CharField(max_length=255)
     description = models.TextField(blank=True)
@@ -23,6 +26,7 @@ class SocialSet(models.Model):
 
 
 class Post(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     STATUS_CHOICES = [
         ("draft", "Draft"),
         ("scheduled", "Scheduled"),

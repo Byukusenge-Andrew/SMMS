@@ -45,6 +45,7 @@ LOCAL_APPS = [
     "apps.influencers",
     "apps.notifications",
     "apps.collaborators",
+    "apps.health",
 ]
 
 INSTALLED_APPS = (
