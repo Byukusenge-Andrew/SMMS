@@ -1,18 +1,35 @@
 [flake8]
-max-line-length = 127
-max-complexity = 10
+max-line-length = 88
+extend-ignore = E203, E266, E501, W503, F403, F401
+max-complexity = 18
+select = B,C,E,F,W,T4,B9
 exclude = 
     .git,
     __pycache__,
+    docs/source/conf.py,
+    old,
+    build,
+    dist,
     migrations,
     venv,
-    env,
     .venv,
+    .tox,
+    .mypy_cache,
+    .pytest_cache,
+    .coverage,
+
+
+
+
+
+
+
+
+    */venv/*:E501,F401,F403    */settings/*:E501,F401,F403    */migrations/*:E501,F401per-file-ignores =    .envrc    .env,    *.egg-info,    node_modules,    node_modules,
+    *.egg-info,
     .env,
-    staticfiles,
-    media
-ignore = E203,E501,W503
+    .envrc
 per-file-ignores =
-    __init__.py:F401
-    settings.py:E501
     */migrations/*:E501,F401
+    */settings/*:E501,F401,F403
+    */venv/*:E501,F401,F403

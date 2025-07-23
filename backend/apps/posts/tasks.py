@@ -49,7 +49,7 @@ def check_scheduled_posts():
 def generate_post_suggestions(user_id, platform):
     """Generate simple post suggestions - simplified version"""
     try:
-        user = User.objects.get(id=user_id)
+        # user = User.objects.get(id=user_id)
 
         # Simple hardcoded suggestions for now
         suggestions = [
