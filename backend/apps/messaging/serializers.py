@@ -1,5 +1,6 @@
 from rest_framework import serializers
-from .models import Message, AutomatedMessage
+
+from .models import AutomatedMessage, Message
 
 
 class MessageSerializer(serializers.ModelSerializer):

@@ -1,5 +1,6 @@
 from django.contrib import admin
-from .models import Message, AutomatedMessage
+
+from .models import AutomatedMessage, Message
 
 
 @admin.register(Message)

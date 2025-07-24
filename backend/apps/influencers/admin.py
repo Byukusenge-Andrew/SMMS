@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Influencer, Campaign, CampaignApplication
+from .models import Campaign, CampaignApplication, Influencer
 
 
 @admin.register(Influencer)

@@ -1,10 +1,12 @@
+from django.utils import timezone
+
 from rest_framework import generics, permissions, status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
-from django.utils import timezone
-from .models import Message, AutomatedMessage
-from .serializers import MessageSerializer, AutomatedMessageSerializer
-from .tasks import send_message, send_automated_message
+
+from .models import AutomatedMessage, Message
+from .serializers import AutomatedMessageSerializer, MessageSerializer
+from .tasks import send_automated_message, send_message
 
 
 class MessageListCreateView(generics.ListCreateAPIView):

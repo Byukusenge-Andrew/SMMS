@@ -1,16 +1,19 @@
 import logging
 import uuid
+from datetime import timedelta
 
 from django.db import models
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
-from datetime import timedelta
 
 from rest_framework import permissions, status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.generics import ListCreateAPIView, RetrieveUpdateDestroyAPIView
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+
+# Import for analytics
+from apps.analytics.models import AnalyticsData
 
 from .models import Holiday, Post, PostSuggestion, PostTemplate, SocialSet
 from .serializers import (
@@ -20,10 +23,7 @@ from .serializers import (
     PostTemplateSerializer,
     SocialSetSerializer,
 )
-from .tasks import generate_post_suggestions, publish_scheduled_post, bulk_post_operation
-
-# Import for analytics
-from apps.analytics.models import AnalyticsData
+from .tasks import bulk_post_operation, generate_post_suggestions, publish_scheduled_post
 
 logger = logging.getLogger(__name__)
 

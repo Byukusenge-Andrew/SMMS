@@ -1,8 +1,10 @@
-from celery import shared_task
-from django.core.mail import send_mail
-from django.conf import settings
-from django.utils import timezone  # Add this import
 import logging
+
+from django.conf import settings
+from django.core.mail import send_mail
+from django.utils import timezone  # Add this import
+
+from celery import shared_task
 
 logger = logging.getLogger(__name__)
 

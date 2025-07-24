@@ -1,7 +1,10 @@
-from rest_framework import serializers
 from django.contrib.auth.models import User
-from .models import Campaign, CampaignApplication, Influencer
+
+from rest_framework import serializers
+
 from apps.authentication.models import SocialMediaAccount
+
+from .models import Campaign, CampaignApplication, Influencer
 
 
 class InfluencerSerializer(serializers.ModelSerializer):
