@@ -6,7 +6,6 @@ urlpatterns = [
     path("dashboard/", views.analytics_dashboard, name="analytics-dashboard"),
     path("collect/", views.collect_analytics, name="collect-analytics"),
     path("sentiment/", views.comment_sentiment_analysis, name="sentiment-analysis"),
-    
     # Enable these working endpoints
     path("reports/", views.performance_reports, name="performance-reports"),
     path("best-posts/", views.best_performing_posts, name="best-posts"),

@@ -146,11 +146,15 @@ def location_heatmap(request):
             location_data = location_data.filter(platform=platform)
 
         # Aggregate by location
-        heatmap_data = location_data.values("country", "city").annotate(
-            total_engagement=models.Sum("value"),
-            post_count=models.Count("post", distinct=True),
-            avg_engagement=models.Avg("value"),
-        ).order_by("-total_engagement")
+        heatmap_data = (
+            location_data.values("country", "city")
+            .annotate(
+                total_engagement=models.Sum("value"),
+                post_count=models.Count("post", distinct=True),
+                avg_engagement=models.Avg("value"),
+            )
+            .order_by("-total_engagement")
+        )
 
         return Response(
             {
@@ -196,13 +200,17 @@ def reels_analytics(request):
         )
 
         # Get top performing reels
-        top_reels = AnalyticsData.objects.filter(
-            user=user,
-            platform=platform,
-            date__gte=start_date,
-            post__content_type__in=["video", "reel"],
-            metric_type="views",
-        ).select_related("post").order_by("-value")[:10]
+        top_reels = (
+            AnalyticsData.objects.filter(
+                user=user,
+                platform=platform,
+                date__gte=start_date,
+                post__content_type__in=["video", "reel"],
+                metric_type="views",
+            )
+            .select_related("post")
+            .order_by("-value")[:10]
+        )
 
         return Response(
             {
@@ -234,32 +242,26 @@ def weekly_report(request):
     """Get or generate weekly performance report"""
     try:
         user = request.user
-        
+
         # Check if report exists for this week
         today = timezone.now().date()
         week_start = today - timedelta(days=today.weekday())
-        
-        report = PerformanceReport.objects.filter(
-            user=user,
-            report_type='weekly',
-            start_date=week_start
-        ).first()
-        
+
+        report = PerformanceReport.objects.filter(user=user, report_type="weekly", start_date=week_start).first()
+
         if not report:
             # Generate new report
             from .tasks import generate_performance_report
-            report_id = generate_performance_report(user.id, 'weekly')
+
+            report_id = generate_performance_report(user.id, "weekly")
             report = PerformanceReport.objects.get(id=report_id)
-        
+
         serializer = PerformanceReportSerializer(report)
         return Response(serializer.data)
-        
+
     except Exception as e:
         logger.error(f"Error getting weekly report: {str(e)}")
-        return Response(
-            {"error": "Failed to get weekly report"}, 
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
+        return Response({"error": "Failed to get weekly report"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @api_view(["GET"])
@@ -268,30 +270,24 @@ def monthly_report(request):
     """Get or generate monthly performance report"""
     try:
         user = request.user
-        
+
         today = timezone.now().date()
         month_start = today.replace(day=1)
-        
-        report = PerformanceReport.objects.filter(
-            user=user,
-            report_type='monthly',
-            start_date=month_start
-        ).first()
-        
+
+        report = PerformanceReport.objects.filter(user=user, report_type="monthly", start_date=month_start).first()
+
         if not report:
             from .tasks import generate_performance_report
-            report_id = generate_performance_report(user.id, 'monthly')
+
+            report_id = generate_performance_report(user.id, "monthly")
             report = PerformanceReport.objects.get(id=report_id)
-        
+
         serializer = PerformanceReportSerializer(report)
         return Response(serializer.data)
-        
+
     except Exception as e:
         logger.error(f"Error getting monthly report: {str(e)}")
-        return Response(
-            {"error": "Failed to get monthly report"}, 
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
+        return Response({"error": "Failed to get monthly report"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @api_view(["GET"])
@@ -300,27 +296,21 @@ def yearly_report(request):
     """Get or generate yearly performance report"""
     try:
         user = request.user
-        
+
         today = timezone.now().date()
         year_start = today.replace(month=1, day=1)
-        
-        report = PerformanceReport.objects.filter(
-            user=user,
-            report_type='yearly',
-            start_date=year_start
-        ).first()
-        
+
+        report = PerformanceReport.objects.filter(user=user, report_type="yearly", start_date=year_start).first()
+
         if not report:
             from .tasks import generate_performance_report
-            report_id = generate_performance_report(user.id, 'yearly')
+
+            report_id = generate_performance_report(user.id, "yearly")
             report = PerformanceReport.objects.get(id=report_id)
-        
+
         serializer = PerformanceReportSerializer(report)
         return Response(serializer.data)
-        
+
     except Exception as e:
         logger.error(f"Error getting yearly report: {str(e)}")
-        return Response(
-            {"error": "Failed to get yearly report"}, 
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
+        return Response({"error": "Failed to get yearly report"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

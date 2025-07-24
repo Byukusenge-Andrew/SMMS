@@ -31,7 +31,6 @@ urlpatterns = [
     path("health/", health_check, name="health"),
     path("verify-email/<str:token>/", verify_email, name="verify_email"),
     path("resend-verification/", resend_verification_email, name="resend_verification"),
-    
     # Settings endpoints
     path("settings/time-format/", user_time_format_setting, name="time-format-setting"),
 ]
