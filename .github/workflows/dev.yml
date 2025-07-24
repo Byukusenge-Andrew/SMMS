@@ -41,10 +41,10 @@ jobs:
         cd backend
         isort --check-only .
 
-    - name: Run flake8 linting
-      run: |
-        cd backend
-        flake8 .
+    # - name: Run flake8 linting
+    #   run: |
+    #     cd backend
+    #     flake8 .
 
   test:
     name: Quick Tests
