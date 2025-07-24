@@ -2,6 +2,7 @@ from django.urls import path
 
 from .views import TeamMemberInviteView  # Add this
 from .views import debug_auth_open  # Add this
+from .views import login_view  # Import the function instead
 from .views import user_time_format_setting  # Add this import
 from .views import (
     LogoutView,
@@ -11,7 +12,6 @@ from .views import (
     TeamMemberListView,
     debug_auth,
     health_check,
-    login_view,  # Import the function instead
     register,
     resend_verification_email,
     user_dashboard,

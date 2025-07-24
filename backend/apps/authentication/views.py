@@ -257,7 +257,7 @@ def health_check(request):
 #         status=status.HTTP_201_CREATED,
 #     )
 
-   
+
 @csrf_exempt
 @extend_schema(
     request=UserRegistrationSerializer,
