@@ -70,26 +70,25 @@ class RegisterView(APIView):
     },
     summary="Login user",
 )
-@method_decorator(csrf_exempt, name="dispatch")
-class LoginView(APIView):
-    permission_classes = [permissions.AllowAny]
-
-    def post(self, request):
-        serializer = LoginSerializer(data=request.data)
-        if serializer.is_valid():
-            user = serializer.validated_data["user"]
-            token, created = Token.objects.get_or_create(user=user)
-            login(request, user)
-            return Response(
-                {
-                    "user": UserSerializer(user).data,
-                    "token": token.key,
-                    "profile": UserProfileSerializer(user.profile).data,
-                    "message": "Login successful",
-                },
-                status=status.HTTP_200_OK,
-            )
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+@api_view(["POST"])
+@permission_classes([permissions.AllowAny])
+def login_view(request):
+    """Function-based login view"""
+    serializer = LoginSerializer(data=request.data)
+    if serializer.is_valid():
+        user = serializer.validated_data["user"]
+        token, created = Token.objects.get_or_create(user=user)
+        login(request, user)
+        return Response(
+            {
+                "user": UserSerializer(user).data,
+                "token": token.key,
+                "profile": UserProfileSerializer(user.profile).data,
+                "message": "Login successful",
+            },
+            status=status.HTTP_200_OK,
+        )
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 class LogoutView(APIView):
@@ -232,35 +231,33 @@ def health_check(request):
     return Response({"status": "healthy", "message": "Social Media Manager API is running"})
 
 
-@csrf_exempt
-@api_view(["POST"])
-@permission_classes([permissions.AllowAny])
-def register(request):
-    serializer = UserRegistrationSerializer(data=request.data)
-    if serializer.is_valid():
-        user = serializer.save()
-        user.is_active = False  # Deactivate until email verification
-        user.save()
+# @csrf_exempt
+# @api_view(["POST"])
+# @permission_classes([permissions.AllowAny])
+# def register(request):
+#     serializer = UserRegistrationSerializer(data=request.data)
+#     if serializer.is_valid():
+#         user = serializer.save()
+#         user.is_active = False  # Deactivate until email verification
+#         user.save()
 
-        # Create email verification token
-        verification_token = EmailVerificationToken.objects.create(user=user)
+#         # Create email verification token
+#         verification_token = EmailVerificationToken.objects.create(user=user)
 
-        # Send verification email
-        send_verification_email(user, verification_token.token)
+#         # Send verification email
+#         send_verification_email(user, verification_token.token)
 
-    return Response(
-        {
-            "message": "Registration successful. Please check your email to verify your account.",
-            "user_id": user.id,
-            "username": user.username,
-            "profile_uuid": str(user.profile.id),
-        },
-        status=status.HTTP_201_CREATED,
-    )
+#     return Response(
+#         {
+#             "message": "Registration successful. Please check your email to verify your account.",
+#             "user_id": user.id,
+#             "username": user.username,
+#             "profile_uuid": str(user.profile.id),
+#         },
+#         status=status.HTTP_201_CREATED,
+#     )
 
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-
+   
 @csrf_exempt
 @extend_schema(
     request=UserRegistrationSerializer,
@@ -424,27 +421,6 @@ def debug_auth_open(request):
             "settings_auth_classes": settings.REST_FRAMEWORK.get("DEFAULT_AUTHENTICATION_CLASSES", "Not found"),
         }
     )
-
-
-@csrf_exempt
-@api_view(["POST"])
-@permission_classes([permissions.AllowAny])
-def login_user(request):
-    serializer = LoginSerializer(data=request.data)
-    if serializer.is_valid():
-        user = serializer.validated_data["user"]
-        token, created = Token.objects.get_or_create(user=user)
-        login(request, user)
-        return Response(
-            {
-                "user": UserSerializer(user).data,
-                "token": token.key,
-                "profile": UserProfileSerializer(user.profile).data,
-                "message": "Login successful",
-            },
-            status=status.HTTP_200_OK,
-        )
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 class TeamMemberInviteView(generics.CreateAPIView):

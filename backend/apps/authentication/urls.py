@@ -11,7 +11,7 @@ from .views import (
     TeamMemberListView,
     debug_auth,
     health_check,
-    login_user,
+    login_view,  # Import the function instead
     register,
     resend_verification_email,
     user_dashboard,
@@ -20,7 +20,7 @@ from .views import (
 
 urlpatterns = [
     path("register/", register, name="register"),
-    path("login/", login_user, name="login"),
+    path("login/", login_view, name="login"),  # Use function directly, no .as_view()
     path("logout/", LogoutView.as_view(), name="logout"),
     path("profile/", ProfileView.as_view(), name="profile"),
     path("debug-auth/", debug_auth, name="debug-auth"),

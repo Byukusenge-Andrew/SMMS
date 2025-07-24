@@ -49,9 +49,9 @@ def send_message(message_id):
             message = Message.objects.get(id=message_id)
             message.status = "failed"
             message.save()
-        except:
-            pass
-        return False
+        except Exception as e:
+            logger.error(f"Error saving message {message_id}: {str(e)}")
+    return False
 
 
 def send_instagram_message(message):
