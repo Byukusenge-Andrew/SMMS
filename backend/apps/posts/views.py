@@ -1,81 +1,58 @@
-from django.utils import timezone
+import logging
+import uuid
 
-from django_filters.rest_framework import DjangoFilterBackend
+from django.db import models
+from django.shortcuts import get_object_or_404
+from django.utils import timezone
+from datetime import timedelta
+
 from rest_framework import permissions, status
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.filters import OrderingFilter, SearchFilter
 from rest_framework.generics import ListCreateAPIView, RetrieveUpdateDestroyAPIView
-from rest_framework.pagination import PageNumberPagination
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from .models import Holiday, Post, PostSuggestion, PostTemplate, SocialSet
 from .serializers import (
-    BulkPostSerializer,
     HolidaySerializer,
-    PostCreateSerializer,
     PostSerializer,
     PostSuggestionSerializer,
     PostTemplateSerializer,
     SocialSetSerializer,
 )
-from .tasks import bulk_post_operation, generate_hashtag_suggestions, generate_post_suggestions, publish_scheduled_post
+from .tasks import generate_post_suggestions, publish_scheduled_post, bulk_post_operation
 
+# Import for analytics
+from apps.analytics.models import AnalyticsData
 
-class StandardResultsSetPagination(PageNumberPagination):
-    page_size = 20
-    page_size_query_param = "page_size"
-    max_page_size = 100
+logger = logging.getLogger(__name__)
 
 
 class PostListCreateView(ListCreateAPIView):
+    """List posts or create a new post"""
     serializer_class = PostSerializer
-    pagination_class = StandardResultsSetPagination
-    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
-    filterset_fields = ["platform", "status", "post_type", "is_locked"]
-    search_fields = ["content", "caption", "hashtags"]
-    ordering_fields = ["scheduled_time", "created_at", "updated_at"]
-    ordering = ["-scheduled_time"]
+    permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
         return Post.objects.filter(user=self.request.user)
 
-    def get_serializer_class(self):
-        if self.request.method == "POST":
-            return PostCreateSerializer
-        return PostSerializer
-
     def perform_create(self, serializer):
-        post = serializer.save()
-
-        # Schedule the post for publishing
-        if post.status == "scheduled":
-            publish_scheduled_post.apply_async(args=[post.id], eta=post.scheduled_time)
-
-        # Generate suggestions if requested
-        if self.request.data.get("generate_suggestions"):
-            generate_post_suggestions.delay(self.request.user.id, post.platform)
+        serializer.save(user=self.request.user)
 
 
 class PostDetailView(RetrieveUpdateDestroyAPIView):
+    """Retrieve, update or delete a post"""
     serializer_class = PostSerializer
+    permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
         return Post.objects.filter(user=self.request.user)
 
-    def update(self, request, *args, **kwargs):
-        post = self.get_object()
-
-        # Check if post can be edited
-        if not post.can_edit():
-            return Response(
-                {"error": "Post cannot be edited (locked or already published)"}, status=status.HTTP_400_BAD_REQUEST
-            )
-
-        return super().update(request, *args, **kwargs)
-
 
 class PostTemplateListCreateView(ListCreateAPIView):
+    """List templates or create a new template"""
     serializer_class = PostTemplateSerializer
+    permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
         return PostTemplate.objects.filter(user=self.request.user)
@@ -85,14 +62,18 @@ class PostTemplateListCreateView(ListCreateAPIView):
 
 
 class PostTemplateDetailView(RetrieveUpdateDestroyAPIView):
+    """Retrieve, update or delete a template"""
     serializer_class = PostTemplateSerializer
+    permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
         return PostTemplate.objects.filter(user=self.request.user)
 
 
 class SocialSetListCreateView(ListCreateAPIView):
+    """List social sets or create a new social set"""
     serializer_class = SocialSetSerializer
+    permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
         return SocialSet.objects.filter(user=self.request.user)
@@ -102,35 +83,25 @@ class SocialSetListCreateView(ListCreateAPIView):
 
 
 class SocialSetDetailView(RetrieveUpdateDestroyAPIView):
+    """Retrieve, update or delete a social set"""
     serializer_class = SocialSetSerializer
+    permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
         return SocialSet.objects.filter(user=self.request.user)
 
 
 class HolidayListView(ListCreateAPIView):
+    """List holidays"""
     serializer_class = HolidaySerializer
-    queryset = Holiday.objects.filter(is_active=True)
-    filter_backends = [DjangoFilterBackend]
-    filterset_fields = ["country", "category"]
-
-    def get_queryset(self):
-        queryset = super().get_queryset()
-        date_from = self.request.query_params.get("date_from")
-        date_to = self.request.query_params.get("date_to")
-
-        if date_from:
-            queryset = queryset.filter(date__gte=date_from)
-        if date_to:
-            queryset = queryset.filter(date__lte=date_to)
-
-        return queryset.order_by("date")
+    permission_classes = [IsAuthenticated]
+    queryset = Holiday.objects.all()
 
 
 class PostSuggestionListView(ListCreateAPIView):
+    """List post suggestions"""
     serializer_class = PostSuggestionSerializer
-    filter_backends = [DjangoFilterBackend]
-    filterset_fields = ["suggestion_type", "platform", "is_used"]
+    permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
         return PostSuggestion.objects.filter(user=self.request.user)
@@ -140,82 +111,102 @@ class PostSuggestionListView(ListCreateAPIView):
 @permission_classes([permissions.IsAuthenticated])
 def generate_suggestions(request):
     """Generate AI-powered suggestions"""
-    platform = request.data.get("platform")
-    content = request.data.get("content", "")
-    suggestion_type = request.data.get("type", "content")
+    niche = request.data.get("niche", "general")
+    platform = request.data.get("platform", "instagram")
+    count = request.data.get("count", 5)
 
-    if not platform:
-        return Response({"error": "Platform is required"}, status=status.HTTP_400_BAD_REQUEST)
+    # Trigger async task
+    generate_post_suggestions.delay(request.user.id, platform)
 
-    if suggestion_type == "content":
-        generate_post_suggestions.delay(request.user.id, platform)
-    elif suggestion_type == "hashtag" and content:
-        generate_hashtag_suggestions.delay(request.user.id, content, platform)
-    else:
-        return Response({"error": "Invalid suggestion type or missing content"}, status=status.HTTP_400_BAD_REQUEST)
-
-    return Response({"message": "Suggestions are being generated"}, status=status.HTTP_202_ACCEPTED)
+    return Response({"message": "Suggestions generation started"}, status=status.HTTP_202_ACCEPTED)
 
 
 @api_view(["POST"])
 @permission_classes([permissions.IsAuthenticated])
 def bulk_post_actions(request):
     """Perform bulk actions on posts"""
-    serializer = BulkPostSerializer(data=request.data)
-    if serializer.is_valid():
-        post_ids = serializer.validated_data["post_ids"]
-        action = serializer.validated_data["action"]
+    action = request.data.get("action")
+    post_ids = request.data.get("post_ids", [])
 
-        # Verify user owns these posts
-        user_posts = Post.objects.filter(id__in=post_ids, user=request.user).values_list("id", flat=True)
+    if not action or not post_ids:
+        return Response({"error": "Action and post_ids are required"}, status=status.HTTP_400_BAD_REQUEST)
 
-        if len(user_posts) != len(post_ids):
-            return Response({"error": "Some posts not found or not owned by user"}, status=status.HTTP_400_BAD_REQUEST)
+    posts = Post.objects.filter(id__in=post_ids, user=request.user)
 
-        # Execute bulk operation
-        kwargs = {}
-        if action == "reschedule":
-            kwargs["scheduled_time"] = serializer.validated_data["scheduled_time"]
+    if action == "delete":
+        count = posts.count()
+        posts.delete()
+        return Response({"message": f"Deleted {count} posts"})
 
-        bulk_post_operation.delay(post_ids, action, request.user.id, **kwargs)
+    elif action == "publish":
+        count = 0
+        for post in posts:
+            if post.status == "draft":
+                post.status = "scheduled" if post.scheduled_time else "published"
+                post.save()
+                count += 1
+        return Response({"message": f"Published {count} posts"})
 
-        return Response({"message": f"Bulk {action} operation initiated"}, status=status.HTTP_202_ACCEPTED)
+    elif action == "schedule":
+        scheduled_time = request.data.get("scheduled_time")
+        if not scheduled_time:
+            return Response({"error": "scheduled_time is required for schedule action"}, status=status.HTTP_400_BAD_REQUEST)
 
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        count = posts.update(scheduled_time=scheduled_time, status="scheduled")
+        return Response({"message": f"Scheduled {count} posts"})
+
+    return Response({"error": "Invalid action"}, status=status.HTTP_400_BAD_REQUEST)
 
 
 @api_view(["GET"])
 @permission_classes([permissions.IsAuthenticated])
 def calendar_view(request):
     """Get posts for calendar view"""
-    date_from = request.query_params.get("date_from")
-    date_to = request.query_params.get("date_to")
+    user = request.user
+    
+    # Get date range from query params
+    start_date = request.query_params.get("start_date")
+    end_date = request.query_params.get("end_date")
+    
+    if start_date and end_date:
+        posts = Post.objects.filter(
+            user=user,
+            scheduled_time__date__gte=start_date,
+            scheduled_time__date__lte=end_date
+        )
+    else:
+        # Default to current month
+        now = timezone.now()
+        start_of_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        if now.month == 12:
+            end_of_month = now.replace(year=now.year + 1, month=1, day=1) - timedelta(days=1)
+        else:
+            end_of_month = now.replace(month=now.month + 1, day=1) - timedelta(days=1)
+        
+        posts = Post.objects.filter(
+            user=user,
+            scheduled_time__gte=start_of_month,
+            scheduled_time__lte=end_of_month
+        )
 
-    queryset = Post.objects.filter(user=request.user)
-
-    if date_from:
-        queryset = queryset.filter(scheduled_time__gte=date_from)
-    if date_to:
-        queryset = queryset.filter(scheduled_time__lte=date_to)
-
-    posts = queryset.order_by("scheduled_time")
-
-    # Group posts by date for calendar view
-    calendar_data = {}
+    # Format for calendar
+    calendar_posts = []
     for post in posts:
-        date_key = post.scheduled_time.date().isoformat()
-        if date_key not in calendar_data:
-            calendar_data[date_key] = []
-        calendar_data[date_key].append(PostSerializer(post).data)
+        calendar_posts.append({
+            "id": str(post.id),
+            "title": post.content[:50] + "..." if len(post.content) > 50 else post.content,
+            "start": post.scheduled_time.isoformat() if post.scheduled_time else None,
+            "platform": post.platform,
+            "status": post.status,
+            "color": {
+                "draft": "#gray-500",
+                "scheduled": "#blue-500", 
+                "published": "#green-500",
+                "failed": "#red-500"
+            }.get(post.status, "#gray-500")
+        })
 
-    return Response(
-        {
-            "calendar_data": calendar_data,
-            "holidays": HolidaySerializer(
-                Holiday.objects.filter(date__gte=date_from, date__lte=date_to, is_active=True), many=True
-            ).data,
-        }
-    )
+    return Response({"posts": calendar_posts})
 
 
 @api_view(["GET"])
@@ -252,3 +243,232 @@ def dashboard_stats(request):
             "templates_count": PostTemplate.objects.filter(user=user).count(),
         }
     )
+
+
+@api_view(["POST"])
+@permission_classes([permissions.IsAuthenticated])
+def share_calendar(request):
+    """Share calendar via Slack or email"""
+    try:
+        share_type = request.data.get('type')  # 'slack' or 'email'
+        recipients = request.data.get('recipients', [])
+        date_range = request.data.get('date_range', 30)  # days
+        
+        user = request.user
+        end_date = timezone.now().date()
+        start_date = end_date - timedelta(days=date_range)
+        
+        # Get scheduled posts for the period
+        posts = Post.objects.filter(
+            user=user,
+            scheduled_time__date__gte=start_date,
+            scheduled_time__date__lte=end_date,
+            status__in=['scheduled', 'published']
+        ).order_by('scheduled_time')
+        
+        # Create calendar data
+        calendar_data = []
+        for post in posts:
+            calendar_data.append({
+                'id': str(post.id),
+                'title': post.content[:50] + '...' if len(post.content) > 50 else post.content,
+                'platform': post.platform,
+                'scheduled_time': post.scheduled_time,
+                'status': post.status
+            })
+        
+        if share_type == 'slack':
+            from .tasks import share_calendar_slack
+            share_calendar_slack.delay(user.id, calendar_data, recipients)
+            
+        elif share_type == 'email':
+            from .tasks import share_calendar_email
+            share_calendar_email.delay(user.id, calendar_data, recipients)
+        
+        return Response({
+            "message": f"Calendar shared via {share_type}",
+            "posts_count": len(calendar_data),
+            "date_range": f"{start_date} to {end_date}"
+        })
+        
+    except Exception as e:
+        logger.error(f"Error sharing calendar: {str(e)}")
+        return Response(
+            {"error": "Failed to share calendar"}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(["POST"])
+@permission_classes([permissions.IsAuthenticated])
+def multi_platform_post(request):
+    """Post same content to multiple platforms"""
+    try:
+        platforms = request.data.get('platforms', [])
+        content = request.data.get('content')
+        media_urls = request.data.get('media_urls', [])
+        scheduled_time = request.data.get('scheduled_time')
+        location = request.data.get('location')
+        tags = request.data.get('tags', [])
+        
+        if not platforms or not content:
+            return Response(
+                {"error": "Platforms and content are required"}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        created_posts = []
+        multi_platform_group_id = uuid.uuid4()  # Group related posts
+        
+        for platform in platforms:
+            # Adapt content for platform-specific requirements
+            adapted_content = adapt_content_for_platform(content, platform)
+            adapted_media = adapt_media_for_platform(media_urls, platform)
+            
+            post = Post.objects.create(
+                user=request.user,
+                content=adapted_content,
+                platform=platform,
+                media_urls=adapted_media,
+                scheduled_time=scheduled_time,
+                location=location,
+                tags=tags,
+                status='scheduled' if scheduled_time else 'draft',
+                # Store multi-platform group ID in metadata or create separate field
+            )
+            
+            created_posts.append({
+                'id': str(post.id),
+                'platform': platform,
+                'content': adapted_content[:100] + '...' if len(adapted_content) > 100 else adapted_content,
+                'status': post.status
+            })
+            
+            # Schedule for immediate publishing if no scheduled time
+            if not scheduled_time:
+                publish_scheduled_post.delay(post.id)
+        
+        return Response({
+            "message": f"Created posts for {len(platforms)} platforms",
+            "posts": created_posts,
+            "multi_platform_group_id": str(multi_platform_group_id)
+        })
+        
+    except Exception as e:
+        logger.error(f"Error creating multi-platform post: {str(e)}")
+        return Response(
+            {"error": "Failed to create multi-platform post"}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+def adapt_content_for_platform(content, platform):
+    """Adapt content based on platform requirements"""
+    if platform == 'twitter' and len(content) > 280:
+        return content[:276] + "..."
+    elif platform == 'instagram' and len(content) > 2200:
+        return content[:2196] + "..."
+    elif platform == 'linkedin':
+        # Add professional tone adaptations
+        if not content.endswith('.'):
+            content += '.'
+    
+    return content
+
+
+def adapt_media_for_platform(media_urls, platform):
+    """Adapt media based on platform requirements"""
+    if platform == 'twitter':
+        # Twitter supports max 4 images or 1 video
+        return media_urls[:4]
+    elif platform == 'instagram':
+        # Instagram supports max 10 images/videos
+        return media_urls[:10]
+    elif platform == 'linkedin':
+        # LinkedIn supports max 1 image or video per post
+        return media_urls[:1]
+    
+    return media_urls
+
+
+@api_view(["GET"])
+@permission_classes([permissions.AllowAny])  # Public endpoint
+def brand_wall(request):
+    """Get posts for brand wall display (social proof)"""
+    try:
+        hashtag = request.query_params.get('hashtag')
+        tag = request.query_params.get('tag')
+        platform = request.query_params.get('platform')
+        limit = int(request.query_params.get('limit', 20))
+        
+        # Base query for published posts only
+        posts = Post.objects.filter(
+            status='published',
+            # Only show posts marked as public - add this field to Post model if needed
+        ).select_related('user')
+        
+        # Filter by hashtag
+        if hashtag:
+            posts = posts.filter(content__icontains=f"#{hashtag}")
+        
+        # Filter by tag
+        if tag:
+            posts = posts.filter(tags__contains=[tag])
+        
+        # Filter by platform
+        if platform:
+            posts = posts.filter(platform=platform)
+        
+        # Order by engagement and recent posts
+        posts = posts.annotate(
+            engagement_score=models.Avg('analytics__value', filter=models.Q(analytics__metric_type='engagement_rate'))
+        ).order_by('-engagement_score', '-created_at')[:limit]
+        
+        brand_wall_data = []
+        for post in posts:
+            # Get analytics for the post
+            analytics = AnalyticsData.objects.filter(post=post).aggregate(
+                likes=models.Sum('value', filter=models.Q(metric_type='likes')),
+                comments=models.Sum('value', filter=models.Q(metric_type='comments')),
+                shares=models.Sum('value', filter=models.Q(metric_type='shares'))
+            )
+            
+            brand_wall_data.append({
+                'id': str(post.id),
+                'content': post.content,
+                'platform': post.platform,
+                'media_urls': post.media_urls,
+                'created_at': post.created_at,
+                'user': {
+                    'username': post.user.username,
+                    'profile_image': getattr(post.user.profile, 'avatar', None) if hasattr(post.user, 'profile') else None
+                },
+                'analytics': analytics,
+                'hashtags': extract_hashtags(post.content),
+                'engagement_score': post.engagement_score or 0
+            })
+        
+        return Response({
+            'posts': brand_wall_data,
+            'total_count': len(brand_wall_data),
+            'filters': {
+                'hashtag': hashtag,
+                'tag': tag,
+                'platform': platform
+            }
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting brand wall: {str(e)}")
+        return Response(
+            {"error": "Failed to get brand wall posts"}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+def extract_hashtags(content):
+    """Extract hashtags from post content"""
+    import re
+    hashtag_pattern = r'#\w+'
+    hashtags = re.findall(hashtag_pattern, content)
+    return [tag.lower() for tag in hashtags]

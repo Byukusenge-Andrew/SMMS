@@ -46,6 +46,7 @@ LOCAL_APPS = [
     "apps.notifications",
     "apps.collaborators",
     "apps.health",
+    "apps.messaging",  # Add this line
 ]
 
 INSTALLED_APPS = (

@@ -14,6 +14,7 @@ from .views import (
     register,
     resend_verification_email,
     user_dashboard,
+    user_time_format_setting,  # Add this import
     verify_email,
 )
 
@@ -23,13 +24,16 @@ urlpatterns = [
     path("logout/", LogoutView.as_view(), name="logout"),
     path("profile/", ProfileView.as_view(), name="profile"),
     path("debug-auth/", debug_auth, name="debug-auth"),
-    path("debug-auth-open/", debug_auth_open, name="debug-auth-open"),  # Add this
+    path("debug-auth-open/", debug_auth_open, name="debug-auth-open"),
     path("social-accounts/", SocialMediaAccountListView.as_view(), name="social-accounts"),
     path("team-members/", TeamMemberListView.as_view(), name="team-members"),
     path("dashboard/", user_dashboard, name="dashboard"),
     path("health/", health_check, name="health"),
     path("verify-email/<str:token>/", verify_email, name="verify_email"),
     path("resend-verification/", resend_verification_email, name="resend_verification"),
+    
+    # Settings endpoints
+    path("settings/time-format/", user_time_format_setting, name="time-format-setting"),
 ]
 
 urlpatterns += [

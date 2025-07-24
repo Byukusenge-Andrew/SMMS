@@ -15,7 +15,12 @@ class UserProfile(models.Model):
     company_name = models.CharField(max_length=255, blank=True, default="")
     avatar = models.ImageField(upload_to="avatars/", null=True, blank=True)
     subscription_type = models.CharField(max_length=20, default="free")
-    time_format = models.CharField(max_length=20, default="standard")
+    time_format = models.CharField(
+        max_length=3,
+        choices=[("12h", "12 Hour"), ("24h", "24 Hour")],
+        default="12h",
+    )
+    timezone = models.CharField(max_length=50, default="UTC")
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

@@ -37,6 +37,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
             "avatar",
             "subscription_type",
             "time_format",
+            "timezone",
             "email_notifications",
             "slack_notifications",
             "created_at",

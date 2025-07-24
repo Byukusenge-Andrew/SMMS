@@ -13,11 +13,12 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/auth/", include("apps.authentication.urls")),
     path("api/posts/", include("apps.posts.urls")),
-    path("api/analytics/", include("apps.analytics.urls")),
+    path("api/analytics/", include("apps.analytics.urls")),  # Enable analytics
     path("api/integrations/", include("apps.integrations.urls")),
     path("api/influencers/", include("apps.influencers.urls")),
     path("api/notifications/", include("apps.notifications.urls")),
     path("api/collaborators/", include("apps.collaborators.urls")),
+    path("api/messaging/", include("apps.messaging.urls")),  # Enable messaging
     # API Documentation
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
     path("api/docs/", SpectacularSwaggerView.as_view(url_name="schema"), name="swagger-ui"),

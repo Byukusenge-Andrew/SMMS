@@ -472,3 +472,45 @@ class TeamListCreateView(generics.ListCreateAPIView):
 
     def perform_create(self, serializer):
         serializer.save(owner=self.request.user)
+
+
+@api_view(["POST", "GET"])
+@permission_classes([IsAuthenticated])
+def user_time_format_setting(request):
+    """Manage user time format preference"""
+    try:
+        # Get or create user profile
+        profile, created = UserProfile.objects.get_or_create(user=request.user)
+        
+        if request.method == "GET":
+            return Response({
+                "time_format": getattr(profile, 'time_format', '12h'),
+                "timezone": getattr(profile, 'timezone', 'UTC')
+            })
+        
+        elif request.method == "POST":
+            time_format = request.data.get('time_format', '12h')  # '12h' or '24h'
+            timezone_pref = request.data.get('timezone', 'UTC')
+            
+            if time_format not in ['12h', '24h']:
+                return Response(
+                    {"error": "Invalid time format. Use '12h' or '24h'"}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            profile.time_format = time_format
+            profile.timezone = timezone_pref
+            profile.save()
+            
+            return Response({
+                "message": "Time format updated successfully",
+                "time_format": time_format,
+                "timezone": timezone_pref
+            })
+            
+    except Exception as e:
+        logger.error(f"Error managing time format setting: {str(e)}")
+        return Response(
+            {"error": "Failed to manage time format setting"}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )

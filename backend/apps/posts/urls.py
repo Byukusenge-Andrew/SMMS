@@ -1,36 +1,26 @@
 from django.urls import path
-
-from .views import (
-    HolidayListView,
-    PostDetailView,
-    PostListCreateView,
-    PostSuggestionListView,
-    PostTemplateDetailView,
-    PostTemplateListCreateView,
-    SocialSetDetailView,
-    SocialSetListCreateView,
-    bulk_post_actions,
-    calendar_view,
-    dashboard_stats,
-    generate_suggestions,
-)
+from . import views
 
 urlpatterns = [
     # Posts
-    path("", PostListCreateView.as_view(), name="post-list-create"),
-    path("<int:pk>/", PostDetailView.as_view(), name="post-detail"),
-    path("bulk-actions/", bulk_post_actions, name="bulk-post-actions"),
-    path("calendar/", calendar_view, name="calendar-view"),
-    path("dashboard/", dashboard_stats, name="dashboard-stats"),
+    path("", views.PostListCreateView.as_view(), name="post-list-create"),
+    path("<uuid:pk>/", views.PostDetailView.as_view(), name="post-detail"),
+    path("bulk-actions/", views.bulk_post_actions, name="bulk-actions"),
+    path("calendar/", views.calendar_view, name="calendar"),
+    path("dashboard/", views.dashboard_stats, name="dashboard-stats"),
     # Templates
-    path("templates/", PostTemplateListCreateView.as_view(), name="template-list-create"),
-    path("templates/<int:pk>/", PostTemplateDetailView.as_view(), name="template-detail"),
+    path("templates/", views.PostTemplateListCreateView.as_view(), name="template-list-create"),
+    path("templates/<uuid:pk>/", views.PostTemplateDetailView.as_view(), name="template-detail"),
     # Social Sets
-    path("social-sets/", SocialSetListCreateView.as_view(), name="social-set-list-create"),
-    path("social-sets/<int:pk>/", SocialSetDetailView.as_view(), name="social-set-detail"),
+    path("social-sets/", views.SocialSetListCreateView.as_view(), name="socialset-list-create"),
+    path("social-sets/<uuid:pk>/", views.SocialSetDetailView.as_view(), name="socialset-detail"),
     # Holidays
-    path("holidays/", HolidayListView.as_view(), name="holiday-list"),
+    path("holidays/", views.HolidayListView.as_view(), name="holiday-list"),
     # Suggestions
-    path("suggestions/", PostSuggestionListView.as_view(), name="suggestion-list"),
-    path("suggestions/generate/", generate_suggestions, name="generate-suggestions"),
+    path("suggestions/", views.PostSuggestionListView.as_view(), name="suggestion-list"),
+    path("suggestions/generate/", views.generate_suggestions, name="generate-suggestions"),
+    # New endpoints
+    # path("calendar/share/", views.share_calendar, name="share-calendar"),
+    # path("multi-platform/", views.multi_platform_post, name="multi-platform-post"),
+    # path("brand-wall/", views.brand_wall, name="brand-wall"),
 ]

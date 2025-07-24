@@ -102,30 +102,3 @@ class CampaignApplication(models.Model):
 
     def __str__(self):
         return f"{self.campaign.title} - {self.influencer.user.username}"
-
-
-class SocialMediaAccount(models.Model):
-    PLATFORM_CHOICES = [
-        ("instagram", "Instagram"),
-        ("facebook", "Facebook"),
-        ("twitter", "Twitter"),
-        ("linkedin", "LinkedIn"),
-        ("tiktok", "TikTok"),
-        ("youtube", "YouTube"),
-        ("pinterest", "Pinterest"),
-        ("snapchat", "Snapchat"),
-        ("reddit", "Reddit"),
-    ]
-
-    influencer = models.ForeignKey(Influencer, on_delete=models.CASCADE, related_name="social_accounts")
-    platform = models.CharField(max_length=20, choices=PLATFORM_CHOICES)
-    username = models.CharField(max_length=100)
-    access_token = models.TextField(blank=True)
-    is_active = models.BooleanField(default=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        unique_together = ["influencer", "platform"]
-
-    def __str__(self):
-        return f"{self.influencer.user.username} - {self.platform}"
