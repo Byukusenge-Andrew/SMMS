@@ -1,7 +1,6 @@
 from django.contrib.auth import authenticate
 from django.contrib.auth.models import User
 from django.contrib.auth.password_validation import validate_password
-
 from rest_framework import serializers
 
 from .models import SocialMediaAccount, Team, TeamMember, UserProfile
@@ -28,6 +27,7 @@ class UserSerializer(serializers.ModelSerializer):
 
 class UserProfileSerializer(serializers.ModelSerializer):
     user = UserSerializer(read_only=True)
+    avatar = serializers.ImageField(required=False, allow_null=True)
 
     class Meta:
         model = UserProfile
@@ -117,17 +117,35 @@ class SocialMediaAccountSerializer(serializers.ModelSerializer):
             "following_count",
             "platform_user_id",
         ]
-        read_only_fields = ["id", "created_at", "follower_count", "following_count"]
+        read_only_fields = ["id", "created_at", "follower_count", "following_count", "platform_user_id"]
+
+    def validate(self, attrs):
+        """Validate that the user doesn't already have this social media account"""
+        platform = attrs.get("platform")
+        username = attrs.get("username")
+
+        # Only validate during creation (not during updates)
+        if not self.instance and self.context.get("request"):
+            user = self.context["request"].user
+            existing = SocialMediaAccount.objects.filter(user=user, platform=platform, username=username)
+
+            if existing.exists():
+                raise serializers.ValidationError(
+                    {"non_field_errors": [f'You already have a {platform} account with username "{username}" connected.']}
+                )
+
+        return attrs
 
 
 class TeamMemberSerializer(serializers.ModelSerializer):
     user = UserSerializer(read_only=True)
     team = TeamSerializer(read_only=True)
+    team_id = serializers.UUIDField(write_only=True, required=False, help_text="UUID of the team to invite to")
 
     class Meta:
         model = TeamMember
-        fields = ["id", "team", "user", "role", "invited_email", "is_active", "invited_at", "joined_at"]
-        read_only_fields = ["id", "invited_at", "joined_at"]
+        fields = ["id", "team", "team_id", "user", "role", "invited_email", "is_active", "invited_at", "joined_at"]
+        read_only_fields = ["id", "invited_at", "joined_at", "team", "user"]
 
 
 class UserRegistrationSerializer(serializers.ModelSerializer):

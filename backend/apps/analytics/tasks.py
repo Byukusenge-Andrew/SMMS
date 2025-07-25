@@ -2,6 +2,7 @@ import logging
 import random
 from datetime import timedelta
 
+from celery import shared_task
 from django.conf import settings
 from django.contrib.auth.models import User
 from django.core.mail import EmailMultiAlternatives
@@ -9,9 +10,8 @@ from django.db import models
 from django.template.loader import render_to_string
 from django.utils import timezone
 
-from celery import shared_task
-
-from .models import AnalyticsData, BestPerformingPost, CommentAnalytics, PerformanceReport, PlatformAverage
+from .models import (AnalyticsData, BestPerformingPost, CommentAnalytics,
+                     PerformanceReport, PlatformAverage)
 
 logger = logging.getLogger(__name__)
 
@@ -563,3 +563,309 @@ def identify_best_performing_posts(user_id, period_type="weekly"):
 
     except Exception as e:
         logger.error(f"Error identifying best performing posts: {str(e)}")
+
+
+# AI-Powered Analytics Tasks
+
+
+@shared_task
+def generate_ai_insights(user_id, days=30):
+    """Generate AI insights for user's analytics data"""
+    try:
+        from django.contrib.auth.models import User
+
+        from apps.integrations.ai_service import AIService
+
+        user = User.objects.get(id=user_id)
+
+        # Get analytics data
+        end_date = timezone.now().date()
+        start_date = end_date - timedelta(days=days)
+
+        analytics_data = AnalyticsData.objects.filter(user=user, date__gte=start_date, date__lte=end_date)
+
+        # Convert to AI service format
+        ai_data = []
+        for data in analytics_data:
+            ai_data.append(
+                {
+                    "date": data.date,
+                    "platform": data.platform,
+                    "metric_type": data.metric_type,
+                    "value": data.value,
+                    "engagement": data.value if data.metric_type == "engagement" else 0,
+                    "reach": data.value if data.metric_type == "reach" else 0,
+                    "impressions": data.value if data.metric_type == "impressions" else 0,
+                    "content_type": getattr(data.post, "post_type", "post") if data.post else "post",
+                    "hour": data.created_at.hour,
+                }
+            )
+
+        # Get user context
+        user_context = {
+            "total_followers": sum(user.social_accounts.values_list("follower_count", flat=True)),
+            "account_age_days": (timezone.now().date() - user.date_joined.date()).days,
+            "platforms": list(user.social_accounts.values_list("platform", flat=True)),
+        }
+
+        # Generate insights
+        ai_service = AIService()
+        insights = ai_service.analyze_performance_data(ai_data, user_context)
+
+        # Create an AnalyticsInsight record
+        from .models import AnalyticsInsight
+
+        AnalyticsInsight.objects.create(
+            user=user,
+            insight_type="ai_analysis",
+            title="AI Performance Analysis",
+            description=f"Generated insights based on {days} days of data",
+            data=insights,
+            confidence_score=insights.get("summary", {}).get("performance_score", 0) / 100,
+        )
+
+        logger.info(f"Generated AI insights for user {user_id}")
+        return insights
+
+    except Exception as e:
+        logger.error(f"Error generating AI insights: {str(e)}")
+        return None
+
+
+@shared_task
+def generate_weekly_ai_recommendations():
+    """Generate weekly AI recommendations for all active users"""
+    try:
+        from django.contrib.auth.models import User
+
+        from apps.integrations.ai_service import AIService
+
+        active_users = User.objects.filter(social_accounts__isnull=False, is_active=True).distinct()
+
+        ai_service = AIService()
+        recommendations_count = 0
+
+        for user in active_users:
+            try:
+                # Get recent analytics data
+                recent_data = AnalyticsData.objects.filter(user=user, date__gte=timezone.now().date() - timedelta(days=14))
+
+                if recent_data.exists():
+                    # Convert to AI format
+                    ai_data = []
+                    for data in recent_data:
+                        ai_data.append(
+                            {
+                                "date": data.date,
+                                "platform": data.platform,
+                                "engagement": data.value if data.metric_type == "engagement" else 0,
+                                "reach": data.value if data.metric_type == "reach" else 0,
+                                "hour": data.created_at.hour,
+                            }
+                        )
+
+                    # Generate insights
+                    insights = ai_service.analyze_performance_data(ai_data)
+
+                    # Create insight record
+                    from .models import AnalyticsInsight
+
+                    AnalyticsInsight.objects.create(
+                        user=user,
+                        insight_type="recommendation",
+                        title="Weekly AI Recommendations",
+                        description="AI-generated recommendations based on recent performance",
+                        data={"recommendations": insights.get("recommendations", [])},
+                        confidence_score=0.8,
+                    )
+
+                    recommendations_count += 1
+
+            except Exception as e:
+                logger.error(f"Error generating recommendations for user {user.id}: {str(e)}")
+                continue
+
+        logger.info(f"Generated AI recommendations for {recommendations_count} users")
+        return recommendations_count
+
+    except Exception as e:
+        logger.error(f"Error in weekly AI recommendations task: {str(e)}")
+        return 0
+
+
+@shared_task
+def analyze_content_performance_trends(user_id):
+    """Analyze content performance trends using AI"""
+    try:
+        from django.contrib.auth.models import User
+
+        from apps.integrations.ai_service import AIService
+
+        user = User.objects.get(id=user_id)
+
+        # Get posts with analytics data from last 60 days
+        end_date = timezone.now().date()
+        start_date = end_date - timedelta(days=60)
+
+        posts_with_analytics = (
+            AnalyticsData.objects.filter(user=user, date__gte=start_date, post__isnull=False)
+            .select_related("post")
+            .values("post__id", "post__content", "post__hashtags", "post__post_type", "platform", "metric_type", "value")
+        )
+
+        # Group by post and calculate performance
+        post_performance = {}
+        for item in posts_with_analytics:
+            post_id = item["post__id"]
+            if post_id not in post_performance:
+                post_performance[post_id] = {
+                    "content": item["post__content"],
+                    "hashtags": item["post__hashtags"],
+                    "post_type": item["post__post_type"],
+                    "platform": item["platform"],
+                    "engagement": 0,
+                    "reach": 0,
+                    "impressions": 0,
+                }
+
+            if item["metric_type"] == "engagement":
+                post_performance[post_id]["engagement"] += item["value"]
+            elif item["metric_type"] == "reach":
+                post_performance[post_id]["reach"] += item["value"]
+            elif item["metric_type"] == "impressions":
+                post_performance[post_id]["impressions"] += item["value"]
+
+        # Analyze trends
+        ai_service = AIService()
+        trends_analysis = {
+            "high_performing_content": [],
+            "content_type_analysis": {},
+            "hashtag_performance": {},
+            "timing_insights": [],
+        }
+
+        # Find top performing content
+        sorted_posts = sorted(post_performance.items(), key=lambda x: x[1]["engagement"], reverse=True)
+
+        # Analyze top 10 posts
+        for post_id, data in sorted_posts[:10]:
+            trends_analysis["high_performing_content"].append(
+                {
+                    "post_id": post_id,
+                    "engagement": data["engagement"],
+                    "content_preview": data["content"][:100] + "..." if len(data["content"]) > 100 else data["content"],
+                    "post_type": data["post_type"],
+                }
+            )
+
+        # Analyze content types
+        content_types = {}
+        for post_id, data in post_performance.items():
+            post_type = data["post_type"]
+            if post_type not in content_types:
+                content_types[post_type] = {"total_engagement": 0, "count": 0}
+            content_types[post_type]["total_engagement"] += data["engagement"]
+            content_types[post_type]["count"] += 1
+
+        for post_type, stats in content_types.items():
+            avg_engagement = stats["total_engagement"] / stats["count"] if stats["count"] > 0 else 0
+            trends_analysis["content_type_analysis"][post_type] = {
+                "avg_engagement": avg_engagement,
+                "post_count": stats["count"],
+            }
+
+        # Save insights
+        from .models import AnalyticsInsight
+
+        AnalyticsInsight.objects.create(
+            user=user,
+            insight_type="trend",
+            title="Content Performance Trends",
+            description="AI analysis of content performance patterns",
+            data=trends_analysis,
+            confidence_score=0.85,
+        )
+
+        logger.info(f"Analyzed content performance trends for user {user_id}")
+        return trends_analysis
+
+    except Exception as e:
+        logger.error(f"Error analyzing content trends for user {user_id}: {str(e)}")
+        return None
+
+
+@shared_task
+def predict_optimal_posting_times(user_id):
+    """Predict optimal posting times using AI analysis"""
+    try:
+        from django.contrib.auth.models import User
+
+        from apps.integrations.ai_service import AIService
+
+        user = User.objects.get(id=user_id)
+
+        # Get analytics data with timing information
+        analytics_data = AnalyticsData.objects.filter(user=user, date__gte=timezone.now().date() - timedelta(days=30))
+
+        # Analyze by hour of day
+        hourly_performance = {}
+        for data in analytics_data:
+            hour = data.created_at.hour
+            if hour not in hourly_performance:
+                hourly_performance[hour] = {"engagement": [], "reach": []}
+
+            if data.metric_type == "engagement":
+                hourly_performance[hour]["engagement"].append(data.value)
+            elif data.metric_type == "reach":
+                hourly_performance[hour]["reach"].append(data.value)
+
+        # Calculate averages
+        optimal_times = {}
+        for hour, metrics in hourly_performance.items():
+            avg_engagement = sum(metrics["engagement"]) / len(metrics["engagement"]) if metrics["engagement"] else 0
+            avg_reach = sum(metrics["reach"]) / len(metrics["reach"]) if metrics["reach"] else 0
+
+            optimal_times[hour] = {
+                "avg_engagement": avg_engagement,
+                "avg_reach": avg_reach,
+                "total_score": avg_engagement + (avg_reach * 0.5),  # Weight engagement more
+            }
+
+        # Find top 3 hours
+        sorted_hours = sorted(optimal_times.items(), key=lambda x: x[1]["total_score"], reverse=True)
+
+        top_hours = sorted_hours[:3]
+
+        predictions = {
+            "optimal_posting_times": [
+                {
+                    "hour": hour,
+                    "score": data["total_score"],
+                    "avg_engagement": data["avg_engagement"],
+                    "avg_reach": data["avg_reach"],
+                    "recommendation": f"Post at {hour}:00 for optimal engagement",
+                }
+                for hour, data in top_hours
+            ],
+            "analysis_period": "30 days",
+            "confidence": min(95, len(analytics_data) * 2),  # Higher confidence with more data
+        }
+
+        # Save insight
+        from .models import AnalyticsInsight
+
+        AnalyticsInsight.objects.create(
+            user=user,
+            insight_type="prediction",
+            title="Optimal Posting Times",
+            description="AI-predicted best times to post for maximum engagement",
+            data=predictions,
+            confidence_score=predictions["confidence"] / 100,
+        )
+
+        logger.info(f"Predicted optimal posting times for user {user_id}")
+        return predictions
+
+    except Exception as e:
+        logger.error(f"Error predicting posting times for user {user_id}: {str(e)}")
+        return None

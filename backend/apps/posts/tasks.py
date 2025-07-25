@@ -1,9 +1,8 @@
 import logging
 
+from celery import shared_task
 from django.contrib.auth.models import User
 from django.utils import timezone
-
-from celery import shared_task
 
 from .models import Post
 
@@ -128,3 +127,82 @@ def bulk_post_operation(post_ids, action, user_id, **kwargs):
         logger.error(f"User {user_id} not found")
     except Exception as e:
         logger.error(f"Error in bulk operation: {str(e)}")
+
+
+@shared_task
+def analyze_post_comments_sentiment_background(post_id, comments):
+    """Background task to analyze post comments sentiment using AI"""
+    try:
+        # Get the post
+        post = Post.objects.get(id=post_id)
+
+        # Initialize AI service
+        from apps.integrations.ai_service import AIService
+
+        ai_service = AIService()
+
+        # Analyze comments sentiment
+        sentiment_analysis = ai_service.analyze_comments_sentiment(comments)
+
+        # Add metadata
+        sentiment_analysis["post_id"] = str(post.id)
+        sentiment_analysis["analysis_timestamp"] = timezone.now().isoformat()
+        sentiment_analysis["task_type"] = "background_analysis"
+
+        # Here you could save results to a database model if needed
+        # For now, just log the results
+        logger.info(f"Background sentiment analysis completed for post {post_id}")
+        logger.info(
+            f"Results: {sentiment_analysis['overall_sentiment']} sentiment, "
+            f"{sentiment_analysis['comments_analyzed']} comments analyzed"
+        )
+
+        return sentiment_analysis
+
+    except Post.DoesNotExist:
+        logger.error(f"Post {post_id} not found for sentiment analysis")
+        return None
+    except Exception as e:
+        logger.error(f"Error in background sentiment analysis for post {post_id}: {str(e)}")
+        return None
+
+
+@shared_task
+def analyze_user_posts_sentiment_trends(user_id, days=30):
+    """Analyze sentiment trends across user's posts for the past N days"""
+    try:
+        from datetime import timedelta
+
+        # Get user's recent posts
+        cutoff_date = timezone.now() - timedelta(days=days)
+        user_posts = Post.objects.filter(user_id=user_id, created_at__gte=cutoff_date, status__in=["published", "active"])
+
+        if not user_posts.exists():
+            logger.info(f"No recent posts found for user {user_id}")
+            return {"message": "No recent posts to analyze"}
+
+        # Initialize AI service
+        from apps.integrations.ai_service import AIService
+
+        ai_service = AIService()
+
+        # This is a placeholder - in a real implementation, you'd need to:
+        # 1. Fetch actual comments from social media APIs
+        # 2. Store comment data in your database
+        # 3. Analyze real comment sentiment
+
+        # For now, we'll return a summary structure
+        sentiment_trends = {
+            "user_id": user_id,
+            "analysis_period": f"{days} days",
+            "posts_analyzed": user_posts.count(),
+            "analysis_timestamp": timezone.now().isoformat(),
+            "message": "Sentiment trends analysis framework ready - integrate with social media APIs for real data",
+        }
+
+        logger.info(f"Sentiment trends analysis completed for user {user_id}")
+        return sentiment_trends
+
+    except Exception as e:
+        logger.error(f"Error analyzing sentiment trends for user {user_id}: {str(e)}")
+        return None

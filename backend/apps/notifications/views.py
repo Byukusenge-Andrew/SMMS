@@ -1,22 +1,27 @@
-from django.utils import timezone
+from datetime import timedelta
 
-from rest_framework import generics
+from django.db.models import Count, Q
+from django.utils import timezone
+from rest_framework import generics, status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from .models import Notification, NotificationPreference
+from .serializers import (BulkMarkReadSerializer, NotificationCreateSerializer,
+                          NotificationPreferenceSerializer,
+                          NotificationSerializer, NotificationStatsSerializer)
 
 
 class NotificationListView(generics.ListAPIView):
     """API view to list notifications for a user"""
 
     permission_classes = [IsAuthenticated]
-    # serializer_class = NotificationSerializer  # You'll need to create this
+    serializer_class = NotificationSerializer
 
     def get_queryset(self):
         """Return notifications for the authenticated user"""
-        return Notification.objects.filter(user=self.request.user)
+        return Notification.objects.filter(user=self.request.user).order_by("-created_at")
 
     def list(self, request, *args, **kwargs):
         """Return notifications with additional metadata"""
@@ -26,31 +31,16 @@ class NotificationListView(generics.ListAPIView):
         unread_count = queryset.filter(is_read=False).count()
 
         # Serialize notifications
-        # serializer = self.get_serializer(queryset, many=True)
+        serializer = self.get_serializer(queryset, many=True)
 
-        # For simplicity, returning just basic data until serializer is created
-        notifications = []
-        for notification in queryset:
-            notifications.append(
-                {
-                    "id": notification.id,
-                    "type": notification.type,
-                    "title": notification.title,
-                    "message": notification.message,
-                    "is_read": notification.is_read,
-                    "created_at": notification.created_at.isoformat(),
-                    "priority": notification.priority,
-                }
-            )
-
-        return Response({"notifications": notifications, "unread_count": unread_count, "total_count": len(notifications)})
+        return Response({"notifications": serializer.data, "unread_count": unread_count, "total_count": queryset.count()})
 
 
 class NotificationDetailView(generics.RetrieveUpdateAPIView):
     """API view to retrieve and update a specific notification"""
 
     permission_classes = [IsAuthenticated]
-    # serializer_class = NotificationSerializer
+    serializer_class = NotificationSerializer
 
     def get_queryset(self):
         """Return only notifications for the authenticated user"""
@@ -64,22 +54,8 @@ class NotificationDetailView(generics.RetrieveUpdateAPIView):
             notification.read_at = timezone.now()
             notification.save()
 
-        # For simplicity, returning basic data until serializer is created
-        notification_data = {
-            "id": notification.id,
-            "type": notification.type,
-            "title": notification.title,
-            "message": notification.message,
-            "is_read": notification.is_read,
-            "created_at": notification.created_at.isoformat(),
-            "read_at": notification.read_at.isoformat() if notification.read_at else None,
-            "priority": notification.priority,
-            "data": notification.data,
-            "action_url": notification.action_url,
-            "action_text": notification.action_text,
-        }
-
-        return Response(notification_data)
+        serializer = self.get_serializer(notification)
+        return Response(serializer.data)
 
 
 @api_view(["POST"])
@@ -87,66 +63,77 @@ class NotificationDetailView(generics.RetrieveUpdateAPIView):
 def mark_all_read(request):
     """Mark all notifications as read for the authenticated user"""
     Notification.objects.filter(user=request.user, is_read=False).update(is_read=True, read_at=timezone.now())
-
     return Response({"status": "success", "message": "All notifications marked as read"})
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def bulk_mark_read(request):
+    """Mark multiple notifications as read"""
+    serializer = BulkMarkReadSerializer(data=request.data)
+    if serializer.is_valid():
+        if serializer.validated_data.get("mark_all"):
+            count = Notification.objects.filter(user=request.user, is_read=False).update(is_read=True, read_at=timezone.now())
+        else:
+            notification_ids = serializer.validated_data.get("notification_ids", [])
+            count = Notification.objects.filter(user=request.user, id__in=notification_ids, is_read=False).update(
+                is_read=True, read_at=timezone.now()
+            )
+
+        return Response({"status": "success", "message": f"{count} notifications marked as read"})
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def notification_stats(request):
+    """Get notification statistics for the user"""
+    user_notifications = Notification.objects.filter(user=request.user)
+
+    today = timezone.now().date()
+    week_ago = today - timedelta(days=7)
+
+    stats = {
+        "total_notifications": user_notifications.count(),
+        "unread_count": user_notifications.filter(is_read=False).count(),
+        "today_count": user_notifications.filter(created_at__date=today).count(),
+        "this_week_count": user_notifications.filter(created_at__date__gte=week_ago).count(),
+        "by_type": dict(user_notifications.values("type").annotate(count=Count("type")).values_list("type", "count")),
+        "by_priority": dict(
+            user_notifications.values("priority").annotate(count=Count("priority")).values_list("priority", "count")
+        ),
+    }
+
+    serializer = NotificationStatsSerializer(stats)
+    return Response(serializer.data)
 
 
 @api_view(["GET", "PUT"])
 @permission_classes([IsAuthenticated])
 def notification_preferences(request):
     """Get or update notification preferences"""
-    # Get or create preferences for this user
-    preferences, created = NotificationPreference.objects.get_or_create(user=request.user)
+    preferences, created = NotificationPreference.objects.get_or_create(
+        user=request.user,
+        defaults={
+            "notification_type": "all",
+            "email_enabled": True,
+            "push_enabled": True,
+            "slack_enabled": False,
+            "frequency": "instant",
+            "timezone": "UTC",
+        },
+    )
 
     if request.method == "GET":
-        # Return current preferences
-        return Response(
-            {
-                "email_preferences": {
-                    "post_updates": preferences.email_post_updates,
-                    "analytics_reports": preferences.email_analytics_reports,
-                    "campaign_updates": preferences.email_campaign_updates,
-                    "system_alerts": preferences.email_system_alerts,
-                },
-                "slack_preferences": {
-                    "post_updates": preferences.slack_post_updates,
-                    "analytics_reports": preferences.slack_analytics_reports,
-                    "campaign_updates": preferences.slack_campaign_updates,
-                    "system_alerts": preferences.slack_system_alerts,
-                },
-                "app_notifications": preferences.app_notifications,
-            }
-        )
+        serializer = NotificationPreferenceSerializer(preferences)
+        return Response(serializer.data)
 
     # Update preferences
-    if "email_preferences" in request.data:
-        email_prefs = request.data["email_preferences"]
-        if "post_updates" in email_prefs:
-            preferences.email_post_updates = email_prefs["post_updates"]
-        if "analytics_reports" in email_prefs:
-            preferences.email_analytics_reports = email_prefs["analytics_reports"]
-        if "campaign_updates" in email_prefs:
-            preferences.email_campaign_updates = email_prefs["campaign_updates"]
-        if "system_alerts" in email_prefs:
-            preferences.email_system_alerts = email_prefs["system_alerts"]
-
-    if "slack_preferences" in request.data:
-        slack_prefs = request.data["slack_preferences"]
-        if "post_updates" in slack_prefs:
-            preferences.slack_post_updates = slack_prefs["post_updates"]
-        if "analytics_reports" in slack_prefs:
-            preferences.slack_analytics_reports = slack_prefs["analytics_reports"]
-        if "campaign_updates" in slack_prefs:
-            preferences.slack_campaign_updates = slack_prefs["campaign_updates"]
-        if "system_alerts" in slack_prefs:
-            preferences.slack_system_alerts = slack_prefs["system_alerts"]
-
-    if "app_notifications" in request.data:
-        preferences.app_notifications = request.data["app_notifications"]
-
-    preferences.save()
-
-    return Response({"status": "success", "message": "Notification preferences updated"})
+    serializer = NotificationPreferenceSerializer(preferences, data=request.data, partial=True)
+    if serializer.is_valid():
+        serializer.save()
+        return Response({"status": "success", "message": "Notification preferences updated"})
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 @api_view(["POST"])
@@ -164,3 +151,13 @@ def send_test_notification(request):
     )
 
     return Response({"status": "success", "message": "Test notification sent", "notification_id": notification.id})
+
+
+@api_view(["DELETE"])
+@permission_classes([IsAuthenticated])
+def clear_all_notifications(request):
+    """Clear all notifications for the user"""
+    count = Notification.objects.filter(user=request.user).count()
+    Notification.objects.filter(user=request.user).delete()
+
+    return Response({"status": "success", "message": f"Cleared {count} notifications"})

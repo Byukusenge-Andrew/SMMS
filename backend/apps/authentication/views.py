@@ -5,32 +5,32 @@ from django.contrib.auth import login, logout
 from django.contrib.auth.models import User
 from django.core.exceptions import PermissionDenied
 from django.core.mail import send_mail
+from django.shortcuts import get_object_or_404
 from django.template.loader import render_to_string
 from django.utils.decorators import method_decorator
 from django.utils.html import strip_tags
 from django.views.decorators.csrf import csrf_exempt
-
-from drf_spectacular.utils import OpenApiResponse, extend_schema
+from drf_spectacular.utils import (OpenApiExample, OpenApiResponse,
+                                   extend_schema)
 from rest_framework import generics, permissions, status
 from rest_framework.authentication import TokenAuthentication
 from rest_framework.authtoken.models import Token
-from rest_framework.decorators import api_view, authentication_classes, permission_classes
+from rest_framework.decorators import (api_view, authentication_classes,
+                                       permission_classes)
+from rest_framework.exceptions import ValidationError as DRFValidationError
 from rest_framework.generics import ListCreateAPIView, RetrieveUpdateAPIView
+from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import EmailVerificationToken, SocialMediaAccount, Team, TeamMember, UserProfile
-from .serializers import (
-    LoginSerializer,
-    RegisterSerializer,
-    SocialMediaAccountSerializer,
-    TeamMemberSerializer,
-    TeamSerializer,
-    UserProfileSerializer,
-    UserRegistrationSerializer,
-    UserSerializer,
-)
+from .models import (EmailVerificationToken, SocialMediaAccount, Team,
+                     TeamMember, UserProfile)
+from .serializers import (LoginSerializer, RegisterSerializer,
+                          SocialMediaAccountSerializer, TeamMemberSerializer,
+                          TeamSerializer, UserProfileSerializer,
+                          UserRegistrationSerializer, UserSerializer)
+from .tasks import send_team_invitation_email
 
 # Set up logger
 logger = logging.getLogger(__name__)
@@ -101,10 +101,32 @@ class LogoutView(APIView):
             return Response({"error": "Error logging out"}, status=status.HTTP_400_BAD_REQUEST)
 
 
+@extend_schema(
+    operation_id="update_profile",
+    request=UserProfileSerializer,
+    responses={200: UserProfileSerializer},
+    summary="Update user profile",
+    description="Update user profile including avatar upload",
+    examples=[
+        OpenApiExample(
+            "Profile Update with Avatar",
+            description="Example profile update with file upload",
+            value={
+                "company_name": "Keative",
+                "subscription_type": "premium",
+                "time_format": "12h",
+                "timezone": "UTC",
+                "email_notifications": True,
+                "slack_notifications": True,
+            },
+        )
+    ],
+)
 class ProfileView(RetrieveUpdateAPIView):
     serializer_class = UserProfileSerializer
     permission_classes = [IsAuthenticated]
     authentication_classes = [TokenAuthentication]
+    parser_classes = [MultiPartParser, FormParser, JSONParser]  # Add this line
 
     def get_object(self):
         logger.info(f"ProfileView.get_object called for user: {self.request.user}")
@@ -170,10 +192,75 @@ class SocialMediaAccountListView(ListCreateAPIView):
     serializer_class = SocialMediaAccountSerializer
 
     def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return SocialMediaAccount.objects.none()
         return SocialMediaAccount.objects.filter(user=self.request.user)
 
     def perform_create(self, serializer):
+        platform = serializer.validated_data.get("platform")
+        username = serializer.validated_data.get("username")
+
+        # Check if account already exists for this user
+        existing_account = SocialMediaAccount.objects.filter(
+            user=self.request.user, platform=platform, username=username
+        ).first()
+
+        if existing_account:
+            from rest_framework import serializers as drf_serializers
+
+            raise drf_serializers.ValidationError(
+                {"non_field_errors": [f'You already have a {platform} account with username "{username}" connected.']}
+            )
+
         serializer.save(user=self.request.user)
+
+
+@api_view(["DELETE"])
+@permission_classes([IsAuthenticated])
+def remove_social_media_account(request, account_id):
+    """Remove a connected social media account"""
+    try:
+        account = SocialMediaAccount.objects.get(id=account_id, user=request.user)
+        platform = account.platform
+        username = account.username
+        account.delete()
+
+        return Response({"message": f"Successfully removed {platform} account '{username}'"}, status=status.HTTP_200_OK)
+
+    except SocialMediaAccount.DoesNotExist:
+        return Response(
+            {"error": "Social media account not found or you don't have permission to delete it"},
+            status=status.HTTP_404_NOT_FOUND,
+        )
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def check_social_account_exists(request):
+    """Check if a social media account already exists for the user"""
+    platform = request.GET.get("platform")
+    username = request.GET.get("username")
+
+    if not platform or not username:
+        return Response(
+            {"error": "Both 'platform' and 'username' parameters are required"}, status=status.HTTP_400_BAD_REQUEST
+        )
+
+    existing_account = SocialMediaAccount.objects.filter(user=request.user, platform=platform, username=username).first()
+
+    if existing_account:
+        return Response(
+            {
+                "exists": True,
+                "account_id": str(existing_account.id),
+                "platform": existing_account.platform,
+                "username": existing_account.username,
+                "created_at": existing_account.created_at,
+                "is_active": existing_account.is_active,
+            }
+        )
+    else:
+        return Response({"exists": False, "message": f"No {platform} account with username '{username}' found"})
 
 
 class TeamMemberListView(ListCreateAPIView):
@@ -211,7 +298,7 @@ def user_dashboard(request):
     user = request.user
     profile = user.profile
     social_accounts = user.social_accounts.filter(is_active=True)
-    team_members = user.team_members.filter(is_active=True)
+    team_members = user.team_memberships.filter(is_active=True)  # <-- FIXED LINE
 
     return Response(
         {
@@ -429,14 +516,38 @@ class TeamMemberInviteView(generics.CreateAPIView):
 
     def perform_create(self, serializer):
         invited_email = self.request.data.get("invited_email")
-        team_id = self.request.data.get("team")
-        team = Team.objects.get(id=team_id)
-        # Only owner or admin can invite
+        team_id = self.request.data.get("team_id") or self.request.data.get("team")
+
+        # Validate required fields
+        if not team_id:
+            raise DRFValidationError({"team": "Team ID is required."})
+        if not invited_email:
+            raise DRFValidationError({"invited_email": "Invited email is required."})
+
+        # Get team with proper error handling
+        team = get_object_or_404(Team, id=team_id)
+
+        # Check if user has permission to invite (owner or admin)
         member = TeamMember.objects.filter(team=team, user=self.request.user).first()
         if not member or member.role not in ["owner", "admin"]:
-            raise PermissionDenied("Only owner or admin can invite members.")
+            raise PermissionDenied("Only team owner or admin can invite members.")
+
+        # Check if user is already a member or invited
+        existing_member = TeamMember.objects.filter(team=team, invited_email=invited_email).first()
+        if existing_member:
+            if existing_member.is_active:
+                raise DRFValidationError({"invited_email": "This email is already an active member of the team."})
+            else:
+                raise DRFValidationError({"invited_email": "This email has already been invited to the team."})
+
         serializer.save(team=team, invited_email=invited_email, is_active=False)
-        # TODO: send invitation email here
+
+        # Send invitation email
+        send_team_invitation_email.delay(
+            team_id=str(team.id),
+            invited_email=invited_email,
+            inviter_name=self.request.user.get_full_name() or self.request.user.username,
+        )
 
 
 class TeamListCreateView(generics.ListCreateAPIView):
@@ -444,10 +555,31 @@ class TeamListCreateView(generics.ListCreateAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        return Team.objects.filter(owner=self.request.user)
+        # Return teams where user is a member
+        return Team.objects.filter(members__user=self.request.user)
 
     def perform_create(self, serializer):
-        serializer.save(owner=self.request.user)
+        # Create team and add creator as owner
+        team = serializer.save(owner=self.request.user)
+        TeamMember.objects.create(team=team, user=self.request.user, role="owner", is_active=True)
+
+
+@api_view(["GET"])
+@permission_classes([permissions.IsAuthenticated])
+def teams_for_invitation(request):
+    """Get teams where user can invite members (owner or admin role)"""
+    user_teams = Team.objects.filter(
+        members__user=request.user, members__role__in=["owner", "admin"], members__is_active=True
+    ).distinct()
+
+    teams_data = []
+    for team in user_teams:
+        member = TeamMember.objects.filter(team=team, user=request.user).first()
+        teams_data.append(
+            {"id": team.id, "name": team.name, "your_role": member.role if member else None, "created_at": team.created_at}
+        )
+
+    return Response({"teams": teams_data, "message": f"Found {len(teams_data)} teams where you can invite members"})
 
 
 @api_view(["POST", "GET"])

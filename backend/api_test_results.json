@@ -1,0 +1,80 @@
+[
+  {
+    "test": "User Registration",
+    "status": "PASS",
+    "details": "User ID: None",
+    "timestamp": "2025-07-25T13:55:55.252133"
+  },
+  {
+    "test": "User Login",
+    "status": "FAIL",
+    "details": "Status: N/A",
+    "timestamp": "2025-07-25T13:55:57.761384"
+  },
+  {
+    "test": "User Profile",
+    "status": "FAIL",
+    "details": "Status: N/A",
+    "timestamp": "2025-07-25T13:55:59.774447"
+  },
+  {
+    "test": "Create Post",
+    "status": "FAIL",
+    "details": "Status: N/A, Error: No response",
+    "timestamp": "2025-07-25T13:56:01.792762"
+  },
+  {
+    "test": "List Posts",
+    "status": "FAIL",
+    "details": "Status: N/A",
+    "timestamp": "2025-07-25T13:56:03.806438"
+  },
+  {
+    "test": "Get Post Detail",
+    "status": "SKIP",
+    "details": "No test post ID available",
+    "timestamp": "2025-07-25T13:56:03.806914"
+  },
+  {
+    "test": "AI Content Suggestions",
+    "status": "FAIL",
+    "details": "Status: N/A, Error: No response",
+    "timestamp": "2025-07-25T13:56:05.821496"
+  },
+  {
+    "test": "Sentiment Analysis",
+    "status": "FAIL",
+    "details": "Status: N/A, Error: No response",
+    "timestamp": "2025-07-25T13:56:07.833138"
+  },
+  {
+    "test": "Bulk Sentiment Analysis",
+    "status": "SKIP",
+    "details": "No test post ID available",
+    "timestamp": "2025-07-25T13:56:07.833720"
+  },
+  {
+    "test": "Analytics Data",
+    "status": "FAIL",
+    "details": "Status: N/A",
+    "timestamp": "2025-07-25T13:56:09.983927"
+  },
+  {
+    "test": "AI Insights",
+    "status": "FAIL",
+    "details": "Status: N/A, Error: No response",
+    "timestamp": "2025-07-25T13:56:11.996873"
+  },
+  {
+    "test": "Notifications",
+    "status": "FAIL",
+    "details": "Status: N/A",
+    "timestamp": "2025-07-25T13:56:14.011388"
+  },
+  {
+    "test": "Collaborators",
+    "status": "FAIL",
+    "details": "Status: N/A",
+    "timestamp": "2025-07-25T13:56:16.030994"
+  }
+]

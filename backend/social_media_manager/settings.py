@@ -110,6 +110,13 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
+# Natural Language Processing settings
+NLP_SETTINGS = {
+    "TEXTBLOB_ENABLED": True,
+    "SENTIMENT_ANALYSIS_ENABLED": True,
+    "LANGUAGE_DETECTION_ENABLED": True,
+}
+
 # Internationalization
 LANGUAGE_CODE = "en-us"
 TIME_ZONE = "UTC"
@@ -304,6 +311,7 @@ SPECTACULAR_SETTINGS = {
     "DESCRIPTION": "Comprehensive social media management platform API",
     "VERSION": "1.0.0",
     "SERVE_INCLUDE_SCHEMA": False,
+    "COMPONENT_SPLIT_REQUEST": True,
 }
 
 # Sentry for error tracking

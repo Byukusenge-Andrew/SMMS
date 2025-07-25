@@ -1,10 +1,9 @@
 import logging
 
+from celery import shared_task
 from django.conf import settings
 from django.core.mail import send_mail
 from django.utils import timezone  # Add this import
-
-from celery import shared_task
 
 logger = logging.getLogger(__name__)
 
@@ -57,9 +56,20 @@ def send_message(message_id):
 def send_instagram_message(message):
     """Send message via Instagram API"""
     try:
-        # Implement Instagram Graph API logic
-        # This would use the user's connected Instagram account
-        logger.info(f"Sending Instagram message to {message.recipient}")
+        from apps.integrations.social_media_integrator import \
+            IntegrationFactory
+
+        # Get Instagram integrator
+        integrator = IntegrationFactory.get_integrator("instagram")
+
+        # For now, simulate sending
+        logger.info(f"Sending Instagram message to {message.recipient}: {message.content[:50]}...")
+
+        # In a real implementation, you would:
+        # 1. Get user's Instagram credentials
+        # 2. Use Instagram Graph API to send message
+        # 3. Handle response and update message status
+
         return True
     except Exception as e:
         logger.error(f"Instagram message failed: {str(e)}")
@@ -69,8 +79,19 @@ def send_instagram_message(message):
 def send_twitter_message(message):
     """Send message via Twitter API"""
     try:
-        # Implement Twitter API v2 logic
-        logger.info(f"Sending Twitter message to {message.recipient}")
+        from apps.integrations.social_media_integrator import TwitterIntegrator
+
+        # Get Twitter integrator
+        integrator = TwitterIntegrator()
+
+        logger.info(f"Sending Twitter DM to {message.recipient}: {message.content[:50]}...")
+
+        # In a real implementation:
+        # 1. Get user's Twitter credentials
+        # 2. Use Twitter API v2 to send direct message
+        # 3. Handle response
+
+        # For now, simulate successful send
         return True
     except Exception as e:
         logger.error(f"Twitter message failed: {str(e)}")
@@ -80,8 +101,13 @@ def send_twitter_message(message):
 def send_facebook_message(message):
     """Send message via Facebook Graph API"""
     try:
-        # Implement Facebook Graph API logic
-        logger.info(f"Sending Facebook message to {message.recipient}")
+        logger.info(f"Sending Facebook message to {message.recipient}: {message.content[:50]}...")
+
+        # In a real implementation:
+        # 1. Get user's Facebook page access token
+        # 2. Use Facebook Graph API to send message
+        # 3. Handle webhook responses
+
         return True
     except Exception as e:
         logger.error(f"Facebook message failed: {str(e)}")
@@ -91,8 +117,13 @@ def send_facebook_message(message):
 def send_linkedin_message(message):
     """Send message via LinkedIn API"""
     try:
-        # Implement LinkedIn API logic
-        logger.info(f"Sending LinkedIn message to {message.recipient}")
+        logger.info(f"Sending LinkedIn message to {message.recipient}: {message.content[:50]}...")
+
+        # In a real implementation:
+        # 1. Get user's LinkedIn access token
+        # 2. Use LinkedIn Messaging API
+        # 3. Handle response
+
         return True
     except Exception as e:
         logger.error(f"LinkedIn message failed: {str(e)}")

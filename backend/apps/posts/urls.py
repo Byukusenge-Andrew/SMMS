@@ -1,6 +1,12 @@
+"""
+URL configuration for posts app
+"""
+
 from django.urls import path
 
 from . import views
+
+app_name = "posts"
 
 urlpatterns = [
     # Posts
@@ -20,8 +26,17 @@ urlpatterns = [
     # Suggestions
     path("suggestions/", views.PostSuggestionListView.as_view(), name="suggestion-list"),
     path("suggestions/generate/", views.generate_suggestions, name="generate-suggestions"),
-    # New endpoints
-    # path("calendar/share/", views.share_calendar, name="share-calendar"),
-    # path("multi-platform/", views.multi_platform_post, name="multi-platform-post"),
-    # path("brand-wall/", views.brand_wall, name="brand-wall"),
+    # Advanced Features
+    path("calendar/share/", views.share_calendar, name="share-calendar"),
+    path("multi-platform/", views.multi_platform_post, name="multi-platform-post"),
+    path("brand-wall/", views.brand_wall, name="brand-wall"),
+    # AI-Powered Features
+    path("ai/content-suggestions/", views.ai_content_suggestions, name="ai-content-suggestions"),
+    path("ai/analyze-content/", views.analyze_content_performance, name="analyze-content"),
+    path("ai/optimal-times/", views.get_optimal_posting_times, name="optimal-posting-times"),
+    path("ai/trigger-insights/", views.trigger_ai_insights, name="trigger-ai-insights"),
+    # AI Sentiment Analysis
+    path("ai/sentiment/comment/", views.analyze_single_comment_sentiment, name="analyze-single-comment-sentiment"),
+    path("ai/sentiment/post/<uuid:post_id>/", views.analyze_comment_sentiment, name="analyze-post-comments-sentiment"),
+    path("ai/sentiment/batch/", views.batch_analyze_post_comments, name="batch-analyze-comments-sentiment"),
 ]

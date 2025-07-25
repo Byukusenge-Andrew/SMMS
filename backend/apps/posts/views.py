@@ -5,10 +5,10 @@ from datetime import timedelta
 from django.db import models
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
-
 from rest_framework import permissions, status
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.generics import ListCreateAPIView, RetrieveUpdateDestroyAPIView
+from rest_framework.generics import (ListCreateAPIView,
+                                     RetrieveUpdateDestroyAPIView)
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
@@ -16,14 +16,11 @@ from rest_framework.response import Response
 from apps.analytics.models import AnalyticsData
 
 from .models import Holiday, Post, PostSuggestion, PostTemplate, SocialSet
-from .serializers import (
-    HolidaySerializer,
-    PostSerializer,
-    PostSuggestionSerializer,
-    PostTemplateSerializer,
-    SocialSetSerializer,
-)
-from .tasks import bulk_post_operation, generate_post_suggestions, publish_scheduled_post
+from .serializers import (HolidaySerializer, PostSerializer,
+                          PostSuggestionSerializer, PostTemplateSerializer,
+                          SocialSetSerializer)
+from .tasks import (bulk_post_operation, generate_post_suggestions,
+                    publish_scheduled_post)
 
 logger = logging.getLogger(__name__)
 
@@ -470,3 +467,362 @@ def extract_hashtags(content):
     hashtag_pattern = r"#\w+"
     hashtags = re.findall(hashtag_pattern, content)
     return [tag.lower() for tag in hashtags]
+
+
+# AI-Powered Content Suggestions
+
+
+@api_view(["GET"])
+@permission_classes([permissions.IsAuthenticated])
+def ai_content_suggestions(request):
+    """Get AI-powered content suggestions based on analytics"""
+    try:
+        platform = request.query_params.get("platform", "instagram")
+
+        # Get user's analytics data for better suggestions
+        from apps.analytics.models import AnalyticsData
+
+        recent_analytics = AnalyticsData.objects.filter(
+            user=request.user, platform=platform, date__gte=timezone.now().date() - timedelta(days=30)
+        )
+
+        # Convert to AI service format
+        analytics_data = []
+        for data in recent_analytics:
+            analytics_data.append(
+                {
+                    "date": data.date,
+                    "platform": data.platform,
+                    "engagement": data.value if data.metric_type == "engagement" else 0,
+                    "reach": data.value if data.metric_type == "reach" else 0,
+                    "content_type": getattr(data.post, "post_type", "post") if data.post else "post",
+                }
+            )
+
+        # Generate AI suggestions
+        from apps.integrations.ai_service import AIService
+
+        ai_service = AIService()
+
+        suggestions = ai_service.generate_content_suggestions_based_on_analytics(analytics_data, platform)
+
+        # Also get general suggestions
+        general_suggestions = ai_service.generate_post_suggestions(request.user, platform)
+
+        return Response(
+            {
+                "analytics_based_suggestions": suggestions,
+                "general_suggestions": general_suggestions,
+                "platform": platform,
+                "based_on_days": 30,
+            }
+        )
+
+    except Exception as e:
+        logger.error(f"Error generating AI content suggestions: {str(e)}")
+        return Response({"error": "Failed to generate AI content suggestions"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(["POST"])
+@permission_classes([permissions.IsAuthenticated])
+def analyze_content_performance(request):
+    """Analyze content performance and get suggestions"""
+    try:
+        content = request.data.get("content", "")
+        platform = request.data.get("platform", "instagram")
+
+        if not content:
+            return Response({"error": "content is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        from apps.integrations.ai_service import AIService
+
+        ai_service = AIService()
+
+        # Analyze content
+        sentiment = ai_service.analyze_sentiment(content)
+        hashtags = ai_service.generate_hashtags(content, platform)
+        optimized_content = ai_service.optimize_content_for_platform(content, platform)
+
+        # Get user's historical performance for comparison
+        from apps.analytics.models import AnalyticsData
+
+        user_avg_engagement = (
+            AnalyticsData.objects.filter(user=request.user, platform=platform, metric_type="engagement").aggregate(
+                avg=models.Avg("value")
+            )["avg"]
+            or 0
+        )
+
+        # Simple performance prediction
+        sentiment_multiplier = 1.2 if sentiment["sentiment"] == "positive" else 0.8
+        hashtag_boost = 1.1 if len(hashtags) >= 5 else 0.9
+        length_factor = 1.0 if 50 <= len(content) <= 150 else 0.8
+
+        predicted_engagement = int(user_avg_engagement * sentiment_multiplier * hashtag_boost * length_factor)
+
+        return Response(
+            {
+                "content_analysis": {
+                    "sentiment": sentiment,
+                    "content_length": len(content),
+                    "suggested_hashtags": hashtags,
+                    "optimized_content": optimized_content,
+                },
+                "performance_prediction": {
+                    "predicted_engagement": predicted_engagement,
+                    "user_avg_engagement": user_avg_engagement,
+                    "improvement_factors": {
+                        "sentiment": sentiment_multiplier,
+                        "hashtags": hashtag_boost,
+                        "length": length_factor,
+                    },
+                },
+                "recommendations": [
+                    (
+                        "Great positive sentiment!"
+                        if sentiment["sentiment"] == "positive"
+                        else "Consider adding more positive language"
+                    ),
+                    f"Suggested hashtags: {', '.join(hashtags[:5])}",
+                    "Good content length" if 50 <= len(content) <= 150 else "Consider adjusting length to 50-150 characters",
+                ],
+            }
+        )
+
+    except Exception as e:
+        logger.error(f"Error analyzing content: {str(e)}")
+        return Response({"error": "Failed to analyze content"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(["GET"])
+@permission_classes([permissions.IsAuthenticated])
+def get_optimal_posting_times(request):
+    """Get AI-suggested optimal posting times"""
+    try:
+        platform = request.query_params.get("platform")
+
+        # Trigger AI analysis task
+        from apps.analytics.tasks import predict_optimal_posting_times
+
+        result = predict_optimal_posting_times.delay(request.user.id)
+
+        # Get existing insights if available
+        from apps.analytics.models import AnalyticsInsight
+
+        recent_insights = AnalyticsInsight.objects.filter(
+            user=request.user,
+            insight_type="prediction",
+            title="Optimal Posting Times",
+            created_at__gte=timezone.now() - timedelta(days=7),
+        ).first()
+
+        if recent_insights:
+            return Response(
+                {
+                    "optimal_times": recent_insights.data,
+                    "generated_at": recent_insights.created_at,
+                    "confidence": recent_insights.confidence_score,
+                }
+            )
+
+        # Return default suggestions while analysis runs
+        default_times = {"instagram": [9, 12, 15], "twitter": [9, 12, 18], "linkedin": [8, 12, 17], "facebook": [12, 15, 18]}
+
+        platform_times = default_times.get(platform, [9, 12, 15])
+
+        return Response(
+            {
+                "message": "AI analysis started, showing default optimal times",
+                "optimal_times": [
+                    {"hour": hour, "recommendation": f"Post at {hour}:00 for good engagement", "confidence": 0.6}
+                    for hour in platform_times
+                ],
+                "task_id": result.id,
+            }
+        )
+
+    except Exception as e:
+        logger.error(f"Error getting optimal posting times: {str(e)}")
+        return Response({"error": "Failed to get optimal posting times"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(["POST"])
+@permission_classes([permissions.IsAuthenticated])
+def trigger_ai_insights(request):
+    """Trigger comprehensive AI insights generation"""
+    try:
+        days = int(request.data.get("days", 30))
+
+        # Trigger various AI analysis tasks
+        from apps.analytics.tasks import (analyze_content_performance_trends,
+                                          generate_ai_insights,
+                                          predict_optimal_posting_times)
+
+        # Start all AI analysis tasks
+        insights_task = generate_ai_insights.delay(request.user.id, days)
+        trends_task = analyze_content_performance_trends.delay(request.user.id)
+        timing_task = predict_optimal_posting_times.delay(request.user.id)
+
+        return Response(
+            {
+                "message": "AI insights generation started",
+                "tasks": {"insights": insights_task.id, "trends": trends_task.id, "timing": timing_task.id},
+                "analysis_period": f"{days} days",
+                "estimated_completion": "2-3 minutes",
+            }
+        )
+
+    except Exception as e:
+        logger.error(f"Error triggering AI insights: {str(e)}")
+        return Response({"error": "Failed to trigger AI insights"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(["POST"])
+@permission_classes([permissions.IsAuthenticated])
+def analyze_comment_sentiment(request, post_id):
+    """Analyze sentiment of comments on a specific post using AI models"""
+    try:
+        # Get the post
+        post = get_object_or_404(Post, id=post_id, user=request.user)
+
+        # Get comments from request data
+        comments = request.data.get("comments", [])
+
+        if not comments:
+            return Response({"error": "No comments provided for analysis"}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not isinstance(comments, list):
+            return Response({"error": "Comments must be provided as a list"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Initialize AI service
+        from apps.integrations.ai_service import AIService
+
+        ai_service = AIService()
+
+        # Analyze comments sentiment
+        sentiment_analysis = ai_service.analyze_comments_sentiment(comments)
+
+        # Add post information to response
+        sentiment_analysis["post_id"] = str(post.id)
+        sentiment_analysis["post_title"] = post.title if hasattr(post, "title") else "Post"
+        sentiment_analysis["analysis_timestamp"] = timezone.now().isoformat()
+
+        # Log the analysis for potential future use
+        logger.info(f"Sentiment analysis completed for post {post_id} by user {request.user.id}")
+
+        return Response(sentiment_analysis)
+
+    except Exception as e:
+        logger.error(f"Error analyzing comment sentiment: {str(e)}")
+        return Response(
+            {"error": "Failed to analyze comment sentiment", "details": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(["POST"])
+@permission_classes([permissions.IsAuthenticated])
+def analyze_single_comment_sentiment(request):
+    """Analyze sentiment of a single comment using AI models"""
+    try:
+        comment_text = request.data.get("comment", "")
+
+        if not comment_text or not comment_text.strip():
+            return Response({"error": "Comment text is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Initialize AI service
+        from apps.integrations.ai_service import AIService
+
+        ai_service = AIService()
+
+        # Analyze single comment sentiment
+        sentiment_result = ai_service.analyze_sentiment(comment_text)
+
+        # Add metadata
+        sentiment_result["comment"] = comment_text[:200] + "..." if len(comment_text) > 200 else comment_text
+        sentiment_result["analysis_timestamp"] = timezone.now().isoformat()
+
+        return Response(sentiment_result)
+
+    except Exception as e:
+        logger.error(f"Error analyzing single comment sentiment: {str(e)}")
+        return Response(
+            {"error": "Failed to analyze comment sentiment", "details": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(["POST"])
+@permission_classes([permissions.IsAuthenticated])
+def batch_analyze_post_comments(request):
+    """Analyze sentiment for comments across multiple posts"""
+    try:
+        post_comments_data = request.data.get("posts", [])
+
+        if not post_comments_data:
+            return Response({"error": "Post comments data is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Initialize AI service
+        from apps.integrations.ai_service import AIService
+
+        ai_service = AIService()
+
+        results = []
+        overall_stats = {
+            "total_posts": 0,
+            "total_comments": 0,
+            "overall_sentiment_distribution": {"positive": 0, "negative": 0, "neutral": 0},
+        }
+
+        for post_data in post_comments_data:
+            post_id = post_data.get("post_id")
+            comments = post_data.get("comments", [])
+
+            if not post_id or not comments:
+                continue
+
+            # Verify post ownership
+            try:
+                post = get_object_or_404(Post, id=post_id, user=request.user)
+            except:
+                continue
+
+            # Analyze comments for this post
+            sentiment_analysis = ai_service.analyze_comments_sentiment(comments)
+
+            # Add post info
+            sentiment_analysis["post_id"] = str(post_id)
+            sentiment_analysis["post_title"] = post.title if hasattr(post, "title") else f"Post {post_id}"
+
+            results.append(sentiment_analysis)
+
+            # Update overall stats
+            overall_stats["total_posts"] += 1
+            overall_stats["total_comments"] += sentiment_analysis["comments_analyzed"]
+
+            # Aggregate sentiment counts
+            for sentiment, count in sentiment_analysis["sentiment_counts"].items():
+                overall_stats["overall_sentiment_distribution"][sentiment] += count
+
+        # Calculate overall percentages
+        total_comments = overall_stats["total_comments"]
+        if total_comments > 0:
+            for sentiment in overall_stats["overall_sentiment_distribution"]:
+                count = overall_stats["overall_sentiment_distribution"][sentiment]
+                overall_stats["overall_sentiment_distribution"][sentiment] = {
+                    "count": count,
+                    "percentage": round((count / total_comments) * 100, 1),
+                }
+
+        return Response(
+            {
+                "results": results,
+                "overall_stats": overall_stats,
+                "analysis_timestamp": timezone.now().isoformat(),
+                "posts_analyzed": len(results),
+            }
+        )
+
+    except Exception as e:
+        logger.error(f"Error in batch comment sentiment analysis: {str(e)}")
+        return Response(
+            {"error": "Failed to analyze comments sentiment", "details": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )

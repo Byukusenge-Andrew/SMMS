@@ -1,21 +1,29 @@
-from django.shortcuts import get_object_or_404
+from datetime import timedelta
 
-from rest_framework import generics
+from django.db.models import Count, Q
+from django.shortcuts import get_object_or_404
+from django.utils import timezone
+from rest_framework import generics, status
+from rest_framework.decorators import api_view, permission_classes
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
 
 from apps.posts.models import Post
 
-from .models import Comment, PostCollaboration, Review, Workspace, WorkspaceMember
-
-# You'll need to create serializers for these models
+from .models import (Comment, PostCollaboration, Review, Workspace,
+                     WorkspaceMember)
+from .serializers import (CommentSerializer, PostCollaborationSerializer,
+                          ReviewSerializer, WorkspaceInviteSerializer,
+                          WorkspaceMemberSerializer, WorkspaceSerializer,
+                          WorkspaceStatsSerializer)
 
 
 class WorkspaceListCreateView(generics.ListCreateAPIView):
     """API view to list and create workspaces"""
 
     permission_classes = [IsAuthenticated]
-    # serializer_class = WorkspaceSerializer
+    serializer_class = WorkspaceSerializer
 
     def get_queryset(self):
         """Return workspaces where the user is a member"""
@@ -43,7 +51,7 @@ class WorkspaceDetailView(generics.RetrieveUpdateDestroyAPIView):
     """API view to retrieve, update and delete workspaces"""
 
     permission_classes = [IsAuthenticated]
-    # serializer_class = WorkspaceSerializer
+    serializer_class = WorkspaceSerializer
 
     def get_queryset(self):
         """Return workspaces where the user is a member"""
@@ -73,7 +81,7 @@ class WorkspaceMemberListView(generics.ListCreateAPIView):
     """API view to list and add members to a workspace"""
 
     permission_classes = [IsAuthenticated]
-    # serializer_class = WorkspaceMemberSerializer
+    serializer_class = WorkspaceMemberSerializer
 
     def get_queryset(self):
         """Return members of a specific workspace"""
@@ -103,7 +111,7 @@ class PostCollaborationView(generics.RetrieveUpdateAPIView):
     """API view to manage collaboration for a post"""
 
     permission_classes = [IsAuthenticated]
-    # serializer_class = PostCollaborationSerializer
+    serializer_class = PostCollaborationSerializer
 
     def get_object(self):
         """Get or create collaboration for a post"""
@@ -131,7 +139,7 @@ class ReviewListCreateView(generics.ListCreateAPIView):
     """API view to list and create reviews for a collaboration"""
 
     permission_classes = [IsAuthenticated]
-    # serializer_class = ReviewSerializer
+    serializer_class = ReviewSerializer
 
     def get_queryset(self):
         """Return reviews for a collaboration"""
@@ -163,7 +171,7 @@ class CommentListCreateView(generics.ListCreateAPIView):
     """API view to list and create comments on a post"""
 
     permission_classes = [IsAuthenticated]
-    # serializer_class = CommentSerializer
+    serializer_class = CommentSerializer
 
     def get_queryset(self):
         """Return comments for a post"""
@@ -196,3 +204,114 @@ class CommentListCreateView(generics.ListCreateAPIView):
                 raise PermissionDenied("You don't have permission to comment on this post")
 
         serializer.save(post=post, user=self.request.user)
+
+
+# Additional API endpoints for collaboration features
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def invite_to_workspace(request, workspace_id):
+    """Invite a user to a workspace via email"""
+    workspace = get_object_or_404(Workspace, id=workspace_id)
+
+    # Check permissions
+    membership = WorkspaceMember.objects.filter(workspace=workspace, user=request.user).first()
+    if not membership or not membership.can_manage_members:
+        raise PermissionDenied("You don't have permission to invite members")
+
+    serializer = WorkspaceInviteSerializer(data=request.data)
+    if serializer.is_valid():
+        # TODO: Implement email invitation system
+        # For now, just return success
+        return Response(
+            {
+                "message": "Invitation sent successfully",
+                "email": serializer.validated_data["email"],
+                "workspace": workspace.name,
+            }
+        )
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def workspace_stats(request, workspace_id):
+    """Get workspace statistics"""
+    workspace = get_object_or_404(Workspace, id=workspace_id)
+
+    # Check access
+    if not workspace.members.filter(id=request.user.id).exists():
+        raise PermissionDenied("You don't have access to this workspace")
+
+    # Calculate stats
+    collaborations = PostCollaboration.objects.filter(workspace=workspace)
+    current_month = timezone.now().replace(day=1)
+
+    stats = {
+        "total_posts": collaborations.count(),
+        "total_members": workspace.members.count(),
+        "posts_this_month": collaborations.filter(created_at__gte=current_month).count(),
+        "pending_reviews": Review.objects.filter(collaboration__workspace=workspace, status="pending").count(),
+        "published_posts": collaborations.filter(status="published").count(),
+        "draft_posts": collaborations.filter(status="draft").count(),
+    }
+
+    serializer = WorkspaceStatsSerializer(stats)
+    return Response(serializer.data)
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def assign_post_for_review(request, post_id):
+    """Assign a post to reviewers"""
+    post = get_object_or_404(Post, id=post_id)
+
+    # Check if user owns the post or has permission
+    if post.user != request.user:
+        raise PermissionDenied("You don't have permission to assign this post")
+
+    reviewer_ids = request.data.get("reviewer_ids", [])
+    due_date = request.data.get("due_date")
+
+    # Get or create collaboration
+    collaboration, created = PostCollaboration.objects.get_or_create(
+        post=post, defaults={"status": "review", "due_date": due_date}
+    )
+
+    # Add reviewers
+    from django.contrib.auth.models import User
+
+    reviewers = User.objects.filter(id__in=reviewer_ids)
+    collaboration.reviewers.set(reviewers)
+
+    return Response(
+        {
+            "message": "Post assigned for review",
+            "collaboration_id": collaboration.id,
+            "reviewers": [r.username for r in reviewers],
+        }
+    )
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def remove_workspace_member(request, workspace_id, member_id):
+    """Remove a member from workspace"""
+    workspace = get_object_or_404(Workspace, id=workspace_id)
+
+    # Check permissions
+    membership = WorkspaceMember.objects.filter(workspace=workspace, user=request.user).first()
+    if not membership or not membership.can_manage_members:
+        raise PermissionDenied("You don't have permission to remove members")
+
+    # Remove member
+    member_to_remove = get_object_or_404(WorkspaceMember, workspace=workspace, id=member_id)
+
+    # Don't allow removing the owner
+    if member_to_remove.role == "owner":
+        return Response({"error": "Cannot remove workspace owner"}, status=status.HTTP_400_BAD_REQUEST)
+
+    member_to_remove.delete()
+
+    return Response({"message": "Member removed successfully"})

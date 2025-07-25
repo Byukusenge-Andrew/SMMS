@@ -19,6 +19,8 @@ python-decouple==3.8
 pandas>=2.1.0
 transformers>=4.36.0
 torch>=2.1.0
+textblob>=0.17.1
+tweepy>=4.12.1
 opencv-python>=4.8.0
 numpy>=1.25.0
 PyJWT==2.8.0
