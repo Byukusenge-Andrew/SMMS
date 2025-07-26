@@ -87,7 +87,7 @@ class TwitterIntegrator(SocialMediaIntegrator):
                 f"https://api.twitter.com/2/users/by/username/{username}",
                 headers=headers,
                 params={"user.fields": "id,name,username,public_metrics,verified,profile_image_url"},
-                timeout=10,  # <-- Add timeout
+                timeout=10,  # <-- Added timeout
             )
 
             if response.status_code == 200:
@@ -168,7 +168,7 @@ class RedditIntegrator(SocialMediaIntegrator):
             response = requests.get(
                 f"https://www.reddit.com/user/{username}/about.json",
                 headers={"User-Agent": "SMSManager/1.0"},
-                timeout=10,  # <-- Add timeout
+                timeout=10,  # <-- Added timeout
             )
 
             if response.status_code == 200:
@@ -218,7 +218,11 @@ class SlackIntegrator(SocialMediaIntegrator):
         """Verify Slack channel exists"""
         try:
             headers = {"Authorization": f"Bearer {self.bot_token}"}
-            response = requests.get("https://slack.com/api/conversations.list", headers=headers, timeout=10)  # <-- Add timeout
+            response = requests.get(
+                "https://slack.com/api/conversations.list",
+                headers=headers,
+                timeout=10,  # <-- Added timeout
+            )
 
             if response.status_code == 200:
                 data = response.json()
@@ -245,7 +249,11 @@ class SlackIntegrator(SocialMediaIntegrator):
             payload = {"text": content, "channel": channel or "#general"}
 
             if self.webhook_url:
-                response = requests.post(self.webhook_url, json=payload, timeout=10)  # <-- Add timeout
+                response = requests.post(
+                    self.webhook_url,
+                    json=payload,
+                    timeout=10,  # <-- Added timeout
+                )
                 if response.status_code == 200:
                     return {"success": True, "message": "Message sent to Slack successfully"}
 
