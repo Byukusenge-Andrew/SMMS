@@ -1,6 +1,6 @@
 # OAuth/SSO support
 social-auth-app-django>=5.4.0
-Django==5.0.0
+Django>=5.0.14
 djangorestframework==3.14.0
 django-cors-headers==4.3.1
 psycopg2-binary

@@ -4,11 +4,18 @@ URL configuration for collaborators app
 
 from django.urls import path
 
-from .views import (CommentListCreateView, PostCollaborationView,
-                    ReviewListCreateView, WorkspaceDetailView,
-                    WorkspaceListCreateView, WorkspaceMemberListView,
-                    assign_post_for_review, invite_to_workspace,
-                    remove_workspace_member, workspace_stats)
+from .views import (
+    CommentListCreateView,
+    PostCollaborationView,
+    ReviewListCreateView,
+    WorkspaceDetailView,
+    WorkspaceListCreateView,
+    WorkspaceMemberListView,
+    assign_post_for_review,
+    invite_to_workspace,
+    remove_workspace_member,
+    workspace_stats,
+)
 
 app_name = "collaborators"
 

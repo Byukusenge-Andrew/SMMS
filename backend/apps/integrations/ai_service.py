@@ -12,8 +12,7 @@ try:
 
     # Check if torch is properly initialized
     _ = torch.tensor([1.0])
-    from transformers import (AutoModelForSequenceClassification,
-                              AutoTokenizer, pipeline)
+    from transformers import AutoModelForSequenceClassification, AutoTokenizer, pipeline
 
     TRANSFORMERS_AVAILABLE = True
 except (ImportError, RuntimeError, AttributeError) as e:

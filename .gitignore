@@ -54,3 +54,6 @@ celerybeat.pid
 # Others
 *.swp
 *.swo
+backend/test/
+# Ignore specific directories
+

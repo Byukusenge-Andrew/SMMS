@@ -3,6 +3,7 @@ from datetime import timedelta
 from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
+
 from rest_framework import generics, status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.exceptions import PermissionDenied
@@ -11,12 +12,16 @@ from rest_framework.response import Response
 
 from apps.posts.models import Post
 
-from .models import (Comment, PostCollaboration, Review, Workspace,
-                     WorkspaceMember)
-from .serializers import (CommentSerializer, PostCollaborationSerializer,
-                          ReviewSerializer, WorkspaceInviteSerializer,
-                          WorkspaceMemberSerializer, WorkspaceSerializer,
-                          WorkspaceStatsSerializer)
+from .models import Comment, PostCollaboration, Review, Workspace, WorkspaceMember
+from .serializers import (
+    CommentSerializer,
+    PostCollaborationSerializer,
+    ReviewSerializer,
+    WorkspaceInviteSerializer,
+    WorkspaceMemberSerializer,
+    WorkspaceSerializer,
+    WorkspaceStatsSerializer,
+)
 
 
 class WorkspaceListCreateView(generics.ListCreateAPIView):
