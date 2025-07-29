@@ -6,18 +6,33 @@ import re
 from datetime import datetime, timedelta
 from typing import Any, Dict, List
 
-# AI model imports
+# AI model imports with better error handling
 try:
+    # Try importing torch first
     import torch
-
-    # Check if torch is properly initialized
-    _ = torch.tensor([1.0])
+    
+    # Test torch functionality to ensure it's properly loaded
+    test_tensor = torch.tensor([1.0])
+    del test_tensor
+    
+    # Now try transformers
     from transformers import AutoModelForSequenceClassification, AutoTokenizer, pipeline
-
+    
     TRANSFORMERS_AVAILABLE = True
-except (ImportError, RuntimeError, AttributeError) as e:
+    TORCH_AVAILABLE = True
+    logging.info("Transformers and PyTorch successfully loaded")
+    
+except (ImportError, RuntimeError, AttributeError, OSError) as e:
     TRANSFORMERS_AVAILABLE = False
-    logging.warning(f"Transformers library not available: {str(e)}. Using fallback sentiment analysis.")
+    TORCH_AVAILABLE = False
+    logging.warning(f"PyTorch/Transformers not available: {str(e)}. Using fallback sentiment analysis.")
+    
+    # Clean up any partially imported modules
+    import sys
+    modules_to_clean = [name for name in sys.modules.keys() if name.startswith(('torch', 'transformers'))]
+    for module in modules_to_clean:
+        if module in sys.modules:
+            del sys.modules[module]
 
 # Alternative lightweight option
 try:
