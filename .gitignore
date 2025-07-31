@@ -56,4 +56,4 @@ celerybeat.pid
 *.swo
 backend/test/
 # Ignore specific directories
-
+Requirements.pdf
