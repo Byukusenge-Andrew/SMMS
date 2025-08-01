@@ -7,8 +7,7 @@ from rest_framework import serializers
 from apps.authentication.serializers import UserSerializer
 from apps.posts.serializers import PostSerializer
 
-from .models import (Comment, PostCollaboration, Review, Workspace,
-                     WorkspaceMember)
+from .models import Comment, PostCollaboration, Review, Workspace, WorkspaceMember
 
 
 class WorkspaceSerializer(serializers.ModelSerializer):

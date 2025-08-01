@@ -7,8 +7,7 @@ from django.db.models import Count, Q
 from django.utils import timezone
 from django.utils.html import format_html
 
-from .models import (IPBlacklist, IPWhitelist, RateLimitLog, RateLimitRule,
-                     RateLimitStats)
+from .models import IPBlacklist, IPWhitelist, RateLimitLog, RateLimitRule, RateLimitStats
 
 
 @admin.register(RateLimitRule)

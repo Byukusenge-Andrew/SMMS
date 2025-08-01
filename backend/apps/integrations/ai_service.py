@@ -16,8 +16,7 @@ try:
     del test_tensor
 
     # Now try transformers
-    from transformers import (AutoModelForSequenceClassification,
-                              AutoTokenizer, pipeline)
+    from transformers import AutoModelForSequenceClassification, AutoTokenizer, pipeline
 
     TRANSFORMERS_AVAILABLE = True
     TORCH_AVAILABLE = True

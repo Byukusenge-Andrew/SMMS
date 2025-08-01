@@ -4,8 +4,14 @@ URL routing for rate limiting API
 
 from django.urls import include, path
 
-from .views import (IPBlacklistView, IPWhitelistView, RateLimitDashboardView,
-                    RateLimitLogsView, RateLimitStatsView, RateLimitTestView)
+from .views import (
+    IPBlacklistView,
+    IPWhitelistView,
+    RateLimitDashboardView,
+    RateLimitLogsView,
+    RateLimitStatsView,
+    RateLimitTestView,
+)
 
 app_name = "core"
 

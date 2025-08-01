@@ -1,9 +1,10 @@
 import logging
 
-from celery import shared_task
 from django.conf import settings
 from django.core.mail import send_mail
 from django.utils import timezone  # Add this import
+
+from celery import shared_task
 
 logger = logging.getLogger(__name__)
 
@@ -56,8 +57,7 @@ def send_message(message_id):
 def send_instagram_message(message):
     """Send message via Instagram API"""
     try:
-        from apps.integrations.social_media_integrator import \
-            IntegrationFactory
+        from apps.integrations.social_media_integrator import IntegrationFactory
 
         # Get Instagram integrator
         integrator = IntegrationFactory.get_integrator("instagram")

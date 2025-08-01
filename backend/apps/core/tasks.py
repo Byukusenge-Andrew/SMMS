@@ -5,9 +5,10 @@ Celery tasks for rate limiting maintenance and statistics
 import logging
 from datetime import timedelta
 
-from celery import shared_task
 from django.db.models import Avg, Count
 from django.utils import timezone
+
+from celery import shared_task
 
 logger = logging.getLogger(__name__)
 

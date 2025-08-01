@@ -6,14 +6,14 @@ from datetime import timedelta
 
 from django.db.models import Count, Q
 from django.utils import timezone
+
 from rest_framework import status
 from rest_framework.permissions import IsAdminUser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .models import IPBlacklist, IPWhitelist, RateLimitLog, RateLimitStats
-from .serializers import (IPBlacklistSerializer, IPWhitelistSerializer,
-                          RateLimitLogSerializer, RateLimitStatsSerializer)
+from .serializers import IPBlacklistSerializer, IPWhitelistSerializer, RateLimitLogSerializer, RateLimitStatsSerializer
 
 
 class RateLimitDashboardView(APIView):

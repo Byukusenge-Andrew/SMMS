@@ -3,12 +3,13 @@ import uuid
 from datetime import timedelta
 
 from django.db import models
+from django.http import Http404
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
+
 from rest_framework import permissions, status
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.generics import (ListCreateAPIView,
-                                     RetrieveUpdateDestroyAPIView)
+from rest_framework.generics import ListCreateAPIView, RetrieveUpdateDestroyAPIView
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
@@ -16,11 +17,14 @@ from rest_framework.response import Response
 from apps.analytics.models import AnalyticsData
 
 from .models import Holiday, Post, PostSuggestion, PostTemplate, SocialSet
-from .serializers import (HolidaySerializer, PostSerializer,
-                          PostSuggestionSerializer, PostTemplateSerializer,
-                          SocialSetSerializer)
-from .tasks import (bulk_post_operation, generate_post_suggestions,
-                    publish_scheduled_post)
+from .serializers import (
+    HolidaySerializer,
+    PostSerializer,
+    PostSuggestionSerializer,
+    PostTemplateSerializer,
+    SocialSetSerializer,
+)
+from .tasks import bulk_post_operation, generate_post_suggestions, publish_scheduled_post
 
 logger = logging.getLogger(__name__)
 
@@ -418,7 +422,7 @@ def brand_wall(request):
 
         # Order by engagement and recent posts
         posts = posts.annotate(
-            engagement_score=models.Avg("analytics__value", filter=models.Q(analytics__metric_type="engagement_rate"))
+            engagement_score=models.Avg("value", filter=models.Q(analytics__metric_type="engagement_rate"))
         ).order_by("-engagement_score", "-created_at")[:limit]
 
         brand_wall_data = []
@@ -654,9 +658,11 @@ def trigger_ai_insights(request):
         days = int(request.data.get("days", 30))
 
         # Trigger various AI analysis tasks
-        from apps.analytics.tasks import (analyze_content_performance_trends,
-                                          generate_ai_insights,
-                                          predict_optimal_posting_times)
+        from apps.analytics.tasks import (
+            analyze_content_performance_trends,
+            generate_ai_insights,
+            predict_optimal_posting_times,
+        )
 
         # Start all AI analysis tasks
         insights_task = generate_ai_insights.delay(request.user.id, days)
@@ -782,7 +788,7 @@ def batch_analyze_post_comments(request):
             # Verify post ownership
             try:
                 post = get_object_or_404(Post, id=post_id, user=request.user)
-            except:
+            except Http404:
                 continue
 
             # Analyze comments for this post

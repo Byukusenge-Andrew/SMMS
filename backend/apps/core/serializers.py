@@ -3,10 +3,10 @@ Serializers for rate limiting API
 """
 
 from django.utils import timezone
+
 from rest_framework import serializers
 
-from .models import (IPBlacklist, IPWhitelist, RateLimitLog, RateLimitRule,
-                     RateLimitStats)
+from .models import IPBlacklist, IPWhitelist, RateLimitLog, RateLimitRule, RateLimitStats
 
 
 class RateLimitRuleSerializer(serializers.ModelSerializer):

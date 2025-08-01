@@ -3,12 +3,13 @@ import platform
 import socket
 import time
 
-import psutil
-import redis
 from django.conf import settings
 from django.db import connections
 from django.db.utils import OperationalError
 from django.http import JsonResponse
+
+import psutil
+import redis
 
 
 def health_check(request):
