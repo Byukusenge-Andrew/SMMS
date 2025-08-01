@@ -2,6 +2,7 @@ import logging
 import random
 from datetime import timedelta
 
+from celery import shared_task
 from django.conf import settings
 from django.contrib.auth.models import User
 from django.core.mail import EmailMultiAlternatives
@@ -9,9 +10,8 @@ from django.db import models
 from django.template.loader import render_to_string
 from django.utils import timezone
 
-from celery import shared_task
-
-from .models import AnalyticsData, BestPerformingPost, CommentAnalytics, PerformanceReport, PlatformAverage
+from .models import (AnalyticsData, BestPerformingPost, CommentAnalytics,
+                     PerformanceReport, PlatformAverage)
 
 logger = logging.getLogger(__name__)
 

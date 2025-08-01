@@ -10,12 +10,13 @@ from django.template.loader import render_to_string
 from django.utils.decorators import method_decorator
 from django.utils.html import strip_tags
 from django.views.decorators.csrf import csrf_exempt
-
-from drf_spectacular.utils import OpenApiExample, OpenApiResponse, extend_schema
+from drf_spectacular.utils import (OpenApiExample, OpenApiResponse,
+                                   extend_schema)
 from rest_framework import generics, permissions, status
 from rest_framework.authentication import TokenAuthentication
 from rest_framework.authtoken.models import Token
-from rest_framework.decorators import api_view, authentication_classes, permission_classes
+from rest_framework.decorators import (api_view, authentication_classes,
+                                       permission_classes)
 from rest_framework.exceptions import ValidationError as DRFValidationError
 from rest_framework.generics import ListCreateAPIView, RetrieveUpdateAPIView
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
@@ -23,17 +24,12 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import EmailVerificationToken, SocialMediaAccount, Team, TeamMember, UserProfile
-from .serializers import (
-    LoginSerializer,
-    RegisterSerializer,
-    SocialMediaAccountSerializer,
-    TeamMemberSerializer,
-    TeamSerializer,
-    UserProfileSerializer,
-    UserRegistrationSerializer,
-    UserSerializer,
-)
+from .models import (EmailVerificationToken, SocialMediaAccount, Team,
+                     TeamMember, UserProfile)
+from .serializers import (LoginSerializer, RegisterSerializer,
+                          SocialMediaAccountSerializer, TeamMemberSerializer,
+                          TeamSerializer, UserProfileSerializer,
+                          UserRegistrationSerializer, UserSerializer)
 from .tasks import send_team_invitation_email
 
 # Set up logger

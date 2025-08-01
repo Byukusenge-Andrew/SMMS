@@ -6,20 +6,11 @@ from .views import debug_auth_open  # Add this
 from .views import login_view  # Import the function instead
 from .views import teams_for_invitation  # Add this import
 from .views import user_time_format_setting  # Add this import
-from .views import (
-    LogoutView,
-    SocialMediaAccountListView,
-    TeamListCreateView,
-    TeamMemberListView,
-    check_social_account_exists,
-    debug_auth,
-    health_check,
-    register,
-    remove_social_media_account,
-    resend_verification_email,
-    user_dashboard,
-    verify_email,
-)
+from .views import (LogoutView, SocialMediaAccountListView, TeamListCreateView,
+                    TeamMemberListView, check_social_account_exists,
+                    debug_auth, health_check, register,
+                    remove_social_media_account, resend_verification_email,
+                    user_dashboard, verify_email)
 
 urlpatterns = [
     path("register/", register, name="register"),

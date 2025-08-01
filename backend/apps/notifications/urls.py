@@ -4,16 +4,10 @@ URL configuration for notifications app
 
 from django.urls import path
 
-from .views import (
-    NotificationDetailView,
-    NotificationListView,
-    bulk_mark_read,
-    clear_all_notifications,
-    mark_all_read,
-    notification_preferences,
-    notification_stats,
-    send_test_notification,
-)
+from .views import (NotificationDetailView, NotificationListView,
+                    bulk_mark_read, clear_all_notifications, mark_all_read,
+                    notification_preferences, notification_stats,
+                    send_test_notification)
 
 app_name = "notifications"
 

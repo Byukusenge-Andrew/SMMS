@@ -3,16 +3,18 @@ from datetime import timedelta
 
 from django.db import models
 from django.utils import timezone
-
 from rest_framework import permissions, status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 
 from apps.integrations.ai_service import AIService
 
-from .models import AnalyticsData, BestPerformingPost, PerformanceReport, PlatformAverage
-from .serializers import BestPerformingPostSerializer, PerformanceReportSerializer
-from .tasks import analyze_comment_sentiment, collect_analytics_data, generate_performance_report
+from .models import (AnalyticsData, BestPerformingPost, PerformanceReport,
+                     PlatformAverage)
+from .serializers import (BestPerformingPostSerializer,
+                          PerformanceReportSerializer)
+from .tasks import (analyze_comment_sentiment, collect_analytics_data,
+                    generate_performance_report)
 
 logger = logging.getLogger(__name__)
 

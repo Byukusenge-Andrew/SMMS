@@ -16,7 +16,6 @@ except ImportError:
     tweepy = None
 
 from django.conf import settings
-
 from rest_framework import status
 from rest_framework.response import Response
 

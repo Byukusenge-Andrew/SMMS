@@ -46,7 +46,8 @@ LOCAL_APPS = [
     "apps.notifications",
     "apps.collaborators",
     "apps.health",
-    "apps.messaging",  # Add this line
+    "apps.messaging",
+    "apps.core",  # Rate limiting and core utilities
 ]
 
 INSTALLED_APPS = (
@@ -59,6 +60,8 @@ INSTALLED_APPS = (
 )
 
 MIDDLEWARE = [
+    "apps.core.middleware.BurstProtectionMiddleware",  # Burst protection (first)
+    "apps.core.middleware.RateLimitMiddleware",  # Rate limiting (second)
     "social_django.middleware.SocialAuthExceptionMiddleware",
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
@@ -151,6 +154,13 @@ REST_FRAMEWORK = {
         "rest_framework.filters.OrderingFilter",
     ],
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+    # Note: Rate limiting is handled by middleware, not DRF throttling
+    "DEFAULT_THROTTLE_RATES": {
+        "anon": "20/hour",
+        "user": "1000/hour",
+        "premium": "10000/hour",
+        "admin": "50000/hour",
+    },
 }
 
 # CORS settings
@@ -203,6 +213,14 @@ CELERY_BEAT_SCHEDULE = {
     "yearly-analytics-report": {
         "task": "apps.analytics.tasks.send_yearly_report",
         "schedule": crontab(hour=9, minute=0, day_of_month=1, month_of_year=1),  # Jan 1st 9 AM
+    },
+    "cleanup-rate-limit-logs": {
+        "task": "apps.core.tasks.cleanup_rate_limit_logs",
+        "schedule": crontab(hour=2, minute=0),  # Daily at 2 AM
+    },
+    "generate-rate-limit-stats": {
+        "task": "apps.core.tasks.generate_hourly_stats",
+        "schedule": crontab(minute=5),  # Every hour at 5 minutes past
     },
 }
 

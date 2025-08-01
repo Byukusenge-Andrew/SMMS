@@ -10,26 +10,28 @@ from typing import Any, Dict, List
 try:
     # Try importing torch first
     import torch
-    
+
     # Test torch functionality to ensure it's properly loaded
     test_tensor = torch.tensor([1.0])
     del test_tensor
-    
+
     # Now try transformers
-    from transformers import AutoModelForSequenceClassification, AutoTokenizer, pipeline
-    
+    from transformers import (AutoModelForSequenceClassification,
+                              AutoTokenizer, pipeline)
+
     TRANSFORMERS_AVAILABLE = True
     TORCH_AVAILABLE = True
     logging.info("Transformers and PyTorch successfully loaded")
-    
+
 except (ImportError, RuntimeError, AttributeError, OSError) as e:
     TRANSFORMERS_AVAILABLE = False
     TORCH_AVAILABLE = False
     logging.warning(f"PyTorch/Transformers not available: {str(e)}. Using fallback sentiment analysis.")
-    
+
     # Clean up any partially imported modules
     import sys
-    modules_to_clean = [name for name in sys.modules.keys() if name.startswith(('torch', 'transformers'))]
+
+    modules_to_clean = [name for name in sys.modules.keys() if name.startswith(("torch", "transformers"))]
     for module in modules_to_clean:
         if module in sys.modules:
             del sys.modules[module]

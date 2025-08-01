@@ -2,20 +2,15 @@ from datetime import timedelta
 
 from django.db.models import Count, Q
 from django.utils import timezone
-
 from rest_framework import generics, status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from .models import Notification, NotificationPreference
-from .serializers import (
-    BulkMarkReadSerializer,
-    NotificationCreateSerializer,
-    NotificationPreferenceSerializer,
-    NotificationSerializer,
-    NotificationStatsSerializer,
-)
+from .serializers import (BulkMarkReadSerializer, NotificationCreateSerializer,
+                          NotificationPreferenceSerializer,
+                          NotificationSerializer, NotificationStatsSerializer)
 
 
 class NotificationListView(generics.ListAPIView):
