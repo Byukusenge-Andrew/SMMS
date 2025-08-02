@@ -113,11 +113,15 @@ jobs:
     - name: Install Pillow
       run: pip install Pillow
 
+    - name: Set up .env for CI
+      run: |
+        echo "SECRET_KEY=${{ secrets.SECRET_KEY }}" > .env
+        echo "SUPABASE_URL=${{ secrets.SUPABASE_URL }}" >> .env
+        echo "SUPABASE_KEY=${{ secrets.SUPABASE_KEY }}" >> .env
+        echo "SUPABASE_BUCKET=${{ secrets.SUPABASE_BUCKET }}" >> .env
+
     - name: Collect static files
       run: |
-        echo "SECRET_KEY=test-secret-key" > .env
-        echo "DEBUG=False" >> .env
-        echo "DATABASE_URL=sqlite:///test.db" >> .env
         python manage.py collectstatic --noinput
 
     - name: Check Django deployment
