@@ -115,10 +115,12 @@ jobs:
 
     - name: Set up .env for CI
       run: |
+        
         echo "SECRET_KEY=${{ secrets.SECRET_KEY }}" > .env
         echo "SUPABASE_URL=${{ secrets.SUPABASE_URL }}" >> .env
         echo "SUPABASE_KEY=${{ secrets.SUPABASE_KEY }}" >> .env
         echo "SUPABASE_BUCKET=${{ secrets.SUPABASE_BUCKET }}" >> .env
+        echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" >> .env
 
     - name: Collect static files
       run: |
