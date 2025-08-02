@@ -4,7 +4,11 @@ from django.contrib.auth.models import User
 from django.db import models
 
 from apps.authentication.models import SocialMediaAccount
+from apps.core.storage import SupabaseStorage
 from apps.posts.models import Post
+
+# Initialize Supabase storage
+supabase_storage = SupabaseStorage()
 
 
 class AnalyticsData(models.Model):
@@ -119,8 +123,8 @@ class PerformanceReport(models.Model):
     data = models.JSONField(default=dict)
 
     # File attachments
-    pdf_file = models.FileField(upload_to="reports/pdf/", blank=True, null=True)
-    csv_file = models.FileField(upload_to="reports/csv/", blank=True, null=True)
+    pdf_file = models.FileField(upload_to="reports/pdf/", blank=True, null=True, storage=supabase_storage)
+    csv_file = models.FileField(upload_to="reports/csv/", blank=True, null=True, storage=supabase_storage)
 
     # Status
     is_generated = models.BooleanField(default=False)

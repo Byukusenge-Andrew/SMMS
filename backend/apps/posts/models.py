@@ -4,6 +4,10 @@ from django.contrib.auth.models import User
 from django.db import models
 
 from apps.authentication.models import SocialMediaAccount
+from apps.core.storage import SupabaseStorage
+
+# Initialize Supabase storage
+supabase_storage = SupabaseStorage()
 
 
 class SocialSet(models.Model):
@@ -54,8 +58,8 @@ class Post(models.Model):
     hashtags = models.TextField(blank=True, help_text="Comma-separated hashtags")
 
     # Media
-    image = models.ImageField(upload_to="posts/images/", blank=True, null=True)
-    video = models.FileField(upload_to="posts/videos/", blank=True, null=True)
+    image = models.ImageField(upload_to="posts/images/", blank=True, null=True, storage=supabase_storage)
+    video = models.FileField(upload_to="posts/videos/", blank=True, null=True, storage=supabase_storage)
     media_url = models.URLField(blank=True, help_text="External media URL")
 
     # Scheduling

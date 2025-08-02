@@ -130,9 +130,17 @@ USE_TZ = True
 STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
-# Media files
+# Media files - Supabase Storage
 MEDIA_URL = "/media/"
-MEDIA_ROOT = BASE_DIR / "media"
+MEDIA_ROOT = BASE_DIR / "media"  # Fallback for local development
+
+# Supabase Storage Configuration
+SUPABASE_URL = config("SUPABASE_URL", default="")
+SUPABASE_KEY = config("SUPABASE_KEY", default="")
+SUPABASE_BUCKET = config("SUPABASE_BUCKET", default="keativpictures")
+
+# Use Supabase Storage as default file storage
+DEFAULT_FILE_STORAGE = "apps.core.storage.SupabaseStorage"
 
 # Default primary key field type
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"

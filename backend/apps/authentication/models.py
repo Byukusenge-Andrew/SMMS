@@ -6,6 +6,11 @@ from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.utils import timezone
 
+from apps.core.storage import SupabaseStorage
+
+# Initialize Supabase storage
+supabase_storage = SupabaseStorage()
+
 
 class UserProfile(models.Model):
     """Extended user profile model"""
@@ -13,7 +18,7 @@ class UserProfile(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="profile")
     company_name = models.CharField(max_length=255, blank=True, default="")
-    avatar = models.ImageField(upload_to="avatars/", null=True, blank=True)
+    avatar = models.ImageField(upload_to="avatars/", null=True, blank=True, storage=supabase_storage)
     subscription_type = models.CharField(max_length=20, default="free")
     time_format = models.CharField(
         max_length=3,

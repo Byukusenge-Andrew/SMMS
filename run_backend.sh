@@ -1,4 +1,4 @@
-#!/bin/bash
+
 # Script to set up and run the Django backend with Celery worker and beat
 
 # Create venv if it doesn't exist
@@ -7,7 +7,7 @@ if [ ! -d "venv" ]; then
 fi
 
 # Activate venv
-source venv/bin/activate
+./venv/bin/activate
 
 # Install requirements
 pip install --upgrade pip
