@@ -121,13 +121,14 @@ jobs:
         echo "SUPABASE_KEY=${{ secrets.SUPABASE_KEY }}" >> .env
         echo "SUPABASE_BUCKET=${{ secrets.SUPABASE_BUCKET }}" >> .env
         echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" >> .env
-        
+
 
     - name: Print env vars
       run: |
         echo "SUPABASE_URL=$SUPABASE_URL"
         echo "SUPABASE_KEY=$SUPABASE_KEY"
         echo "SUPABASE_BUCKET=$SUPABASE_BUCKET"
+        echo "DATABASE_URL=$DATABASE_URL"
 
     - name: Collect static files
       run: |
