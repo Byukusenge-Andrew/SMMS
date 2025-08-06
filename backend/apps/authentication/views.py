@@ -78,20 +78,85 @@ class RegisterView(APIView):
 @permission_classes([permissions.AllowAny])
 def login_view(request):
     """Function-based login view"""
+    # FIRST THING - print that we reached this function
+    print("LOGIN VIEW FUNCTION REACHED!")
+    
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    # Print to both console and logs (no emojis to avoid Unicode issues)
+    print("=" * 50)
+    print("LOGIN ENDPOINT CALLED")
+    print("=" * 50)
+    logger.info("LOGIN ENDPOINT CALLED")
+    
+    print(f"Request method: {request.method}")
+    print(f"Request path: {request.path}")
+    print(f"Request data: {request.data}")
+    # Remove request.body access to avoid RawPostDataException
+    print(f"Content-Type: {request.META.get('CONTENT_TYPE', 'Not provided')}")
+    print(f"Request POST: {request.POST}")
+    print(f"Request GET: {request.GET}")
+    
+    logger.info(f"Request method: {request.method}")
+    logger.info(f"Request data: {request.data}")
+    logger.info(f"Content-Type: {request.META.get('CONTENT_TYPE', 'Not provided')}")
+    
+    # Check data keys
+    if hasattr(request, 'data') and request.data:
+        print(f"Data keys: {list(request.data.keys())}")
+        print(f"Username: {request.data.get('username')}")
+        print(f"Password provided: {'password' in request.data}")
+        logger.info(f"Data keys: {list(request.data.keys())}")
+        logger.info(f"Username: {request.data.get('username')}")
+        logger.info(f"Password provided: {'password' in request.data}")
+    else:
+        print("No request.data found or empty")
+        logger.error("No request.data found or empty")
+    
     serializer = LoginSerializer(data=request.data)
+    print(f"Serializer created with data: {serializer.initial_data}")
+    logger.info(f"Serializer created with data: {serializer.initial_data}")
+    
     if serializer.is_valid():
+        print("Login serializer is valid")
+        logger.info("Login serializer is valid")
         user = serializer.validated_data["user"]
         token, created = Token.objects.get_or_create(user=user)
         login(request, user)
+        
+        # Safely get or create user profile
+        try:
+            profile = user.profile
+            profile_data = UserProfileSerializer(profile).data
+        except Exception as e:
+            print(f"Profile access error: {e}")
+            logger.warning(f"Profile access error: {e}")
+            # Create profile if it doesn't exist
+            profile, created = UserProfile.objects.get_or_create(user=user)
+            profile_data = UserProfileSerializer(profile).data
+            print(f"Profile {'created' if created else 'retrieved'}: {profile}")
+            logger.info(f"Profile {'created' if created else 'retrieved'}: {profile}")
+        
+        print("Login successful, returning response")
+        logger.info("Login successful, returning response")
         return Response(
             {
                 "user": UserSerializer(user).data,
                 "token": token.key,
-                "profile": UserProfileSerializer(user.profile).data,
+                "profile": profile_data,
                 "message": "Login successful",
             },
             status=status.HTTP_200_OK,
         )
+    
+    print(f"Login serializer validation failed: {serializer.errors}")
+    print(f"Detailed login errors: {dict(serializer.errors)}")
+    print("=" * 50)
+    
+    logger.error(f"Login serializer validation failed: {serializer.errors}")
+    logger.error(f"Detailed login errors: {dict(serializer.errors)}")
+    
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -362,8 +427,59 @@ def health_check(request):
 @api_view(["POST"])
 @permission_classes([permissions.AllowAny])
 def register(request):
+    # FIRST THING - print that we reached this function
+    print("REGISTER VIEW FUNCTION REACHED!")
+    
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    # Print to both console and logs
+    print("=" * 50)
+    print("REGISTER ENDPOINT CALLED")
+    print("=" * 50)
+    logger.info("REGISTER ENDPOINT CALLED")
+    
+    print(f"Request method: {request.method}")
+    print(f"Request path: {request.path}")
+    print(f"Request data: {request.data}")
+    
+    # Avoid reading request.body after request.data
+    # print(f"Request body: {request.body}") 
+    
+    print(f"Content-Type: {request.META.get('CONTENT_TYPE', 'Not provided')}")
+    print(f"Request POST: {request.POST}")
+    print(f"Request GET: {request.GET}")
+    
+    logger.info(f"Request method: {request.method}")
+    logger.info(f"Request data: {request.data}")
+    logger.info(f"Content-Type: {request.META.get('CONTENT_TYPE', 'Not provided')}")
+    
+    # Check data keys
+    if hasattr(request, 'data') and request.data:
+        print(f"Data keys: {list(request.data.keys())}")
+        print(f"Email: {request.data.get('email')}")
+        print(f"Username: {request.data.get('username')}")
+        print(f"Password provided: {'password' in request.data}")
+        print(f"Password2 provided: {'password2' in request.data}")
+        print(f"First name: {request.data.get('first_name')}")
+        print(f"Last name: {request.data.get('last_name')}")
+        
+        logger.info(f"Data keys: {list(request.data.keys())}")
+        logger.info(f"Email: {request.data.get('email')}")
+        logger.info(f"Username: {request.data.get('username')}")
+        logger.info(f"Password provided: {'password' in request.data}")
+        logger.info(f"Password2 provided: {'password2' in request.data}")
+    else:
+        print("No request.data found or empty")
+        logger.error("No request.data found or empty")
+    
     serializer = UserRegistrationSerializer(data=request.data)
+    print(f"Serializer created with data: {serializer.initial_data}")
+    logger.info(f"Serializer created with data: {serializer.initial_data}")
+    
     if serializer.is_valid():
+        print("Serializer is valid, creating user...")
+        logger.info("Serializer is valid, creating user...")
         user = serializer.save()
         user.is_active = False  # Deactivate until email verification
         user.save()
@@ -371,15 +487,40 @@ def register(request):
         verification_token = EmailVerificationToken.objects.create(user=user)
         # Send verification email
         send_verification_email(user, verification_token.token)
+        
+        # Safely get or create user profile
+        try:
+            profile = user.profile
+            profile_uuid = str(profile.id)
+        except Exception as e:
+            print(f"Profile access error during registration: {e}")
+            logger.warning(f"Profile access error during registration: {e}")
+            # Create profile if it doesn't exist
+            profile, created = UserProfile.objects.get_or_create(user=user)
+            profile_uuid = str(profile.id)
+            print(f"Profile {'created' if created else 'retrieved'} during registration: {profile}")
+            logger.info(f"Profile {'created' if created else 'retrieved'} during registration: {profile}")
+        
+        print("Registration successful, returning response")
+        logger.info("Registration successful, returning response")
         return Response(
             {
                 "message": "Registration successful. Please check your email to verify your account.",
                 "user_id": user.id,
                 "username": user.username,
-                "profile_uuid": str(user.profile.id),
+                "profile_uuid": profile_uuid,
             },
             status=status.HTTP_201_CREATED,
         )
+    
+    print(f"Serializer validation failed: {serializer.errors}")
+    print(f"Detailed errors: {dict(serializer.errors)}")
+    print(f"Serializer field errors: {serializer.errors}")
+    print("=" * 50)
+    
+    logger.error(f"Serializer validation failed: {serializer.errors}")
+    logger.error(f"Detailed errors: {dict(serializer.errors)}")
+    
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -483,10 +624,20 @@ def debug_auth(request):
     )
 
 
+@api_view(["GET", "POST"])
+@permission_classes([permissions.AllowAny])
+def simple_test(request):
+    """Simple test endpoint"""
+    print(f"🟢 SIMPLE TEST ENDPOINT CALLED! Method: {request.method}")
+    print(f"🟢 Request data: {request.data}")
+    return Response({"message": "Test endpoint working", "method": request.method})
+
+
 @api_view(["GET"])
 @permission_classes([permissions.AllowAny])
 def debug_auth_open(request):
     """Open debug endpoint to check what's happening with auth"""
+    print("🔍 DEBUG_AUTH_OPEN endpoint called!")
     auth_header = request.META.get("HTTP_AUTHORIZATION", "Not provided")
 
     # Try to manually authenticate

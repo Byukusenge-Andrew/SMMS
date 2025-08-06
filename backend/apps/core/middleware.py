@@ -117,7 +117,7 @@ class RateLimitMiddleware(MiddlewareMixin):
 
     def _get_user_type(self, request):
         """Determine user type for rate limiting"""
-        if not request.user.is_authenticated:
+        if not hasattr(request, 'user') or not request.user.is_authenticated:
             return "anonymous"
         elif request.user.is_staff or request.user.is_superuser:
             return "admin"
@@ -128,7 +128,7 @@ class RateLimitMiddleware(MiddlewareMixin):
 
     def _get_identifier(self, request):
         """Get unique identifier for rate limiting"""
-        if request.user.is_authenticated:
+        if hasattr(request, 'user') and request.user.is_authenticated:
             return f"user:{request.user.id}"
         else:
             return f"ip:{self._get_client_ip(request)}"
@@ -140,7 +140,7 @@ class RateLimitMiddleware(MiddlewareMixin):
             return True
 
         # Skip for admin users on specific endpoints
-        if request.user.is_authenticated and request.user.is_superuser and request.path.startswith("/admin/"):
+        if hasattr(request, 'user') and request.user.is_authenticated and request.user.is_superuser and request.path.startswith("/admin/"):
             return True
 
         return False
@@ -215,7 +215,7 @@ class RateLimitMiddleware(MiddlewareMixin):
             user_type = "anonymous"
             user = None
 
-            if request.user.is_authenticated:
+            if hasattr(request, 'user') and request.user.is_authenticated:
                 user = request.user
                 if request.user.is_staff or request.user.is_superuser:
                     user_type = "admin"
@@ -270,8 +270,8 @@ class BurstProtectionMiddleware(MiddlewareMixin):
     def process_request(self, request):
         """Apply burst protection"""
 
-        # Skip for authenticated staff users
-        if request.user.is_authenticated and request.user.is_staff:
+        # Skip for authenticated staff users (safely check if user exists)
+        if hasattr(request, 'user') and request.user.is_authenticated and request.user.is_staff:
             return None
 
         ip_address = self._get_client_ip(request)
@@ -313,12 +313,12 @@ class BurstProtectionMiddleware(MiddlewareMixin):
         """Log burst protection trigger"""
         try:
             RateLimitLog.objects.create(
-                user=request.user if request.user.is_authenticated else None,
+                user=request.user if hasattr(request, 'user') and request.user.is_authenticated else None,
                 ip_address=ip_address,
                 user_agent=request.META.get("HTTP_USER_AGENT", "")[:500],
                 endpoint=request.path,
                 method=request.method,
-                user_type="authenticated" if request.user.is_authenticated else "anonymous",
+                user_type="authenticated" if hasattr(request, 'user') and request.user.is_authenticated else "anonymous",
                 action="burst_protection",
                 algorithm_used="burst_protection",
                 metadata={"reason": "Too many requests in short time"},

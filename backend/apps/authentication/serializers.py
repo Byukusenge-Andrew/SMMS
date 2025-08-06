@@ -92,16 +92,25 @@ class LoginSerializer(serializers.Serializer):
         username = attrs.get("username")
         password = attrs.get("password")
 
-        if username and password:
-            user = authenticate(username=username, password=password)
-            if not user:
-                raise serializers.ValidationError("Invalid credentials")
-            if not user.is_active:
-                raise serializers.ValidationError("Account is disabled")
-            attrs["user"] = user
-        else:
-            raise serializers.ValidationError("Must include username and password")
+        print(f"LoginSerializer: Attempting to authenticate with username/email: {username}")
 
+        if username and password:
+            # The custom backend will handle whether 'username' is an email or a username
+            user = authenticate(request=self.context.get('request'), username=username, password=password)
+            
+            print(f"LoginSerializer: authenticate() returned: {user}")
+
+            if not user:
+                print("LoginSerializer: Authentication failed. User is None.")
+                raise serializers.ValidationError("Invalid credentials. Please check your username/email and password.")
+            
+            if not user.is_active:
+                print(f"LoginSerializer: User '{username}' is not active.")
+                raise serializers.ValidationError("Account is disabled or email not verified.")
+        else:
+            raise serializers.ValidationError("Must include 'username' and 'password'.")
+
+        attrs["user"] = user
         return attrs
 
 
@@ -151,11 +160,11 @@ class TeamMemberSerializer(serializers.ModelSerializer):
 
 class UserRegistrationSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, validators=[validate_password])
-    password2 = serializers.CharField(write_only=True)
+    password_confirm = serializers.CharField(write_only=True)
 
     class Meta:
         model = User
-        fields = ("username", "email", "password", "password2", "first_name", "last_name")
+        fields = ("username", "email", "password", "password_confirm", "first_name", "last_name")
         extra_kwargs = {
             "email": {"required": True},
             "first_name": {"required": False},
@@ -163,7 +172,7 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         }
 
     def validate(self, attrs):
-        if attrs["password"] != attrs["password2"]:
+        if attrs["password"] != attrs["password_confirm"]:
             raise serializers.ValidationError({"password": "Password fields didn't match."})
         return attrs
 
@@ -178,7 +187,7 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         return value
 
     def create(self, validated_data):
-        validated_data.pop("password2", None)
+        validated_data.pop("password_confirm", None)
         user = User.objects.create_user(**validated_data)
         return user
 

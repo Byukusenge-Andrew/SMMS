@@ -60,8 +60,8 @@ INSTALLED_APPS = (
 )
 
 MIDDLEWARE = [
-    "apps.core.middleware.BurstProtectionMiddleware",  # Burst protection (first)
-    "apps.core.middleware.RateLimitMiddleware",  # Rate limiting (second)
+    # "apps.core.middleware.BurstProtectionMiddleware",  # Burst protection (first) - TEMPORARILY DISABLED
+    # "apps.core.middleware.RateLimitMiddleware",  # Rate limiting (second) - TEMPORARILY DISABLED
     "social_django.middleware.SocialAuthExceptionMiddleware",
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
@@ -98,6 +98,13 @@ WSGI_APPLICATION = "social_media_manager.wsgi.application"
 DATABASES = {"default": dj_database_url.config(default=config("DATABASE_URL"))}
 
 # Password validation
+# https://docs.djangoproject.com/en/5.0/ref/settings/#auth-password-validators
+
+AUTHENTICATION_BACKENDS = [
+    'apps.authentication.backends.EmailOrUsernameModelBackend',
+    'django.contrib.auth.backends.ModelBackend',
+]
+
 AUTH_PASSWORD_VALIDATORS = [
     {
         "NAME": ("django.contrib.auth.password_validation." "UserAttributeSimilarityValidator"),
@@ -176,9 +183,35 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",  # React dev server
     "http://127.0.0.1:3000",
     "http://localhost:8081",  # React Native
+    "http://localhost:5173",  # Vite default port
+    "http://127.0.0.1:5173",
+    "http://localhost:3001",  # Alternative React port
+    "http://127.0.0.1:3001",
 ]
 
 CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_ALL_ORIGINS = True  # Set to True for development debugging
+
+# Allow common headers
+CORS_ALLOW_HEADERS = [
+    'accept',
+    'accept-encoding',
+    'authorization',
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
+]
+
+# CSRF settings for API
+CSRF_TRUSTED_ORIGINS = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000", 
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+]
 
 # Celery Configuration
 CELERY_BROKER_URL = config("CELERY_BROKER_URL", default="redis://localhost:6379/0")
@@ -235,8 +268,8 @@ CELERY_BEAT_SCHEDULE = {
 # Cache configuration
 CACHES = {
     "default": {
-        "BACKEND": "django.core.cache.backends.redis.RedisCache",
-        "LOCATION": config("REDIS_URL", default="redis://127.0.0.1:6379/1"),
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        "LOCATION": "unique-snowflake",
     }
 }
 

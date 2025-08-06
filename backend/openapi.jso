@@ -1,0 +1,5581 @@
+openapi: 3.0.3
+info:
+  title: Social Media Manager API
+  version: 1.0.0
+  description: Comprehensive social media management platform API
+paths:
+  /api/analytics/ai/competitor-analysis/:
+    post:
+      operationId: api_analytics_ai_competitor_analysis_create
+      description: Analyze competitor performance and provide insights
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/analytics/ai/insights/:
+    get:
+      operationId: api_analytics_ai_insights_retrieve
+      description: Get AI-powered insights based on analytics data
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/analytics/ai/predict-performance/:
+    get:
+      operationId: api_analytics_ai_predict_performance_retrieve
+      description: Predict content performance using AI
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/analytics/ai/recommendations/:
+    get:
+      operationId: api_analytics_ai_recommendations_retrieve
+      description: Get AI-powered content and strategy recommendations
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/analytics/best-posts/:
+    get:
+      operationId: api_analytics_best_posts_retrieve
+      description: Get best performing posts
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/analytics/collect/:
+    post:
+      operationId: api_analytics_collect_create
+      description: Trigger analytics collection
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/analytics/dashboard/:
+    get:
+      operationId: api_analytics_dashboard_retrieve
+      description: Get analytics dashboard data
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/analytics/location-heatmap/:
+    get:
+      operationId: api_analytics_location_heatmap_retrieve
+      description: Get location-based analytics for heat map visualization
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/analytics/platform-averages/:
+    get:
+      operationId: api_analytics_platform_averages_retrieve
+      description: Get platform averages
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/analytics/reels/:
+    get:
+      operationId: api_analytics_reels_retrieve
+      description: Get analytics specifically for reels/video content
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/analytics/reports/:
+    get:
+      operationId: api_analytics_reports_retrieve
+      description: Get or generate performance reports
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: api_analytics_reports_create
+      description: Get or generate performance reports
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/analytics/reports/monthly/:
+    get:
+      operationId: api_analytics_reports_monthly_retrieve
+      description: Get or generate monthly performance report
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/analytics/reports/weekly/:
+    get:
+      operationId: api_analytics_reports_weekly_retrieve
+      description: Get or generate weekly performance report
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/analytics/reports/yearly/:
+    get:
+      operationId: api_analytics_reports_yearly_retrieve
+      description: Get or generate yearly performance report
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/analytics/sentiment/:
+    post:
+      operationId: api_analytics_sentiment_create
+      description: Analyze comment sentiment for a post
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/auth/dashboard/:
+    get:
+      operationId: api_auth_dashboard_retrieve
+      description: Dashboard data for authenticated user
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/auth/debug-auth/:
+    get:
+      operationId: api_auth_debug_auth_retrieve
+      description: Debug endpoint to check authentication
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/auth/debug-auth-open/:
+    get:
+      operationId: api_auth_debug_auth_open_retrieve
+      description: Open debug endpoint to check what's happening with auth
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/auth/health/:
+    get:
+      operationId: api_auth_health_retrieve
+      description: Health check endpoint
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/auth/login/:
+    post:
+      operationId: api_auth_login_create
+      description: Function-based login view
+      summary: Login user
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+        required: true
+      security:
+      - tokenAuth: []
+      - {}
+      responses:
+        '200':
+          description: Login successful
+        '400':
+          description: Validation error
+        '401':
+          description: Invalid credentials or email not verified
+  /api/auth/logout/:
+    post:
+      operationId: api_auth_logout_create
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/auth/profile/:
+    get:
+      operationId: update_profile
+      description: Update user profile including avatar upload
+      summary: Update user profile
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+              examples:
+                ProfileUpdateWithAvatar:
+                  value:
+                    company_name: Keative
+                    subscription_type: premium
+                    time_format: 12h
+                    timezone: UTC
+                    email_notifications: true
+                    slack_notifications: true
+                  summary: Profile Update with Avatar
+                  description: Example profile update with file upload
+          description: ''
+    put:
+      operationId: update_profile_3
+      description: Update user profile including avatar upload
+      summary: Update user profile
+      tags:
+      - api
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/UserProfileRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/UserProfileRequest'
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserProfileRequest'
+            examples:
+              ProfileUpdateWithAvatar:
+                value:
+                  company_name: Keative
+                  subscription_type: premium
+                  time_format: 12h
+                  timezone: UTC
+                  email_notifications: true
+                  slack_notifications: true
+                summary: Profile Update with Avatar
+                description: Example profile update with file upload
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+              examples:
+                ProfileUpdateWithAvatar:
+                  value:
+                    company_name: Keative
+                    subscription_type: premium
+                    time_format: 12h
+                    timezone: UTC
+                    email_notifications: true
+                    slack_notifications: true
+                  summary: Profile Update with Avatar
+                  description: Example profile update with file upload
+          description: ''
+    patch:
+      operationId: update_profile_2
+      description: Update user profile including avatar upload
+      summary: Update user profile
+      tags:
+      - api
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedUserProfileRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedUserProfileRequest'
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedUserProfileRequest'
+            examples:
+              ProfileUpdateWithAvatar:
+                value:
+                  company_name: Keative
+                  subscription_type: premium
+                  time_format: 12h
+                  timezone: UTC
+                  email_notifications: true
+                  slack_notifications: true
+                summary: Profile Update with Avatar
+                description: Example profile update with file upload
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+              examples:
+                ProfileUpdateWithAvatar:
+                  value:
+                    company_name: Keative
+                    subscription_type: premium
+                    time_format: 12h
+                    timezone: UTC
+                    email_notifications: true
+                    slack_notifications: true
+                  summary: Profile Update with Avatar
+                  description: Example profile update with file upload
+          description: ''
+  /api/auth/register/:
+    post:
+      operationId: api_auth_register_create
+      summary: Register a new user (email verification)
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserRegistrationRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/UserRegistrationRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/UserRegistrationRequest'
+        required: true
+      security:
+      - tokenAuth: []
+      - {}
+      responses:
+        '201':
+          description: Registration successful. Please check your email to verify
+            your account.
+        '400':
+          description: Validation error
+  /api/auth/resend-verification/:
+    post:
+      operationId: api_auth_resend_verification_create
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/auth/settings/time-format/:
+    get:
+      operationId: api_auth_settings_time_format_retrieve
+      description: Manage user time format preference
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: api_auth_settings_time_format_create
+      description: Manage user time format preference
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/auth/social-accounts/:
+    get:
+      operationId: api_auth_social_accounts_list
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedSocialMediaAccountList'
+          description: ''
+    post:
+      operationId: api_auth_social_accounts_create
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SocialMediaAccountRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/SocialMediaAccountRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/SocialMediaAccountRequest'
+        required: true
+      security:
+      - tokenAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SocialMediaAccount'
+          description: ''
+  /api/auth/social-accounts/{account_id}/remove/:
+    delete:
+      operationId: api_auth_social_accounts_remove_destroy
+      description: Remove a connected social media account
+      parameters:
+      - in: path
+        name: account_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/auth/social-accounts/check/:
+    get:
+      operationId: api_auth_social_accounts_check_retrieve
+      description: Check if a social media account already exists for the user
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/auth/team-members/:
+    get:
+      operationId: api_auth_team_members_list
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedTeamMemberList'
+          description: ''
+    post:
+      operationId: api_auth_team_members_create
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TeamMemberRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TeamMemberRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TeamMemberRequest'
+      security:
+      - tokenAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeamMember'
+          description: ''
+  /api/auth/team/invite/:
+    post:
+      operationId: api_auth_team_invite_create
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TeamMemberRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TeamMemberRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TeamMemberRequest'
+      security:
+      - tokenAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeamMember'
+          description: ''
+  /api/auth/teams/:
+    get:
+      operationId: api_auth_teams_list
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedTeamList'
+          description: ''
+    post:
+      operationId: api_auth_teams_create
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TeamRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TeamRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TeamRequest'
+        required: true
+      security:
+      - tokenAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Team'
+          description: ''
+  /api/auth/teams/for-invitation/:
+    get:
+      operationId: api_auth_teams_for_invitation_retrieve
+      description: Get teams where user can invite members (owner or admin role)
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/auth/verify-email/{token}/:
+    get:
+      operationId: api_auth_verify_email_retrieve
+      parameters:
+      - in: path
+        name: token
+        schema:
+          type: string
+        required: true
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/collaborators/collaborations/{collaboration_id}/reviews/:
+    get:
+      operationId: api_collaborators_collaborations_reviews_list
+      description: API view to list and create reviews for a collaboration
+      parameters:
+      - in: path
+        name: collaboration_id
+        schema:
+          type: integer
+        required: true
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedReviewList'
+          description: ''
+    post:
+      operationId: api_collaborators_collaborations_reviews_create
+      description: API view to list and create reviews for a collaboration
+      parameters:
+      - in: path
+        name: collaboration_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReviewRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ReviewRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ReviewRequest'
+      security:
+      - tokenAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Review'
+          description: ''
+  /api/collaborators/posts/{post_id}/assign-review/:
+    post:
+      operationId: api_collaborators_posts_assign_review_create
+      description: Assign a post to reviewers
+      parameters:
+      - in: path
+        name: post_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/collaborators/posts/{post_id}/collaboration/:
+    get:
+      operationId: api_collaborators_posts_collaboration_retrieve
+      description: API view to manage collaboration for a post
+      parameters:
+      - in: path
+        name: post_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PostCollaboration'
+          description: ''
+    put:
+      operationId: api_collaborators_posts_collaboration_update
+      description: API view to manage collaboration for a post
+      parameters:
+      - in: path
+        name: post_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PostCollaborationRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PostCollaborationRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PostCollaborationRequest'
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PostCollaboration'
+          description: ''
+    patch:
+      operationId: api_collaborators_posts_collaboration_partial_update
+      description: API view to manage collaboration for a post
+      parameters:
+      - in: path
+        name: post_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedPostCollaborationRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedPostCollaborationRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedPostCollaborationRequest'
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PostCollaboration'
+          description: ''
+  /api/collaborators/posts/{post_id}/comments/:
+    get:
+      operationId: api_collaborators_posts_comments_list
+      description: API view to list and create comments on a post
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - in: path
+        name: post_id
+        schema:
+          type: integer
+        required: true
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedCommentList'
+          description: ''
+    post:
+      operationId: api_collaborators_posts_comments_create
+      description: API view to list and create comments on a post
+      parameters:
+      - in: path
+        name: post_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CommentRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CommentRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CommentRequest'
+        required: true
+      security:
+      - tokenAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Comment'
+          description: ''
+  /api/collaborators/workspaces/:
+    get:
+      operationId: api_collaborators_workspaces_list
+      description: API view to list and create workspaces
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedWorkspaceList'
+          description: ''
+    post:
+      operationId: api_collaborators_workspaces_create
+      description: API view to list and create workspaces
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkspaceRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/WorkspaceRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/WorkspaceRequest'
+        required: true
+      security:
+      - tokenAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Workspace'
+          description: ''
+  /api/collaborators/workspaces/{id}/:
+    get:
+      operationId: api_collaborators_workspaces_retrieve
+      description: API view to retrieve, update and delete workspaces
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Workspace'
+          description: ''
+    put:
+      operationId: api_collaborators_workspaces_update
+      description: API view to retrieve, update and delete workspaces
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkspaceRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/WorkspaceRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/WorkspaceRequest'
+        required: true
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Workspace'
+          description: ''
+    patch:
+      operationId: api_collaborators_workspaces_partial_update
+      description: API view to retrieve, update and delete workspaces
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedWorkspaceRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedWorkspaceRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedWorkspaceRequest'
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Workspace'
+          description: ''
+    delete:
+      operationId: api_collaborators_workspaces_destroy
+      description: API view to retrieve, update and delete workspaces
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/collaborators/workspaces/{workspace_id}/invite/:
+    post:
+      operationId: api_collaborators_workspaces_invite_create
+      description: Invite a user to a workspace via email
+      parameters:
+      - in: path
+        name: workspace_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/collaborators/workspaces/{workspace_id}/members/:
+    get:
+      operationId: api_collaborators_workspaces_members_list
+      description: API view to list and add members to a workspace
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      - in: path
+        name: workspace_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedWorkspaceMemberList'
+          description: ''
+    post:
+      operationId: api_collaborators_workspaces_members_create
+      description: API view to list and add members to a workspace
+      parameters:
+      - in: path
+        name: workspace_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkspaceMemberRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/WorkspaceMemberRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/WorkspaceMemberRequest'
+        required: true
+      security:
+      - tokenAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkspaceMember'
+          description: ''
+  /api/collaborators/workspaces/{workspace_id}/members/{member_id}/remove/:
+    post:
+      operationId: api_collaborators_workspaces_members_remove_create
+      description: Remove a member from workspace
+      parameters:
+      - in: path
+        name: member_id
+        schema:
+          type: integer
+        required: true
+      - in: path
+        name: workspace_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/collaborators/workspaces/{workspace_id}/stats/:
+    get:
+      operationId: api_collaborators_workspaces_stats_retrieve
+      description: Get workspace statistics
+      parameters:
+      - in: path
+        name: workspace_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/core/ip/blacklist/:
+    get:
+      operationId: api_core_ip_blacklist_retrieve
+      description: Get blacklisted IPs
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: api_core_ip_blacklist_create
+      description: Add IP to blacklist
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/core/ip/whitelist/:
+    get:
+      operationId: api_core_ip_whitelist_retrieve
+      description: Get whitelisted IPs
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: api_core_ip_whitelist_create
+      description: Add IP to whitelist
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/core/rate-limit/dashboard/:
+    get:
+      operationId: api_core_rate_limit_dashboard_retrieve
+      description: Get rate limiting dashboard data
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/core/rate-limit/logs/:
+    get:
+      operationId: api_core_rate_limit_logs_retrieve
+      description: Get rate limiting logs with filtering
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/core/rate-limit/stats/:
+    get:
+      operationId: api_core_rate_limit_stats_retrieve
+      description: Get aggregated statistics
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/core/rate-limit/test/:
+    get:
+      operationId: api_core_rate_limit_test_retrieve
+      description: Simple test endpoint
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: api_core_rate_limit_test_create
+      description: Test endpoint for POST requests
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/influencers/:
+    get:
+      operationId: api_influencers_retrieve
+      description: View for influencer profile management
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Influencer'
+          description: ''
+    put:
+      operationId: api_influencers_update
+      description: View for influencer profile management
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InfluencerRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/InfluencerRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/InfluencerRequest'
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Influencer'
+          description: ''
+    patch:
+      operationId: api_influencers_partial_update
+      description: View for influencer profile management
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedInfluencerRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedInfluencerRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedInfluencerRequest'
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Influencer'
+          description: ''
+  /api/influencers/analytics/:
+    get:
+      operationId: api_influencers_analytics_retrieve
+      description: Get analytics for influencer interactions
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/influencers/applications/:
+    get:
+      operationId: api_influencers_applications_list
+      description: List applications or apply to campaign
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedCampaignApplicationList'
+          description: ''
+    post:
+      operationId: api_influencers_applications_create
+      description: List applications or apply to campaign
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CampaignApplicationRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CampaignApplicationRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CampaignApplicationRequest'
+        required: true
+      security:
+      - tokenAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CampaignApplication'
+          description: ''
+  /api/influencers/campaigns/:
+    get:
+      operationId: api_influencers_campaigns_list
+      description: List campaigns or create new campaign
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedCampaignListList'
+          description: ''
+    post:
+      operationId: api_influencers_campaigns_create
+      description: List campaigns or create new campaign
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CampaignRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CampaignRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CampaignRequest'
+        required: true
+      security:
+      - tokenAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Campaign'
+          description: ''
+  /api/influencers/campaigns/{id}/:
+    get:
+      operationId: api_influencers_campaigns_retrieve
+      description: Retrieve, update or delete campaign
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Campaign'
+          description: ''
+    put:
+      operationId: api_influencers_campaigns_update
+      description: Retrieve, update or delete campaign
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CampaignRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CampaignRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CampaignRequest'
+        required: true
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Campaign'
+          description: ''
+    patch:
+      operationId: api_influencers_campaigns_partial_update
+      description: Retrieve, update or delete campaign
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedCampaignRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedCampaignRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedCampaignRequest'
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Campaign'
+          description: ''
+    delete:
+      operationId: api_influencers_campaigns_destroy
+      description: Retrieve, update or delete campaign
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/influencers/dashboard/:
+    get:
+      operationId: api_influencers_dashboard_retrieve
+      description: Get influencer dashboard data
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/influencers/import/:
+    post:
+      operationId: api_influencers_import_create
+      description: Import influencer database from various sources
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/integrations/canva/:
+    get:
+      operationId: api_integrations_canva_retrieve
+      description: Handle Canva integration
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: api_integrations_canva_create
+      description: Handle Canva integration
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/integrations/dropbox/:
+    get:
+      operationId: api_integrations_dropbox_retrieve
+      description: Handle Dropbox integration
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: api_integrations_dropbox_create
+      description: Handle Dropbox integration
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/integrations/google-drive/:
+    get:
+      operationId: api_integrations_google_drive_retrieve
+      description: Handle Google Drive integration
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: api_integrations_google_drive_create
+      description: Handle Google Drive integration
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/integrations/oauth/callback/:
+    get:
+      operationId: api_integrations_oauth_callback_retrieve
+      description: Handle OAuth callbacks from social media platforms
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/integrations/oauth/callback/{backend}/:
+    get:
+      operationId: api_integrations_oauth_callback_retrieve_2
+      description: Handle OAuth callback and authenticate user.
+      parameters:
+      - in: path
+        name: backend
+        schema:
+          type: string
+        required: true
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/integrations/oauth/login/{provider}/:
+    get:
+      operationId: api_integrations_oauth_login_retrieve
+      description: Redirect user to the OAuth provider's login page.
+      parameters:
+      - in: path
+        name: provider
+        schema:
+          type: string
+        required: true
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/integrations/slack/:
+    get:
+      operationId: api_integrations_slack_retrieve
+      description: Handle Slack integration
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: api_integrations_slack_create
+      description: Handle Slack integration
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/messaging/automated/:
+    get:
+      operationId: api_messaging_automated_list
+      description: List and create automated messages
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedAutomatedMessageList'
+          description: ''
+    post:
+      operationId: api_messaging_automated_create
+      description: List and create automated messages
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AutomatedMessageRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/AutomatedMessageRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AutomatedMessageRequest'
+        required: true
+      security:
+      - tokenAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AutomatedMessage'
+          description: ''
+  /api/messaging/automated/{message_id}/test/:
+    post:
+      operationId: api_messaging_automated_test_create
+      description: Test an automated message by sending it once
+      parameters:
+      - in: path
+        name: message_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/messaging/automated/{message_id}/toggle/:
+    post:
+      operationId: api_messaging_automated_toggle_create
+      description: Toggle automated message active status
+      parameters:
+      - in: path
+        name: message_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/messaging/automated/{id}/:
+    get:
+      operationId: api_messaging_automated_retrieve
+      description: Retrieve, update or delete an automated message
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AutomatedMessage'
+          description: ''
+    put:
+      operationId: api_messaging_automated_update
+      description: Retrieve, update or delete an automated message
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AutomatedMessageRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/AutomatedMessageRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AutomatedMessageRequest'
+        required: true
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AutomatedMessage'
+          description: ''
+    patch:
+      operationId: api_messaging_automated_partial_update
+      description: Retrieve, update or delete an automated message
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedAutomatedMessageRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedAutomatedMessageRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedAutomatedMessageRequest'
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AutomatedMessage'
+          description: ''
+    delete:
+      operationId: api_messaging_automated_destroy
+      description: Retrieve, update or delete an automated message
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/messaging/messages/:
+    get:
+      operationId: api_messaging_messages_list
+      description: List and create messages
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedMessageList'
+          description: ''
+    post:
+      operationId: api_messaging_messages_create
+      description: List and create messages
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MessageRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/MessageRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/MessageRequest'
+        required: true
+      security:
+      - tokenAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+          description: ''
+  /api/messaging/messages/{id}/:
+    get:
+      operationId: api_messaging_messages_retrieve
+      description: Retrieve, update or delete a message
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+          description: ''
+    put:
+      operationId: api_messaging_messages_update
+      description: Retrieve, update or delete a message
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MessageRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/MessageRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/MessageRequest'
+        required: true
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+          description: ''
+    patch:
+      operationId: api_messaging_messages_partial_update
+      description: Retrieve, update or delete a message
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedMessageRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedMessageRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedMessageRequest'
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+          description: ''
+    delete:
+      operationId: api_messaging_messages_destroy
+      description: Retrieve, update or delete a message
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/messaging/messages/send/:
+    post:
+      operationId: api_messaging_messages_send_create
+      description: Send a message immediately
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/messaging/messages/stats/:
+    get:
+      operationId: api_messaging_messages_stats_retrieve
+      description: Get messaging statistics for user
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/notifications/:
+    get:
+      operationId: api_notifications_list
+      description: API view to list notifications for a user
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedNotificationList'
+          description: ''
+  /api/notifications/{id}/:
+    get:
+      operationId: api_notifications_retrieve
+      description: API view to retrieve and update a specific notification
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Notification'
+          description: ''
+    put:
+      operationId: api_notifications_update
+      description: API view to retrieve and update a specific notification
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NotificationRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/NotificationRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/NotificationRequest'
+        required: true
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Notification'
+          description: ''
+    patch:
+      operationId: api_notifications_partial_update
+      description: API view to retrieve and update a specific notification
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedNotificationRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedNotificationRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedNotificationRequest'
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Notification'
+          description: ''
+  /api/notifications/bulk-mark-read/:
+    post:
+      operationId: api_notifications_bulk_mark_read_create
+      description: Mark multiple notifications as read
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/notifications/clear-all/:
+    delete:
+      operationId: api_notifications_clear_all_destroy
+      description: Clear all notifications for the user
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/notifications/mark-all-read/:
+    post:
+      operationId: api_notifications_mark_all_read_create
+      description: Mark all notifications as read for the authenticated user
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/notifications/preferences/:
+    get:
+      operationId: api_notifications_preferences_retrieve
+      description: Get or update notification preferences
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+    put:
+      operationId: api_notifications_preferences_update
+      description: Get or update notification preferences
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/notifications/stats/:
+    get:
+      operationId: api_notifications_stats_retrieve
+      description: Get notification statistics for the user
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/notifications/test/:
+    post:
+      operationId: api_notifications_test_create
+      description: Create a test notification for the user
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/posts/:
+    get:
+      operationId: api_posts_list
+      description: List posts or create a new post
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedPostList'
+          description: ''
+    post:
+      operationId: api_posts_create
+      description: List posts or create a new post
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PostRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PostRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PostRequest'
+        required: true
+      security:
+      - tokenAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Post'
+          description: ''
+  /api/posts/{id}/:
+    get:
+      operationId: api_posts_retrieve
+      description: Retrieve, update or delete a post
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Post'
+          description: ''
+    put:
+      operationId: api_posts_update
+      description: Retrieve, update or delete a post
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PostRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PostRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PostRequest'
+        required: true
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Post'
+          description: ''
+    patch:
+      operationId: api_posts_partial_update
+      description: Retrieve, update or delete a post
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedPostRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedPostRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedPostRequest'
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Post'
+          description: ''
+    delete:
+      operationId: api_posts_destroy
+      description: Retrieve, update or delete a post
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/posts/ai/analyze-content/:
+    post:
+      operationId: api_posts_ai_analyze_content_create
+      description: Analyze content performance and get suggestions
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/posts/ai/content-suggestions/:
+    get:
+      operationId: api_posts_ai_content_suggestions_retrieve
+      description: Get AI-powered content suggestions based on analytics
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/posts/ai/optimal-times/:
+    get:
+      operationId: api_posts_ai_optimal_times_retrieve
+      description: Get AI-suggested optimal posting times
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/posts/ai/sentiment/batch/:
+    post:
+      operationId: api_posts_ai_sentiment_batch_create
+      description: Analyze sentiment for comments across multiple posts
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/posts/ai/sentiment/comment/:
+    post:
+      operationId: api_posts_ai_sentiment_comment_create
+      description: Analyze sentiment of a single comment using AI models
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/posts/ai/sentiment/post/{post_id}/:
+    post:
+      operationId: api_posts_ai_sentiment_post_create
+      description: Analyze sentiment of comments on a specific post using AI models
+      parameters:
+      - in: path
+        name: post_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/posts/ai/trigger-insights/:
+    post:
+      operationId: api_posts_ai_trigger_insights_create
+      description: Trigger comprehensive AI insights generation
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/posts/brand-wall/:
+    get:
+      operationId: api_posts_brand_wall_retrieve
+      description: Get posts for brand wall display (social proof)
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/posts/bulk-actions/:
+    post:
+      operationId: api_posts_bulk_actions_create
+      description: Perform bulk actions on posts
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/posts/calendar/:
+    get:
+      operationId: api_posts_calendar_retrieve
+      description: Get posts for calendar view
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/posts/calendar/share/:
+    post:
+      operationId: api_posts_calendar_share_create
+      description: Share calendar via Slack or email
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/posts/dashboard/:
+    get:
+      operationId: api_posts_dashboard_retrieve
+      description: Get dashboard statistics
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/posts/holidays/:
+    get:
+      operationId: api_posts_holidays_list
+      description: List holidays
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedHolidayList'
+          description: ''
+    post:
+      operationId: api_posts_holidays_create
+      description: List holidays
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HolidayRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/HolidayRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/HolidayRequest'
+        required: true
+      security:
+      - tokenAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Holiday'
+          description: ''
+  /api/posts/multi-platform/:
+    post:
+      operationId: api_posts_multi_platform_create
+      description: Post same content to multiple platforms
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/posts/social-sets/:
+    get:
+      operationId: api_posts_social_sets_list
+      description: List social sets or create a new social set
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedSocialSetList'
+          description: ''
+    post:
+      operationId: api_posts_social_sets_create
+      description: List social sets or create a new social set
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SocialSetRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/SocialSetRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/SocialSetRequest'
+        required: true
+      security:
+      - tokenAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SocialSet'
+          description: ''
+  /api/posts/social-sets/{id}/:
+    get:
+      operationId: api_posts_social_sets_retrieve
+      description: Retrieve, update or delete a social set
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SocialSet'
+          description: ''
+    put:
+      operationId: api_posts_social_sets_update
+      description: Retrieve, update or delete a social set
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SocialSetRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/SocialSetRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/SocialSetRequest'
+        required: true
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SocialSet'
+          description: ''
+    patch:
+      operationId: api_posts_social_sets_partial_update
+      description: Retrieve, update or delete a social set
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedSocialSetRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedSocialSetRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedSocialSetRequest'
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SocialSet'
+          description: ''
+    delete:
+      operationId: api_posts_social_sets_destroy
+      description: Retrieve, update or delete a social set
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/posts/suggestions/:
+    get:
+      operationId: api_posts_suggestions_list
+      description: List post suggestions
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedPostSuggestionList'
+          description: ''
+    post:
+      operationId: api_posts_suggestions_create
+      description: List post suggestions
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PostSuggestionRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PostSuggestionRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PostSuggestionRequest'
+        required: true
+      security:
+      - tokenAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PostSuggestion'
+          description: ''
+  /api/posts/suggestions/generate/:
+    post:
+      operationId: api_posts_suggestions_generate_create
+      description: Generate AI-powered suggestions
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/posts/templates/:
+    get:
+      operationId: api_posts_templates_list
+      description: List templates or create a new template
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedPostTemplateList'
+          description: ''
+    post:
+      operationId: api_posts_templates_create
+      description: List templates or create a new template
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PostTemplateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PostTemplateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PostTemplateRequest'
+        required: true
+      security:
+      - tokenAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PostTemplate'
+          description: ''
+  /api/posts/templates/{id}/:
+    get:
+      operationId: api_posts_templates_retrieve
+      description: Retrieve, update or delete a template
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PostTemplate'
+          description: ''
+    put:
+      operationId: api_posts_templates_update
+      description: Retrieve, update or delete a template
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PostTemplateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PostTemplateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PostTemplateRequest'
+        required: true
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PostTemplate'
+          description: ''
+    patch:
+      operationId: api_posts_templates_partial_update
+      description: Retrieve, update or delete a template
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedPostTemplateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedPostTemplateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedPostTemplateRequest'
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PostTemplate'
+          description: ''
+    delete:
+      operationId: api_posts_templates_destroy
+      description: Retrieve, update or delete a template
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      responses:
+        '204':
+          description: No response body
+components:
+  schemas:
+    AutomatedMessage:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+          maxLength: 255
+        trigger_type:
+          $ref: '#/components/schemas/TriggerTypeEnum'
+        platform:
+          type: string
+          maxLength: 50
+        template_content:
+          type: string
+        conditions: {}
+        delay_minutes:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+        is_active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+        user:
+          type: integer
+          readOnly: true
+      required:
+      - created_at
+      - id
+      - name
+      - platform
+      - template_content
+      - trigger_type
+      - updated_at
+      - user
+    AutomatedMessageRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        trigger_type:
+          $ref: '#/components/schemas/TriggerTypeEnum'
+        platform:
+          type: string
+          minLength: 1
+          maxLength: 50
+        template_content:
+          type: string
+          minLength: 1
+        conditions: {}
+        delay_minutes:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+        is_active:
+          type: boolean
+      required:
+      - name
+      - platform
+      - template_content
+      - trigger_type
+    BlankEnum:
+      enum:
+      - ''
+    Campaign:
+      type: object
+      description: Serializer for Campaign model
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        creator:
+          type: integer
+          readOnly: true
+        creator_info:
+          type: string
+          readOnly: true
+        title:
+          type: string
+          maxLength: 255
+        description:
+          type: string
+        budget:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        start_date:
+          type: string
+          format: date
+        end_date:
+          type: string
+          format: date
+        status:
+          $ref: '#/components/schemas/Status540Enum'
+        target_niches: {}
+        min_followers:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+        max_followers:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+          nullable: true
+        target_platforms: {}
+        applications_count:
+          type: string
+          readOnly: true
+        days_remaining:
+          type: string
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - applications_count
+      - budget
+      - created_at
+      - creator
+      - creator_info
+      - days_remaining
+      - description
+      - end_date
+      - id
+      - start_date
+      - title
+      - updated_at
+    CampaignApplication:
+      type: object
+      description: Serializer for Campaign Application model
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        campaign:
+          type: integer
+        campaign_info:
+          type: string
+          readOnly: true
+        influencer:
+          type: integer
+          readOnly: true
+        influencer_info:
+          type: string
+          readOnly: true
+        proposed_rate:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        message:
+          type: string
+        status:
+          $ref: '#/components/schemas/CampaignApplicationStatusEnum'
+        applied_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - applied_at
+      - campaign
+      - campaign_info
+      - id
+      - influencer
+      - influencer_info
+      - message
+      - proposed_rate
+      - updated_at
+    CampaignApplicationRequest:
+      type: object
+      description: Serializer for Campaign Application model
+      properties:
+        campaign:
+          type: integer
+        proposed_rate:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        message:
+          type: string
+          minLength: 1
+        status:
+          $ref: '#/components/schemas/CampaignApplicationStatusEnum'
+      required:
+      - campaign
+      - message
+      - proposed_rate
+    CampaignApplicationStatusEnum:
+      enum:
+      - pending
+      - approved
+      - rejected
+      - completed
+      type: string
+      description: |-
+        * `pending` - Pending
+        * `approved` - Approved
+        * `rejected` - Rejected
+        * `completed` - Completed
+    CampaignList:
+      type: object
+      description: Simplified serializer for campaign lists
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        title:
+          type: string
+          maxLength: 255
+        budget:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        status:
+          $ref: '#/components/schemas/Status540Enum'
+        start_date:
+          type: string
+          format: date
+        end_date:
+          type: string
+          format: date
+        creator_username:
+          type: string
+          readOnly: true
+        applications_count:
+          type: string
+          readOnly: true
+        min_followers:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+        max_followers:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+          nullable: true
+        target_platforms: {}
+      required:
+      - applications_count
+      - budget
+      - creator_username
+      - end_date
+      - id
+      - start_date
+      - title
+    CampaignRequest:
+      type: object
+      description: Serializer for Campaign model
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 255
+        description:
+          type: string
+          minLength: 1
+        budget:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        start_date:
+          type: string
+          format: date
+        end_date:
+          type: string
+          format: date
+        status:
+          $ref: '#/components/schemas/Status540Enum'
+        target_niches: {}
+        min_followers:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+        max_followers:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+          nullable: true
+        target_platforms: {}
+      required:
+      - budget
+      - description
+      - end_date
+      - start_date
+      - title
+    Comment:
+      type: object
+      description: Serializer for Comment model
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        post:
+          type: string
+          format: uuid
+        user:
+          allOf:
+          - $ref: '#/components/schemas/User'
+          readOnly: true
+        content:
+          type: string
+        parent:
+          type: integer
+          nullable: true
+        replies:
+          type: string
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - content
+      - created_at
+      - id
+      - post
+      - replies
+      - updated_at
+      - user
+    CommentRequest:
+      type: object
+      description: Serializer for Comment model
+      properties:
+        post:
+          type: string
+          format: uuid
+        content:
+          type: string
+          minLength: 1
+        parent:
+          type: integer
+          nullable: true
+      required:
+      - content
+      - post
+    Holiday:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          maxLength: 255
+        date:
+          type: string
+          format: date
+        country:
+          type: string
+          default: US
+          maxLength: 100
+        category:
+          type: string
+          maxLength: 100
+        description:
+          type: string
+      required:
+      - date
+      - id
+      - name
+    HolidayRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        date:
+          type: string
+          format: date
+        country:
+          type: string
+          minLength: 1
+          default: US
+          maxLength: 100
+        category:
+          type: string
+          maxLength: 100
+        description:
+          type: string
+      required:
+      - date
+      - name
+    Influencer:
+      type: object
+      description: Serializer for Influencer model
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        user:
+          type: integer
+          readOnly: true
+        user_info:
+          type: string
+          readOnly: true
+        bio:
+          type: string
+        niche:
+          oneOf:
+          - $ref: '#/components/schemas/NicheEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        website:
+          type: string
+          format: uri
+          maxLength: 200
+        post_rate:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          nullable: true
+        story_rate:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          nullable: true
+        reel_rate:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          nullable: true
+        is_verified:
+          type: boolean
+        is_available:
+          type: boolean
+        total_followers:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+        avg_engagement_rate:
+          type: number
+          format: double
+        social_accounts_count:
+          type: string
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - id
+      - social_accounts_count
+      - updated_at
+      - user
+      - user_info
+    InfluencerRequest:
+      type: object
+      description: Serializer for Influencer model
+      properties:
+        bio:
+          type: string
+        niche:
+          oneOf:
+          - $ref: '#/components/schemas/NicheEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        website:
+          type: string
+          format: uri
+          maxLength: 200
+        post_rate:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          nullable: true
+        story_rate:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          nullable: true
+        reel_rate:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          nullable: true
+        is_verified:
+          type: boolean
+        is_available:
+          type: boolean
+        total_followers:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+        avg_engagement_rate:
+          type: number
+          format: double
+    LoginRequest:
+      type: object
+      properties:
+        username:
+          type: string
+          minLength: 1
+        password:
+          type: string
+          minLength: 1
+      required:
+      - password
+      - username
+    Message:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        platform:
+          type: string
+          maxLength: 50
+        recipient:
+          type: string
+          maxLength: 255
+        content:
+          type: string
+        status:
+          $ref: '#/components/schemas/MessageStatusEnum'
+        priority:
+          $ref: '#/components/schemas/MessagePriorityEnum'
+        scheduled_time:
+          type: string
+          format: date-time
+          nullable: true
+        sent_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        response_received:
+          type: boolean
+        response_content:
+          type: string
+        response_time:
+          type: string
+          format: date-time
+          nullable: true
+        message_type:
+          type: string
+          maxLength: 50
+        campaign_id:
+          type: string
+          format: uuid
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+        user:
+          type: integer
+          readOnly: true
+      required:
+      - content
+      - created_at
+      - id
+      - platform
+      - recipient
+      - sent_at
+      - updated_at
+      - user
+    MessagePriorityEnum:
+      enum:
+      - low
+      - normal
+      - high
+      - urgent
+      type: string
+      description: |-
+        * `low` - Low
+        * `normal` - Normal
+        * `high` - High
+        * `urgent` - Urgent
+    MessageRequest:
+      type: object
+      properties:
+        platform:
+          type: string
+          minLength: 1
+          maxLength: 50
+        recipient:
+          type: string
+          minLength: 1
+          maxLength: 255
+        content:
+          type: string
+          minLength: 1
+        status:
+          $ref: '#/components/schemas/MessageStatusEnum'
+        priority:
+          $ref: '#/components/schemas/MessagePriorityEnum'
+        scheduled_time:
+          type: string
+          format: date-time
+          nullable: true
+        response_received:
+          type: boolean
+        response_content:
+          type: string
+        response_time:
+          type: string
+          format: date-time
+          nullable: true
+        message_type:
+          type: string
+          minLength: 1
+          maxLength: 50
+        campaign_id:
+          type: string
+          format: uuid
+          nullable: true
+      required:
+      - content
+      - platform
+      - recipient
+    MessageStatusEnum:
+      enum:
+      - pending
+      - sent
+      - failed
+      - delivered
+      - read
+      type: string
+      description: |-
+        * `pending` - Pending
+        * `sent` - Sent
+        * `failed` - Failed
+        * `delivered` - Delivered
+        * `read` - Read
+    NicheEnum:
+      enum:
+      - fashion
+      - beauty
+      - fitness
+      - food
+      - travel
+      - tech
+      - lifestyle
+      - business
+      - education
+      - entertainment
+      type: string
+      description: |-
+        * `fashion` - Fashion
+        * `beauty` - Beauty
+        * `fitness` - Fitness
+        * `food` - Food
+        * `travel` - Travel
+        * `tech` - Technology
+        * `lifestyle` - Lifestyle
+        * `business` - Business
+        * `education` - Education
+        * `entertainment` - Entertainment
+    Notification:
+      type: object
+      description: Serializer for Notification model
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        user:
+          type: integer
+          readOnly: true
+        type:
+          $ref: '#/components/schemas/TypeEnum'
+        title:
+          type: string
+          maxLength: 255
+        message:
+          type: string
+        priority:
+          $ref: '#/components/schemas/NotificationPriorityEnum'
+        data: {}
+        is_read:
+          type: boolean
+        is_sent_email:
+          type: boolean
+          readOnly: true
+        is_sent_slack:
+          type: boolean
+          readOnly: true
+        action_url:
+          type: string
+          format: uri
+          maxLength: 200
+        action_text:
+          type: string
+          maxLength: 100
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        read_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        expires_at:
+          type: string
+          format: date-time
+          nullable: true
+      required:
+      - created_at
+      - id
+      - is_sent_email
+      - is_sent_slack
+      - message
+      - read_at
+      - title
+      - type
+      - user
+    NotificationPriorityEnum:
+      enum:
+      - low
+      - medium
+      - high
+      - urgent
+      type: string
+      description: |-
+        * `low` - Low
+        * `medium` - Medium
+        * `high` - High
+        * `urgent` - Urgent
+    NotificationRequest:
+      type: object
+      description: Serializer for Notification model
+      properties:
+        type:
+          $ref: '#/components/schemas/TypeEnum'
+        title:
+          type: string
+          minLength: 1
+          maxLength: 255
+        message:
+          type: string
+          minLength: 1
+        priority:
+          $ref: '#/components/schemas/NotificationPriorityEnum'
+        data: {}
+        is_read:
+          type: boolean
+        action_url:
+          type: string
+          format: uri
+          maxLength: 200
+        action_text:
+          type: string
+          maxLength: 100
+        expires_at:
+          type: string
+          format: date-time
+          nullable: true
+      required:
+      - message
+      - title
+      - type
+    PaginatedAutomatedMessageList:
+      type: object
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/AutomatedMessage'
+    PaginatedCampaignApplicationList:
+      type: object
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/CampaignApplication'
+    PaginatedCampaignListList:
+      type: object
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/CampaignList'
+    PaginatedCommentList:
+      type: object
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Comment'
+    PaginatedHolidayList:
+      type: object
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Holiday'
+    PaginatedMessageList:
+      type: object
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Message'
+    PaginatedNotificationList:
+      type: object
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Notification'
+    PaginatedPostList:
+      type: object
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Post'
+    PaginatedPostSuggestionList:
+      type: object
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/PostSuggestion'
+    PaginatedPostTemplateList:
+      type: object
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/PostTemplate'
+    PaginatedReviewList:
+      type: object
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Review'
+    PaginatedSocialMediaAccountList:
+      type: object
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/SocialMediaAccount'
+    PaginatedSocialSetList:
+      type: object
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/SocialSet'
+    PaginatedTeamList:
+      type: object
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Team'
+    PaginatedTeamMemberList:
+      type: object
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/TeamMember'
+    PaginatedWorkspaceList:
+      type: object
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Workspace'
+    PaginatedWorkspaceMemberList:
+      type: object
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/WorkspaceMember'
+    PatchedAutomatedMessageRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        trigger_type:
+          $ref: '#/components/schemas/TriggerTypeEnum'
+        platform:
+          type: string
+          minLength: 1
+          maxLength: 50
+        template_content:
+          type: string
+          minLength: 1
+        conditions: {}
+        delay_minutes:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+        is_active:
+          type: boolean
+    PatchedCampaignRequest:
+      type: object
+      description: Serializer for Campaign model
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 255
+        description:
+          type: string
+          minLength: 1
+        budget:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        start_date:
+          type: string
+          format: date
+        end_date:
+          type: string
+          format: date
+        status:
+          $ref: '#/components/schemas/Status540Enum'
+        target_niches: {}
+        min_followers:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+        max_followers:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+          nullable: true
+        target_platforms: {}
+    PatchedInfluencerRequest:
+      type: object
+      description: Serializer for Influencer model
+      properties:
+        bio:
+          type: string
+        niche:
+          oneOf:
+          - $ref: '#/components/schemas/NicheEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        website:
+          type: string
+          format: uri
+          maxLength: 200
+        post_rate:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          nullable: true
+        story_rate:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          nullable: true
+        reel_rate:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          nullable: true
+        is_verified:
+          type: boolean
+        is_available:
+          type: boolean
+        total_followers:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+        avg_engagement_rate:
+          type: number
+          format: double
+    PatchedMessageRequest:
+      type: object
+      properties:
+        platform:
+          type: string
+          minLength: 1
+          maxLength: 50
+        recipient:
+          type: string
+          minLength: 1
+          maxLength: 255
+        content:
+          type: string
+          minLength: 1
+        status:
+          $ref: '#/components/schemas/MessageStatusEnum'
+        priority:
+          $ref: '#/components/schemas/MessagePriorityEnum'
+        scheduled_time:
+          type: string
+          format: date-time
+          nullable: true
+        response_received:
+          type: boolean
+        response_content:
+          type: string
+        response_time:
+          type: string
+          format: date-time
+          nullable: true
+        message_type:
+          type: string
+          minLength: 1
+          maxLength: 50
+        campaign_id:
+          type: string
+          format: uuid
+          nullable: true
+    PatchedNotificationRequest:
+      type: object
+      description: Serializer for Notification model
+      properties:
+        type:
+          $ref: '#/components/schemas/TypeEnum'
+        title:
+          type: string
+          minLength: 1
+          maxLength: 255
+        message:
+          type: string
+          minLength: 1
+        priority:
+          $ref: '#/components/schemas/NotificationPriorityEnum'
+        data: {}
+        is_read:
+          type: boolean
+        action_url:
+          type: string
+          format: uri
+          maxLength: 200
+        action_text:
+          type: string
+          maxLength: 100
+        expires_at:
+          type: string
+          format: date-time
+          nullable: true
+    PatchedPostCollaborationRequest:
+      type: object
+      description: Serializer for PostCollaboration model
+      properties:
+        status:
+          $ref: '#/components/schemas/PostCollaborationStatusEnum'
+        due_date:
+          type: string
+          format: date-time
+          nullable: true
+    PatchedPostRequest:
+      type: object
+      properties:
+        social_account:
+          type: string
+          format: uuid
+          nullable: true
+        social_set:
+          type: string
+          format: uuid
+          nullable: true
+        content:
+          type: string
+          minLength: 1
+        caption:
+          type: string
+        hashtags:
+          type: string
+          description: Comma-separated hashtags
+        image:
+          type: string
+          format: binary
+          nullable: true
+        video:
+          type: string
+          format: binary
+          nullable: true
+        media_url:
+          type: string
+          format: uri
+          description: External media URL
+          maxLength: 200
+        scheduled_time:
+          type: string
+          format: date-time
+        timezone:
+          type: string
+          minLength: 1
+          maxLength: 50
+        post_type:
+          $ref: '#/components/schemas/PostTypeEnum'
+        status:
+          $ref: '#/components/schemas/PostStatusEnum'
+        platform:
+          type: string
+          minLength: 1
+          maxLength: 20
+        location:
+          type: string
+          maxLength: 255
+        latitude:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,6})?$
+          nullable: true
+        longitude:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,6})?$
+          nullable: true
+        tagged_users:
+          type: string
+          description: Comma-separated usernames
+        is_locked:
+          type: boolean
+          description: Prevent editing when locked
+        is_template:
+          type: boolean
+          description: Save as reusable template
+    PatchedPostTemplateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        content:
+          type: string
+          minLength: 1
+        caption:
+          type: string
+        hashtags:
+          type: string
+        post_type:
+          $ref: '#/components/schemas/PostTypeEnum'
+        platforms:
+          description: List of platforms this template is for
+    PatchedSocialSetRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        description:
+          type: string
+        accounts:
+          type: array
+          items:
+            type: string
+            format: uuid
+        is_active:
+          type: boolean
+    PatchedUserProfileRequest:
+      type: object
+      properties:
+        company_name:
+          type: string
+          maxLength: 255
+        avatar:
+          type: string
+          format: binary
+          nullable: true
+        subscription_type:
+          type: string
+          minLength: 1
+          maxLength: 20
+        time_format:
+          $ref: '#/components/schemas/TimeFormatEnum'
+        timezone:
+          type: string
+          minLength: 1
+          maxLength: 50
+        email_notifications:
+          type: boolean
+        slack_notifications:
+          type: boolean
+    PatchedWorkspaceRequest:
+      type: object
+      description: Serializer for Workspace model
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        description:
+          type: string
+        is_active:
+          type: boolean
+        allow_guest_access:
+          type: boolean
+    PlatformEnum:
+      enum:
+      - instagram
+      - facebook
+      - twitter
+      - linkedin
+      - tiktok
+      - youtube
+      - pinterest
+      - snapchat
+      - reddit
+      type: string
+      description: |-
+        * `instagram` - Instagram
+        * `facebook` - Facebook
+        * `twitter` - Twitter/X
+        * `linkedin` - LinkedIn
+        * `tiktok` - TikTok
+        * `youtube` - YouTube
+        * `pinterest` - Pinterest
+        * `snapchat` - Snapchat
+        * `reddit` - Reddit
+    Post:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        social_account:
+          type: string
+          format: uuid
+          nullable: true
+        social_set:
+          type: string
+          format: uuid
+          nullable: true
+        content:
+          type: string
+        caption:
+          type: string
+        hashtags:
+          type: string
+          description: Comma-separated hashtags
+        hashtags_list:
+          type: string
+          readOnly: true
+        image:
+          type: string
+          format: uri
+          nullable: true
+        video:
+          type: string
+          format: uri
+          nullable: true
+        media_url:
+          type: string
+          format: uri
+          description: External media URL
+          maxLength: 200
+        scheduled_time:
+          type: string
+          format: date-time
+        timezone:
+          type: string
+          maxLength: 50
+        post_type:
+          $ref: '#/components/schemas/PostTypeEnum'
+        status:
+          $ref: '#/components/schemas/PostStatusEnum'
+        platform:
+          type: string
+          maxLength: 20
+        location:
+          type: string
+          maxLength: 255
+        latitude:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,6})?$
+          nullable: true
+        longitude:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,6})?$
+          nullable: true
+        tagged_users:
+          type: string
+          description: Comma-separated usernames
+        tagged_users_list:
+          type: string
+          readOnly: true
+        is_locked:
+          type: boolean
+          description: Prevent editing when locked
+        is_template:
+          type: boolean
+          description: Save as reusable template
+        external_post_id:
+          type: string
+          readOnly: true
+          description: Platform-specific post ID
+        published_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        error_message:
+          type: string
+          readOnly: true
+        can_edit:
+          type: string
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - can_edit
+      - content
+      - created_at
+      - error_message
+      - external_post_id
+      - hashtags_list
+      - id
+      - platform
+      - published_at
+      - scheduled_time
+      - tagged_users_list
+      - updated_at
+    PostCollaboration:
+      type: object
+      description: Serializer for PostCollaboration model
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        post:
+          allOf:
+          - $ref: '#/components/schemas/Post'
+          readOnly: true
+        workspace:
+          allOf:
+          - $ref: '#/components/schemas/Workspace'
+          readOnly: true
+        assignee:
+          allOf:
+          - $ref: '#/components/schemas/User'
+          readOnly: true
+        status:
+          $ref: '#/components/schemas/PostCollaborationStatusEnum'
+        due_date:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - assignee
+      - created_at
+      - id
+      - post
+      - updated_at
+      - workspace
+    PostCollaborationRequest:
+      type: object
+      description: Serializer for PostCollaboration model
+      properties:
+        status:
+          $ref: '#/components/schemas/PostCollaborationStatusEnum'
+        due_date:
+          type: string
+          format: date-time
+          nullable: true
+    PostCollaborationStatusEnum:
+      enum:
+      - draft
+      - review
+      - approved
+      - rejected
+      - published
+      type: string
+      description: |-
+        * `draft` - Draft
+        * `review` - Under Review
+        * `approved` - Approved
+        * `rejected` - Rejected
+        * `published` - Published
+    PostRequest:
+      type: object
+      properties:
+        social_account:
+          type: string
+          format: uuid
+          nullable: true
+        social_set:
+          type: string
+          format: uuid
+          nullable: true
+        content:
+          type: string
+          minLength: 1
+        caption:
+          type: string
+        hashtags:
+          type: string
+          description: Comma-separated hashtags
+        image:
+          type: string
+          format: binary
+          nullable: true
+        video:
+          type: string
+          format: binary
+          nullable: true
+        media_url:
+          type: string
+          format: uri
+          description: External media URL
+          maxLength: 200
+        scheduled_time:
+          type: string
+          format: date-time
+        timezone:
+          type: string
+          minLength: 1
+          maxLength: 50
+        post_type:
+          $ref: '#/components/schemas/PostTypeEnum'
+        status:
+          $ref: '#/components/schemas/PostStatusEnum'
+        platform:
+          type: string
+          minLength: 1
+          maxLength: 20
+        location:
+          type: string
+          maxLength: 255
+        latitude:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,6})?$
+          nullable: true
+        longitude:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,6})?$
+          nullable: true
+        tagged_users:
+          type: string
+          description: Comma-separated usernames
+        is_locked:
+          type: boolean
+          description: Prevent editing when locked
+        is_template:
+          type: boolean
+          description: Save as reusable template
+      required:
+      - content
+      - platform
+      - scheduled_time
+    PostStatusEnum:
+      enum:
+      - draft
+      - scheduled
+      - published
+      - failed
+      - cancelled
+      type: string
+      description: |-
+        * `draft` - Draft
+        * `scheduled` - Scheduled
+        * `published` - Published
+        * `failed` - Failed
+        * `cancelled` - Cancelled
+    PostSuggestion:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        suggestion_type:
+          $ref: '#/components/schemas/SuggestionTypeEnum'
+        platform:
+          type: string
+          maxLength: 20
+        content:
+          type: string
+        confidence_score:
+          type: number
+          format: double
+        is_used:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - content
+      - created_at
+      - id
+      - platform
+      - suggestion_type
+    PostSuggestionRequest:
+      type: object
+      properties:
+        suggestion_type:
+          $ref: '#/components/schemas/SuggestionTypeEnum'
+        platform:
+          type: string
+          minLength: 1
+          maxLength: 20
+        content:
+          type: string
+          minLength: 1
+        confidence_score:
+          type: number
+          format: double
+        is_used:
+          type: boolean
+      required:
+      - content
+      - platform
+      - suggestion_type
+    PostTemplate:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          maxLength: 255
+        content:
+          type: string
+        caption:
+          type: string
+        hashtags:
+          type: string
+        post_type:
+          $ref: '#/components/schemas/PostTypeEnum'
+        platforms:
+          description: List of platforms this template is for
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - content
+      - created_at
+      - id
+      - name
+      - updated_at
+    PostTemplateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        content:
+          type: string
+          minLength: 1
+        caption:
+          type: string
+        hashtags:
+          type: string
+        post_type:
+          $ref: '#/components/schemas/PostTypeEnum'
+        platforms:
+          description: List of platforms this template is for
+      required:
+      - content
+      - name
+    PostTypeEnum:
+      enum:
+      - post
+      - story
+      - reel
+      - video
+      type: string
+      description: |-
+        * `post` - Post
+        * `story` - Story
+        * `reel` - Reel
+        * `video` - Video
+    Review:
+      type: object
+      description: Serializer for Review model
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        collaboration:
+          allOf:
+          - $ref: '#/components/schemas/PostCollaboration'
+          readOnly: true
+        reviewer:
+          allOf:
+          - $ref: '#/components/schemas/User'
+          readOnly: true
+        status:
+          $ref: '#/components/schemas/ReviewStatusEnum'
+        comment:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - collaboration
+      - created_at
+      - id
+      - reviewer
+      - updated_at
+    ReviewRequest:
+      type: object
+      description: Serializer for Review model
+      properties:
+        status:
+          $ref: '#/components/schemas/ReviewStatusEnum'
+        comment:
+          type: string
+    ReviewStatusEnum:
+      enum:
+      - pending
+      - approved
+      - rejected
+      - changes_requested
+      type: string
+      description: |-
+        * `pending` - Pending
+        * `approved` - Approved
+        * `rejected` - Rejected
+        * `changes_requested` - Changes Requested
+    SocialMediaAccount:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        platform:
+          $ref: '#/components/schemas/PlatformEnum'
+        username:
+          type: string
+          maxLength: 255
+        is_active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        follower_count:
+          type: integer
+          readOnly: true
+        following_count:
+          type: integer
+          readOnly: true
+        platform_user_id:
+          type: string
+          readOnly: true
+      required:
+      - created_at
+      - follower_count
+      - following_count
+      - id
+      - platform
+      - platform_user_id
+      - username
+    SocialMediaAccountRequest:
+      type: object
+      properties:
+        platform:
+          $ref: '#/components/schemas/PlatformEnum'
+        username:
+          type: string
+          minLength: 1
+          maxLength: 255
+        is_active:
+          type: boolean
+      required:
+      - platform
+      - username
+    SocialSet:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+          maxLength: 255
+        description:
+          type: string
+        accounts:
+          type: array
+          items:
+            type: string
+            format: uuid
+        accounts_count:
+          type: string
+          readOnly: true
+        is_active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - accounts
+      - accounts_count
+      - created_at
+      - id
+      - name
+    SocialSetRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        description:
+          type: string
+        accounts:
+          type: array
+          items:
+            type: string
+            format: uuid
+        is_active:
+          type: boolean
+      required:
+      - accounts
+      - name
+    Status540Enum:
+      enum:
+      - draft
+      - active
+      - paused
+      - completed
+      - cancelled
+      type: string
+      description: |-
+        * `draft` - Draft
+        * `active` - Active
+        * `paused` - Paused
+        * `completed` - Completed
+        * `cancelled` - Cancelled
+    SuggestionTypeEnum:
+      enum:
+      - content
+      - hashtag
+      - timing
+      type: string
+      description: |-
+        * `content` - Content Suggestion
+        * `hashtag` - Hashtag Suggestion
+        * `timing` - Timing Suggestion
+    Team:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+          maxLength: 255
+        owner:
+          type: integer
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - id
+      - name
+      - owner
+    TeamMember:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        team:
+          allOf:
+          - $ref: '#/components/schemas/Team'
+          readOnly: true
+        user:
+          allOf:
+          - $ref: '#/components/schemas/User'
+          readOnly: true
+        role:
+          $ref: '#/components/schemas/TeamMemberRoleEnum'
+        invited_email:
+          type: string
+          format: email
+          nullable: true
+          maxLength: 254
+        is_active:
+          type: boolean
+        invited_at:
+          type: string
+          format: date-time
+          readOnly: true
+        joined_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+      required:
+      - id
+      - invited_at
+      - joined_at
+      - team
+      - user
+    TeamMemberRequest:
+      type: object
+      properties:
+        team_id:
+          type: string
+          format: uuid
+          writeOnly: true
+          description: UUID of the team to invite to
+        role:
+          $ref: '#/components/schemas/TeamMemberRoleEnum'
+        invited_email:
+          type: string
+          format: email
+          nullable: true
+          maxLength: 254
+        is_active:
+          type: boolean
+    TeamMemberRoleEnum:
+      enum:
+      - owner
+      - admin
+      - editor
+      - viewer
+      type: string
+      description: |-
+        * `owner` - Owner
+        * `admin` - Admin
+        * `editor` - Editor
+        * `viewer` - Viewer
+    TeamRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+      required:
+      - name
+    TimeFormatEnum:
+      enum:
+      - 12h
+      - 24h
+      type: string
+      description: |-
+        * `12h` - 12 Hour
+        * `24h` - 24 Hour
+    TriggerTypeEnum:
+      enum:
+      - new_follower
+      - mention
+      - comment
+      - dm
+      - scheduled
+      type: string
+      description: |-
+        * `new_follower` - New Follower
+        * `mention` - Mention
+        * `comment` - Comment
+        * `dm` - Direct Message
+        * `scheduled` - Scheduled
+    TypeEnum:
+      enum:
+      - post_published
+      - post_failed
+      - campaign_application
+      - report_ready
+      - analytics_alert
+      - system
+      type: string
+      description: |-
+        * `post_published` - Post Published
+        * `post_failed` - Post Failed
+        * `campaign_application` - Campaign Application
+        * `report_ready` - Report Ready
+        * `analytics_alert` - Analytics Alert
+        * `system` - System Notification
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        username:
+          type: string
+          description: Required. 150 characters or fewer. Letters, digits and @/./+/-/_
+            only.
+          pattern: ^[\w.@+-]+$
+          maxLength: 150
+        email:
+          type: string
+          format: email
+          title: Email address
+          maxLength: 254
+        first_name:
+          type: string
+          maxLength: 150
+        last_name:
+          type: string
+          maxLength: 150
+        date_joined:
+          type: string
+          format: date-time
+          readOnly: true
+        profile_uuid:
+          type: string
+          readOnly: true
+      required:
+      - date_joined
+      - id
+      - profile_uuid
+      - username
+    UserProfile:
+      type: object
+      properties:
+        user:
+          allOf:
+          - $ref: '#/components/schemas/User'
+          readOnly: true
+        company_name:
+          type: string
+          maxLength: 255
+        avatar:
+          type: string
+          format: uri
+          nullable: true
+        subscription_type:
+          type: string
+          maxLength: 20
+        time_format:
+          $ref: '#/components/schemas/TimeFormatEnum'
+        timezone:
+          type: string
+          maxLength: 50
+        email_notifications:
+          type: boolean
+        slack_notifications:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - updated_at
+      - user
+    UserProfileRequest:
+      type: object
+      properties:
+        company_name:
+          type: string
+          maxLength: 255
+        avatar:
+          type: string
+          format: binary
+          nullable: true
+        subscription_type:
+          type: string
+          minLength: 1
+          maxLength: 20
+        time_format:
+          $ref: '#/components/schemas/TimeFormatEnum'
+        timezone:
+          type: string
+          minLength: 1
+          maxLength: 50
+        email_notifications:
+          type: boolean
+        slack_notifications:
+          type: boolean
+    UserRegistrationRequest:
+      type: object
+      properties:
+        username:
+          type: string
+          minLength: 1
+          description: Required. 150 characters or fewer. Letters, digits and @/./+/-/_
+            only.
+          pattern: ^[\w.@+-]+$
+          maxLength: 150
+        email:
+          type: string
+          format: email
+          title: Email address
+          maxLength: 254
+        password:
+          type: string
+          writeOnly: true
+          minLength: 1
+        password_confirm:
+          type: string
+          writeOnly: true
+          minLength: 1
+        first_name:
+          type: string
+          maxLength: 150
+        last_name:
+          type: string
+          maxLength: 150
+      required:
+      - email
+      - password
+      - password_confirm
+      - username
+    UserRequest:
+      type: object
+      properties:
+        username:
+          type: string
+          minLength: 1
+          description: Required. 150 characters or fewer. Letters, digits and @/./+/-/_
+            only.
+          pattern: ^[\w.@+-]+$
+          maxLength: 150
+        email:
+          type: string
+          format: email
+          title: Email address
+          maxLength: 254
+        first_name:
+          type: string
+          maxLength: 150
+        last_name:
+          type: string
+          maxLength: 150
+      required:
+      - username
+    Workspace:
+      type: object
+      description: Serializer for Workspace model
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          maxLength: 255
+        description:
+          type: string
+        owner:
+          allOf:
+          - $ref: '#/components/schemas/User'
+          readOnly: true
+        is_active:
+          type: boolean
+        allow_guest_access:
+          type: boolean
+        member_count:
+          type: string
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - id
+      - member_count
+      - name
+      - owner
+      - updated_at
+    WorkspaceMember:
+      type: object
+      description: Serializer for WorkspaceMember model
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        workspace:
+          type: integer
+        workspace_name:
+          type: string
+          readOnly: true
+        user:
+          allOf:
+          - $ref: '#/components/schemas/User'
+          readOnly: true
+        role:
+          $ref: '#/components/schemas/WorkspaceMemberRoleEnum'
+        can_create_posts:
+          type: boolean
+        can_edit_posts:
+          type: boolean
+        can_delete_posts:
+          type: boolean
+        can_publish_posts:
+          type: boolean
+        can_view_analytics:
+          type: boolean
+        can_manage_members:
+          type: boolean
+        joined_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - id
+      - joined_at
+      - role
+      - user
+      - workspace
+      - workspace_name
+    WorkspaceMemberRequest:
+      type: object
+      description: Serializer for WorkspaceMember model
+      properties:
+        workspace:
+          type: integer
+        role:
+          $ref: '#/components/schemas/WorkspaceMemberRoleEnum'
+        can_create_posts:
+          type: boolean
+        can_edit_posts:
+          type: boolean
+        can_delete_posts:
+          type: boolean
+        can_publish_posts:
+          type: boolean
+        can_view_analytics:
+          type: boolean
+        can_manage_members:
+          type: boolean
+      required:
+      - role
+      - workspace
+    WorkspaceMemberRoleEnum:
+      enum:
+      - owner
+      - admin
+      - editor
+      - viewer
+      - guest
+      type: string
+      description: |-
+        * `owner` - Owner
+        * `admin` - Admin
+        * `editor` - Editor
+        * `viewer` - Viewer
+        * `guest` - Guest
+    WorkspaceRequest:
+      type: object
+      description: Serializer for Workspace model
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        description:
+          type: string
+        is_active:
+          type: boolean
+        allow_guest_access:
+          type: boolean
+      required:
+      - name
+  securitySchemes:
+    tokenAuth:
+      type: apiKey
+      in: header
+      name: Authorization
+      description: Token-based authentication with required prefix "Token"
