@@ -76,6 +76,7 @@ class RegisterView(APIView):
 )
 @api_view(["POST"])
 @permission_classes([permissions.AllowAny])
+@authentication_classes([])  # Explicitly disable authentication for this view
 def login_view(request):
     """Function-based login view"""
     # FIRST THING - print that we reached this function
@@ -161,6 +162,8 @@ def login_view(request):
 
 
 class LogoutView(APIView):
+    permission_classes = [IsAuthenticated]
+    
     def post(self, request):
         try:
             request.user.auth_token.delete()
@@ -259,6 +262,7 @@ class ProfileView(RetrieveUpdateAPIView):
 
 class SocialMediaAccountListView(ListCreateAPIView):
     serializer_class = SocialMediaAccountSerializer
+    permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):
@@ -334,6 +338,7 @@ def check_social_account_exists(request):
 
 class TeamMemberListView(ListCreateAPIView):
     serializer_class = TeamMemberSerializer
+    permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
         return TeamMember.objects.filter(team__owner=self.request.user)
@@ -384,7 +389,22 @@ def user_dashboard(request):
 @permission_classes([permissions.AllowAny])
 def health_check(request):
     """Health check endpoint"""
+    print("HEALTH CHECK ENDPOINT REACHED!")
+    print(f"Request path: {request.path}")
+    print(f"Request method: {request.method}")
     return Response({"status": "healthy", "message": "Social Media Manager API is running"})
+
+
+@api_view(["GET", "POST"])
+@permission_classes([permissions.AllowAny])
+def ultra_simple_test(request):
+    """Ultra simple test endpoint to verify Django is working"""
+    print("ULTRA SIMPLE TEST ENDPOINT REACHED!")
+    print(f"Request path: {request.path}")
+    print(f"Request method: {request.method}")
+    print(f"Request user: {request.user}")
+    print(f"Request authenticated: {request.user.is_authenticated}")
+    return Response({"message": "Ultra simple test working", "method": request.method, "authenticated": request.user.is_authenticated})
 
 
 # @csrf_exempt
@@ -426,6 +446,7 @@ def health_check(request):
 @csrf_exempt
 @api_view(["POST"])
 @permission_classes([permissions.AllowAny])
+@authentication_classes([])  # Explicitly disable authentication for this view
 def register(request):
     # FIRST THING - print that we reached this function
     print("REGISTER VIEW FUNCTION REACHED!")
@@ -463,15 +484,16 @@ def register(request):
         print(f"Password2 provided: {'password2' in request.data}")
         print(f"First name: {request.data.get('first_name')}")
         print(f"Last name: {request.data.get('last_name')}")
+        print(f"Company name: {request.data.get('company_name')}")
+        print(f"Role: {request.data.get('role')}")
         
         logger.info(f"Data keys: {list(request.data.keys())}")
         logger.info(f"Email: {request.data.get('email')}")
         logger.info(f"Username: {request.data.get('username')}")
         logger.info(f"Password provided: {'password' in request.data}")
         logger.info(f"Password2 provided: {'password2' in request.data}")
-    else:
-        print("No request.data found or empty")
-        logger.error("No request.data found or empty")
+        logger.info(f"Company name: {request.data.get('company_name')}")
+        logger.info(f"Role: {request.data.get('role')}")
     
     serializer = UserRegistrationSerializer(data=request.data)
     print(f"Serializer created with data: {serializer.initial_data}")
@@ -526,6 +548,7 @@ def register(request):
 
 @api_view(["GET"])
 @permission_classes([permissions.AllowAny])
+@authentication_classes([])  # Disable auth to avoid 401s on email verification link
 def verify_email(request, token):
     try:
         verification_token = EmailVerificationToken.objects.get(token=token)
@@ -551,7 +574,6 @@ def verify_email(request, token):
         return Response({"error": "Invalid verification token"}, status=status.HTTP_400_BAD_REQUEST)
 
 
-@csrf_exempt
 @api_view(["POST"])
 @permission_classes([permissions.AllowAny])
 def resend_verification_email(request):

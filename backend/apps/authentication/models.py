@@ -17,15 +17,19 @@ class UserProfile(models.Model):
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="profile")
-    company_name = models.CharField(max_length=255, blank=True, default="")
+    company_name = models.CharField(max_length=255, blank=True, null=True)
+    role = models.CharField(max_length=100, blank=True, null=True)  # User's role in the company
     avatar = models.ImageField(upload_to="avatars/", null=True, blank=True, storage=supabase_storage)
+    # Match initial migration width
     subscription_type = models.CharField(max_length=20, default="free")
+    # Match 0002 migration width
+    timezone = models.CharField(max_length=50, default="UTC")
+    # Added to match migrations and serializer
     time_format = models.CharField(
         max_length=3,
-        choices=[("12h", "12 Hour"), ("24h", "24 Hour")],
+        choices=(("12h", "12 Hour"), ("24h", "24 Hour")),
         default="12h",
     )
-    timezone = models.CharField(max_length=50, default="UTC")
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -105,19 +109,16 @@ class Team(models.Model):
 
 class TeamMember(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    ROLE_CHOICES = [
+    ROLE_CHOICES = (
         ("owner", "Owner"),
         ("admin", "Admin"),
         ("editor", "Editor"),
         ("viewer", "Viewer"),
-    ]
-
-    team = models.ForeignKey(
-        Team, related_name="members", on_delete=models.CASCADE, null=True, blank=True  # Temporarily nullable for migration
     )
-    user = models.ForeignKey(User, related_name="team_memberships", on_delete=models.CASCADE)
-    role = models.CharField(max_length=10, choices=ROLE_CHOICES, default="viewer")
-    invited_email = models.EmailField(blank=True, null=True)
+    team = models.ForeignKey(Team, on_delete=models.CASCADE, related_name="members")
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="team_memberships", null=True, blank=True)
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default="viewer")
+    invited_email = models.EmailField(null=True, blank=True)
     is_active = models.BooleanField(default=False)
     invited_at = models.DateTimeField(auto_now_add=True)
     joined_at = models.DateTimeField(null=True, blank=True)  # Renamed from accepted_at
@@ -140,6 +141,13 @@ class EmailVerificationToken(models.Model):
     def save(self, *args, **kwargs):
         if not self.expires_at:
             self.expires_at = timezone.now() + timezone.timedelta(hours=24)
+        super().save(*args, **kwargs)
+
+    def is_expired(self):
+        return timezone.now() > self.expires_at
+
+    def __str__(self):
+        return f"Email verification for {self.user.username}"
         super().save(*args, **kwargs)
 
     def is_expired(self):

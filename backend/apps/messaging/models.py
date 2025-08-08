@@ -5,70 +5,69 @@ from django.db import models
 
 
 class Message(models.Model):
-    STATUS_CHOICES = [
-        ("pending", "Pending"),
-        ("sent", "Sent"),
-        ("failed", "Failed"),
-        ("delivered", "Delivered"),
-        ("read", "Read"),
-    ]
-
-    PRIORITY_CHOICES = [("low", "Low"), ("normal", "Normal"), ("high", "High"), ("urgent", "Urgent")]
-
+    # Use UUID primary key to align with existing DB
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    """Model for individual messages"""
+
+    PLATFORM_CHOICES = [
+        ("instagram", "Instagram"),
+        ("twitter", "Twitter"),
+        ("facebook", "Facebook"),
+        ("linkedin", "LinkedIn"),
+        ("email", "Email"),
+        ("sms", "SMS"),
+    ]
+    STATUS_CHOICES = [("pending", "Pending"), ("sent", "Sent"), ("failed", "Failed"), ("delivered", "Delivered")]
+    TYPE_CHOICES = [("direct", "Direct"), ("automated", "Automated"), ("broadcast", "Broadcast")]
+    PRIORITY_CHOICES = [("high", "High"), ("normal", "Normal"), ("low", "Low")]
+
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="messages")
-    platform = models.CharField(max_length=50)
-    recipient = models.CharField(max_length=255)  # username, email, or ID
+    platform = models.CharField(max_length=20, choices=PLATFORM_CHOICES)
+    recipient = models.CharField(max_length=255)  # e.g., username, email, phone
     content = models.TextField()
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="pending")
+    message_type = models.CharField(max_length=20, choices=TYPE_CHOICES, default="direct")
     priority = models.CharField(max_length=10, choices=PRIORITY_CHOICES, default="normal")
 
-    # Scheduling
-    scheduled_time = models.DateTimeField(null=True, blank=True)
-    sent_at = models.DateTimeField(null=True, blank=True)
-
-    # Response tracking
-    response_received = models.BooleanField(default=False)
-    response_content = models.TextField(blank=True)
-    response_time = models.DateTimeField(null=True, blank=True)
-
-    # Metadata
-    message_type = models.CharField(max_length=50, default="direct")  # direct, automated, broadcast
-    campaign_id = models.UUIDField(null=True, blank=True)
-
     created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+    sent_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         db_table = "messages"
         ordering = ["-created_at"]
 
+    def __str__(self):
+        return f"Message to {self.recipient} on {self.platform} ({self.status})"
+
 
 class AutomatedMessage(models.Model):
+    # Use UUID primary key to align with existing DB
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    """Model for automated message templates and triggers"""
+
     TRIGGER_CHOICES = [
         ("new_follower", "New Follower"),
         ("mention", "Mention"),
         ("comment", "Comment"),
-        ("dm", "Direct Message"),
-        ("scheduled", "Scheduled"),
+        ("direct_message", "Direct Message"),
     ]
 
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="automated_messages")
-    name = models.CharField(max_length=255)
-    trigger_type = models.CharField(max_length=20, choices=TRIGGER_CHOICES)
-    platform = models.CharField(max_length=50)
-    template_content = models.TextField()
-
-    # Conditions
-    conditions = models.JSONField(default=dict)  # follower count, keywords, etc.
-
-    # Timing
-    delay_minutes = models.IntegerField(default=0)
-    is_active = models.BooleanField(default=True)
+    platform = models.CharField(max_length=20, choices=Message.PLATFORM_CHOICES)
+    trigger = models.CharField(max_length=50, choices=TRIGGER_CHOICES, default="direct_message")
+    content_template = models.TextField(
+        default="Hello {username}! Thank you for your interaction.",
+        help_text="Use placeholders like {username}, {follower_count}, etc."
+    )
+    delay_minutes = models.PositiveIntegerField(default=0, help_text="Delay in minutes before sending")
+    active = models.BooleanField(default=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         db_table = "automated_messages"
+        unique_together = ["user", "platform", "trigger"]
+
+    def __str__(self):
+        return f"Automated message for {self.trigger} on {self.platform}"

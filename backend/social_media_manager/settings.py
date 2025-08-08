@@ -60,8 +60,6 @@ INSTALLED_APPS = (
 )
 
 MIDDLEWARE = [
-    # "apps.core.middleware.BurstProtectionMiddleware",  # Burst protection (first) - TEMPORARILY DISABLED
-    # "apps.core.middleware.RateLimitMiddleware",  # Rate limiting (second) - TEMPORARILY DISABLED
     "social_django.middleware.SocialAuthExceptionMiddleware",
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
@@ -69,12 +67,15 @@ MIDDLEWARE = [
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
-    "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "django.contrib.auth.middleware.AuthenticationMiddleware",  
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    # "apps.core.middleware.BurstProtectionMiddleware",  # TEMPORARILY DISABLED FOR DEBUGGING
+    # "apps.core.middleware.RateLimitMiddleware",  # TEMPORARILY DISABLED FOR DEBUGGING
 ]
 
 ROOT_URLCONF = "social_media_manager.urls"
+
 
 TEMPLATES = [
     {
@@ -100,10 +101,10 @@ DATABASES = {"default": dj_database_url.config(default=config("DATABASE_URL"))}
 # Password validation
 # https://docs.djangoproject.com/en/5.0/ref/settings/#auth-password-validators
 
-AUTHENTICATION_BACKENDS = [
-    'apps.authentication.backends.EmailOrUsernameModelBackend',
-    'django.contrib.auth.backends.ModelBackend',
-]
+# AUTHENTICATION_BACKENDS = [
+#     'apps.authentication.backends.EmailOrUsernameModelBackend',
+#     'django.contrib.auth.backends.ModelBackend',
+# ]
 
 AUTH_PASSWORD_VALIDATORS = [
     {
@@ -159,7 +160,7 @@ REST_FRAMEWORK = {
         # "rest_framework.authentication.SessionAuthentication",
     ],
     "DEFAULT_PERMISSION_CLASSES": [
-        "rest_framework.permissions.IsAuthenticated",
+        "rest_framework.permissions.AllowAny",
     ],
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
     "PAGE_SIZE": 20,
@@ -183,41 +184,42 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",  # React dev server
     "http://127.0.0.1:3000",
     "http://localhost:8081",  # React Native
-    "http://localhost:5173",  # Vite default port
-    "http://127.0.0.1:5173",
-    "http://localhost:3001",  # Alternative React port
-    "http://127.0.0.1:3001",
+    # "http://localhost:5173",  # Vite default port
+    # "http://127.0.0.1:5173",
+    # "http://localhost:3001",  # Alternative React port
+    # "http://127.0.0.1:3001",
 ]
 
 CORS_ALLOW_CREDENTIALS = True
-CORS_ALLOW_ALL_ORIGINS = True  # Set to True for development debugging
+# CORS_ALLOW_ALL_ORIGINS = True  # Set to True for development debugging
 
 # Allow common headers
-CORS_ALLOW_HEADERS = [
-    'accept',
-    'accept-encoding',
-    'authorization',
-    'content-type',
-    'dnt',
-    'origin',
-    'user-agent',
-    'x-csrftoken',
-    'x-requested-with',
-]
+# CORS_ALLOW_HEADERS = [
+#     'accept',
+#     'accept-encoding',
+#     'authorization',
+#     'content-type',
+#     'dnt',
+#     'origin',
+#     'user-agent',
+#     'x-csrftoken',
+#     'x-requested-with',
+# ]
 
 # CSRF settings for API
-CSRF_TRUSTED_ORIGINS = [
-    "http://localhost:3000",
-    "http://127.0.0.1:3000", 
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
-]
+# CSRF_TRUSTED_ORIGINS = [
+#     "http://localhost:3000",
+#     "http://127.0.0.1:3000", 
+#     "http://localhost:5173",
+#     "http://127.0.0.1:5173",
+# ]
 
 # Celery Configuration
 CELERY_BROKER_URL = config("CELERY_BROKER_URL", default="redis://localhost:6379/0")
 
 # Social Auth settings
 AUTHENTICATION_BACKENDS = (
+    'apps.authentication.backends.EmailOrUsernameModelBackend',
     "social_core.backends.google.GoogleOAuth2",
     "social_core.backends.github.GithubOAuth2",
     "django.contrib.auth.backends.ModelBackend",
@@ -322,6 +324,7 @@ SLACK_BOT_TOKEN = config("SLACK_BOT_TOKEN", default="")
 SLACK_WEBHOOK_URL = config("SLACK_WEBHOOK_URL", default="")
 
 CANVA_API_KEY = config("CANVA_API_KEY", default="")
+ZAPIER_API_KEY = config("ZAPIER_API_KEY", default="")
 
 GOOGLE_DRIVE_CREDENTIALS = config("GOOGLE_DRIVE_CREDENTIALS", default="")
 DROPBOX_ACCESS_TOKEN = config("DROPBOX_ACCESS_TOKEN", default="")

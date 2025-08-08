@@ -25,7 +25,7 @@ def send_team_invitation_email(team_id, invited_email, inviter_name):
         subject = f"You've been invited to join {team.name}"
 
         # Create invitation URL (you can customize this based on your frontend)
-        invitation_url = f"{settings.FRONTEND_URL}/teams/invitation/{team_id}"
+        invitation_url = f"{settings.FRONTEND_URL}/teams/invitation/{team_id}?email={invited_email}"
 
         context = {
             "team_name": team.name,
@@ -49,7 +49,7 @@ Hi there!
 To accept this invitation, please click the link below:
 {invitation_url}
 
-If you don't have an account yet, you'll be able to create one during the process.
+If you don't have an account yet, you'll be able to create one during the process. You'll also need to verify your email address to activate your account before joining the team.
 
 Best regards,
 The Social Media Manager Team

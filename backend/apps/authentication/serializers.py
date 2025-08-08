@@ -27,24 +27,19 @@ class UserSerializer(serializers.ModelSerializer):
 
 
 class UserProfileSerializer(serializers.ModelSerializer):
-    user = UserSerializer(read_only=True)
-    avatar = serializers.ImageField(required=False, allow_null=True)
-
     class Meta:
         model = UserProfile
         fields = [
-            "user",
+            "id",
             "company_name",
+            "role",
             "avatar",
             "subscription_type",
-            "time_format",
             "timezone",
+            "time_format",
             "email_notifications",
             "slack_notifications",
-            "created_at",
-            "updated_at",
         ]
-        read_only_fields = ["created_at", "updated_at"]
 
 
 class RegisterSerializer(serializers.ModelSerializer):
@@ -161,14 +156,28 @@ class TeamMemberSerializer(serializers.ModelSerializer):
 class UserRegistrationSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, validators=[validate_password])
     password_confirm = serializers.CharField(write_only=True)
+    company_name = serializers.CharField(write_only=True, required=False, allow_blank=True)
+    role = serializers.CharField(write_only=True, required=False, allow_blank=True)
 
     class Meta:
         model = User
-        fields = ("username", "email", "password", "password_confirm", "first_name", "last_name")
+        fields = (
+            "username",
+            "email",
+            "password",
+            "password_confirm",
+            "first_name",
+            "last_name",
+            "company_name",
+            "role",
+        )
         extra_kwargs = {
             "email": {"required": True},
             "first_name": {"required": False},
             "last_name": {"required": False},
+            # Explicitly mark optional extras (already declared write_only above)
+            "company_name": {"required": False},
+            "role": {"required": False},
         }
 
     def validate(self, attrs):
@@ -188,7 +197,18 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         validated_data.pop("password_confirm", None)
+        company_name = validated_data.pop("company_name", None)
+        role = validated_data.pop("role", None)
         user = User.objects.create_user(**validated_data)
+
+        # Create UserProfile
+        profile, created = UserProfile.objects.get_or_create(user=user)
+        if company_name:
+            profile.company_name = company_name
+        if role:
+            profile.role = role
+        profile.save()
+
         return user
 
 

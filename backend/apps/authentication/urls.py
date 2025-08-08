@@ -18,6 +18,7 @@ from .views import (
     register,
     remove_social_media_account,
     resend_verification_email,
+    ultra_simple_test,
     user_dashboard,
     verify_email,
 )
@@ -31,6 +32,7 @@ urlpatterns = [
     path("debug-auth-open/", debug_auth_open, name="debug-auth-open"),
     path("test-endpoint/", debug_auth_open, name="test-endpoint"),  # Simple test endpoint
     path("simple-test/", simple_test, name="simple-test"),  # Even simpler test
+    path("ultra-simple/", ultra_simple_test, name="ultra-simple"),  # Ultra simple test
     path("social-accounts/", SocialMediaAccountListView.as_view(), name="social-accounts"),
     path("social-accounts/check/", check_social_account_exists, name="check-social-account"),
     path("social-accounts/<uuid:account_id>/remove/", remove_social_media_account, name="remove-social-account"),

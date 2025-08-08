@@ -63,6 +63,16 @@ def dropbox_integration(request):
         return Response({"message": "Dropbox integration setup initiated"})
 
 
+@api_view(["GET", "POST"])
+@permission_classes([permissions.IsAuthenticated])
+def zapier_integration(request):
+    """Handle Zapier integration"""
+    if request.method == "GET":
+        return Response({"connected": bool(settings.ZAPIER_API_KEY)})
+    elif request.method == "POST":
+        return Response({"message": "Zapier integration setup initiated"})
+
+
 @api_view(["GET"])
 @permission_classes([permissions.AllowAny])
 def oauth_callback(request):
