@@ -4,7 +4,7 @@ Twitter/X API Integration Service
 import os
 import logging
 import tweepy
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Tuple
 from django.conf import settings
 from datetime import datetime, timedelta
 
@@ -74,15 +74,44 @@ class TwitterService:
         except Exception as e:
             logger.error(f"Failed to initialize Twitter API clients: {e}")
             raise
-    
-    def verify_credentials(self) -> Dict[str, Any]:
-        """Verify Twitter API credentials and return user info"""
+
+    def _build_clients(self, access_token: Optional[str], access_token_secret: Optional[str]) -> Tuple[Optional[Any], Optional[Any]]:
+        """Build per-user clients if user tokens provided, else use app-level clients."""
+        # If user tokens provided, build user-scoped clients
+        if access_token and access_token_secret:
+            try:
+                auth_v1 = tweepy.OAuthHandler(self.api_key, self.api_secret)
+                auth_v1.set_access_token(access_token, access_token_secret)
+                api_v1 = tweepy.API(auth_v1, wait_on_rate_limit=True)
+
+                client_v2 = tweepy.Client(
+                    consumer_key=self.api_key,
+                    consumer_secret=self.api_secret,
+                    access_token=access_token,
+                    access_token_secret=access_token_secret,
+                    wait_on_rate_limit=True
+                )
+                return api_v1, client_v2
+            except Exception as e:
+                logger.error(f"Failed to build user-scoped Twitter clients: {e}")
+                # Fall through to app-level
+        
+        # Fallback to app-level
         if not self._lazy_init():
+            return None, None
+        return self.api_v1, self.client_v2
+    
+    def verify_credentials(self, account: Optional[Any] = None) -> Dict[str, Any]:
+        """Verify Twitter API credentials and return user info. If account provided, use user tokens."""
+        access_token = getattr(account, 'access_token', None) if account else None
+        access_token_secret = getattr(account, 'refresh_token', None) if account else None  # using refresh_token to store OAuth1 secret
+        api_v1, client_v2 = self._build_clients(access_token, access_token_secret)
+        if not client_v2:
             return {'success': False, 'error': 'Twitter API credentials are not properly configured'}
             
         try:
             # Get authenticated user info
-            user = self.client_v2.get_me(
+            user = client_v2.get_me(
                 user_fields=['id', 'name', 'username', 'profile_image_url', 
                            'public_metrics', 'description', 'location', 'verified']
             )
@@ -108,35 +137,41 @@ class TwitterService:
             logger.error(f"Twitter credentials verification failed: {e}")
             return {'success': False, 'error': str(e)}
     
-    def post_tweet(self, text: str, media_paths: List[str] = None) -> Dict[str, Any]:
+    def post_tweet(self, text: str, media_paths: List[str] = None, account: Optional[Any] = None) -> Dict[str, Any]:
         """
         Post a tweet with optional media
         
         Args:
             text: Tweet text content
             media_paths: List of local file paths to media files
+            account: optional SocialMediaAccount with user tokens
             
         Returns:
             Dict containing success status and tweet info
         """
-        if not self._lazy_init():
+        access_token = getattr(account, 'access_token', None) if account else None
+        access_token_secret = getattr(account, 'refresh_token', None) if account else None
+        api_v1, client_v2 = self._build_clients(access_token, access_token_secret)
+        if not client_v2:
             return {'success': False, 'error': 'Twitter API credentials are not properly configured'}
             
         try:
             media_ids = []
             
-            # Upload media if provided
-            if media_paths:
+            # Upload media if provided and if api_v1 available (OAuth1 required for v1.1 upload)
+            if media_paths and api_v1:
                 for media_path in media_paths:
                     if os.path.exists(media_path):
-                        media = self.api_v1.media_upload(media_path)
+                        media = api_v1.media_upload(media_path)
                         media_ids.append(media.media_id)
                         logger.info(f"Uploaded media: {media_path}")
                     else:
                         logger.warning(f"Media file not found: {media_path}")
+            elif media_paths and not api_v1:
+                logger.warning("Media upload skipped: OAuth1 client not available; posting text-only tweet")
             
             # Post tweet
-            tweet = self.client_v2.create_tweet(
+            tweet = client_v2.create_tweet(
                 text=text,
                 media_ids=media_ids if media_ids else None
             )
@@ -157,13 +192,16 @@ class TwitterService:
             logger.error(f"Failed to post tweet: {e}")
             return {'success': False, 'error': str(e)}
     
-    def delete_tweet(self, tweet_id: str) -> Dict[str, Any]:
+    def delete_tweet(self, tweet_id: str, account: Optional[Any] = None) -> Dict[str, Any]:
         """Delete a tweet"""
-        if not self._lazy_init():
+        access_token = getattr(account, 'access_token', None) if account else None
+        access_token_secret = getattr(account, 'refresh_token', None) if account else None
+        _, client_v2 = self._build_clients(access_token, access_token_secret)
+        if not client_v2:
             return {'success': False, 'error': 'Twitter API credentials are not properly configured'}
             
         try:
-            result = self.client_v2.delete_tweet(tweet_id)
+            result = client_v2.delete_tweet(tweet_id)
             
             if result.data.get('deleted'):
                 logger.info(f"Tweet deleted successfully: {tweet_id}")
@@ -175,27 +213,31 @@ class TwitterService:
             logger.error(f"Failed to delete tweet {tweet_id}: {e}")
             return {'success': False, 'error': str(e)}
     
-    def get_user_tweets(self, user_id: str = None, count: int = 10) -> Dict[str, Any]:
+    def get_user_tweets(self, user_id: str = None, count: int = 10, account: Optional[Any] = None) -> Dict[str, Any]:
         """
         Get recent tweets from a user (default: authenticated user)
         
         Args:
             user_id: Twitter user ID (if None, gets authenticated user's tweets)
             count: Number of tweets to retrieve (max 100)
+            account: optional SocialMediaAccount with user tokens
             
         Returns:
             Dict containing tweets data
         """
-        if not self._lazy_init():
+        access_token = getattr(account, 'access_token', None) if account else None
+        access_token_secret = getattr(account, 'refresh_token', None) if account else None
+        _, client_v2 = self._build_clients(access_token, access_token_secret)
+        if not client_v2:
             return {'success': False, 'error': 'Twitter API credentials are not properly configured'}
             
         try:
             if not user_id:
                 # Get authenticated user's ID
-                me = self.client_v2.get_me()
+                me = client_v2.get_me()
                 user_id = me.data.id
             
-            tweets = self.client_v2.get_users_tweets(
+            tweets = client_v2.get_users_tweets(
                 id=user_id,
                 max_results=min(count, 100),
                 tweet_fields=['id', 'text', 'created_at', 'public_metrics', 
@@ -237,13 +279,16 @@ class TwitterService:
             logger.error(f"Failed to get user tweets: {e}")
             return {'success': False, 'error': str(e)}
     
-    def get_tweet_analytics(self, tweet_id: str) -> Dict[str, Any]:
+    def get_tweet_analytics(self, tweet_id: str, account: Optional[Any] = None) -> Dict[str, Any]:
         """Get analytics/metrics for a specific tweet"""
-        if not self._lazy_init():
+        access_token = getattr(account, 'access_token', None) if account else None
+        access_token_secret = getattr(account, 'refresh_token', None) if account else None
+        _, client_v2 = self._build_clients(access_token, access_token_secret)
+        if not client_v2:
             return {'success': False, 'error': 'Twitter API credentials are not properly configured'}
             
         try:
-            tweet = self.client_v2.get_tweet(
+            tweet = client_v2.get_tweet(
                 tweet_id,
                 tweet_fields=['public_metrics', 'created_at', 'context_annotations'],
                 expansions=['author_id'],
@@ -273,22 +318,26 @@ class TwitterService:
             logger.error(f"Failed to get tweet analytics for {tweet_id}: {e}")
             return {'success': False, 'error': str(e)}
     
-    def search_tweets(self, query: str, count: int = 10) -> Dict[str, Any]:
+    def search_tweets(self, query: str, count: int = 10, account: Optional[Any] = None) -> Dict[str, Any]:
         """
         Search for tweets based on query
         
         Args:
             query: Search query (can include hashtags, mentions, keywords)
             count: Number of tweets to retrieve (max 100)
+            account: optional SocialMediaAccount with user tokens
             
         Returns:
             Dict containing search results
         """
-        if not self._lazy_init():
+        access_token = getattr(account, 'access_token', None) if account else None
+        access_token_secret = getattr(account, 'refresh_token', None) if account else None
+        _, client_v2 = self._build_clients(access_token, access_token_secret)
+        if not client_v2:
             return {'success': False, 'error': 'Twitter API credentials are not properly configured'}
             
         try:
-            tweets = self.client_v2.search_recent_tweets(
+            tweets = client_v2.search_recent_tweets(
                 query=query,
                 max_results=min(count, 100),
                 tweet_fields=['id', 'text', 'created_at', 'public_metrics', 'author_id'],
@@ -333,14 +382,17 @@ class TwitterService:
             logger.error(f"Failed to search tweets: {e}")
             return {'success': False, 'error': str(e)}
     
-    def get_rate_limit_status(self) -> Dict[str, Any]:
+    def get_rate_limit_status(self, account: Optional[Any] = None) -> Dict[str, Any]:
         """Get current rate limit status for various endpoints"""
-        if not self._lazy_init():
+        access_token = getattr(account, 'access_token', None) if account else None
+        access_token_secret = getattr(account, 'refresh_token', None) if account else None
+        _, client_v2 = self._build_clients(access_token, access_token_secret)
+        if not client_v2:
             return {'success': False, 'error': 'Twitter API credentials are not properly configured'}
             
         try:
             # This is a simple check using the verify_credentials endpoint
-            user = self.client_v2.get_me()
+            user = client_v2.get_me()
             
             return {
                 'success': True,

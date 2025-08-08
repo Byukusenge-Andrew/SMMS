@@ -15,6 +15,9 @@ urlpatterns = [
     path("bulk-actions/", views.bulk_post_actions, name="bulk-actions"),
     path("calendar/", views.calendar_view, name="calendar"),
     path("dashboard/", views.dashboard_stats, name="dashboard-stats"),
+    # Scheduled Posts
+    path("scheduled/", views.ScheduledPostListCreateView.as_view(), name="scheduled-list-create"),
+    path("scheduled/<uuid:pk>/", views.ScheduledPostDetailView.as_view(), name="scheduled-detail"),
     # Templates
     path("templates/", views.PostTemplateListCreateView.as_view(), name="template-list-create"),
     path("templates/<uuid:pk>/", views.PostTemplateDetailView.as_view(), name="template-detail"),

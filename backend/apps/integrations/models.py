@@ -49,6 +49,8 @@ class SocialMediaAccount(models.Model):
     posts_count = models.IntegerField(default=0)
     
     # Authentication tokens (encrypted in production)
+    # For Twitter OAuth 1.0a: access_token=token, refresh_token=token_secret
+    # For OAuth 2.0: access_token=bearer token, refresh_token=refresh token
     access_token = models.TextField(blank=True)
     refresh_token = models.TextField(blank=True)
     token_expires_at = models.DateTimeField(null=True, blank=True)
@@ -71,6 +73,11 @@ class SocialMediaAccount(models.Model):
         if not self.token_expires_at:
             return False
         return timezone.now() > self.token_expires_at
+
+    def set_token_expiry_from_expires_in(self, expires_in_seconds: int | None):
+        """Helper to set token_expires_at from expires_in seconds."""
+        if expires_in_seconds:
+            self.token_expires_at = timezone.now() + timezone.timedelta(seconds=expires_in_seconds)
 
 
 class SocialMediaPost(models.Model):

@@ -17,7 +17,10 @@ from .views_twitter import (
     search_tweets,
     delete_tweet,
     get_my_twitter_posts,
-    get_twitter_rate_limit
+    get_twitter_rate_limit,
+    twitter_authorize,
+    twitter_callback,
+    twitter_bind_tokens,
 )
 
 urlpatterns = [
@@ -30,7 +33,12 @@ urlpatterns = [
     path("oauth/login/<str:provider>/", OAuthLoginView.as_view(), name="oauth-login"),
     path("oauth/callback/<str:backend>/", OAuthCallbackView.as_view(), name="oauth-callback"),
     path("oauth/callback/", oauth_callback, name="oauth-callback"),
-    
+
+    # Twitter/X OAuth connect endpoints
+    path("twitter/authorize/", twitter_authorize, name="twitter-authorize"),
+    path("twitter/callback/", twitter_callback, name="twitter-callback"),
+    path("twitter/bind-tokens/", twitter_bind_tokens, name="twitter-bind-tokens"),
+
     # Twitter/X API endpoints
     path("twitter/verify/", verify_twitter_credentials, name="twitter-verify-credentials"),
     path("twitter/post/", post_tweet, name="twitter-post-tweet"),

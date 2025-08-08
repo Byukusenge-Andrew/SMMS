@@ -116,6 +116,31 @@ class PostSuggestionListView(ListCreateAPIView):
         return PostSuggestion.objects.filter(user=self.request.user)
 
 
+class ScheduledPostListCreateView(ListCreateAPIView):
+    """List or create scheduled posts (uses Post model with scheduled_time)"""
+
+    serializer_class = PostSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        qs = Post.objects.filter(user=self.request.user)
+        # Scheduled posts: future scheduled_time or status scheduled
+        return qs.filter(models.Q(status="scheduled") | models.Q(scheduled_time__gt=timezone.now()))
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user, status="scheduled")
+
+
+class ScheduledPostDetailView(RetrieveUpdateDestroyAPIView):
+    """Retrieve/update a scheduled post"""
+
+    serializer_class = PostSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return Post.objects.filter(user=self.request.user)
+
+
 @api_view(["POST"])
 @permission_classes([permissions.IsAuthenticated])
 def generate_suggestions(request):

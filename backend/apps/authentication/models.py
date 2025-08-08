@@ -100,6 +100,36 @@ class SocialMediaAccount(models.Model):
         return timezone.now() > self.token_expires_at
 
 
+
+# Scheduled post model for calendar and post scheduling
+class ScheduledPost(models.Model):
+    STATUS_CHOICES = [
+        ("draft", "Draft"),
+        ("scheduled", "Scheduled"),
+        ("published", "Published"),
+        ("failed", "Failed"),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="scheduled_posts")
+    social_account = models.ForeignKey('SocialMediaAccount', on_delete=models.CASCADE, related_name="scheduled_posts")
+    content = models.TextField()
+    media_url = models.URLField(blank=True, null=True)
+    scheduled_time = models.DateTimeField()
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="draft")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    published_at = models.DateTimeField(blank=True, null=True)
+    error_message = models.TextField(blank=True, null=True)
+    platform_post_id = models.CharField(max_length=255, blank=True, null=True)
+
+    class Meta:
+        ordering = ["-scheduled_time"]
+        db_table = "scheduled_posts"
+
+    def __str__(self):
+        return f"{self.user.username} - {self.social_account.platform} - {self.status} @ {self.scheduled_time}"
+
 class Team(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=255)

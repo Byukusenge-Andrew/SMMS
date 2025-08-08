@@ -6,6 +6,7 @@ from pathlib import Path
 
 import dj_database_url
 from decouple import config
+import os
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -394,3 +395,10 @@ if not DEBUG:
 
 # Frontend URL for email verification links
 FRONTEND_URL = config("FRONTEND_URL", default="http://localhost:3000")
+
+# Twitter OAuth 2.0 configuration
+TWITTER_CLIENT_ID = os.getenv('TWITTER_CLIENT_ID', '')
+TWITTER_CLIENT_SECRET = os.getenv('TWITTER_CLIENT_SECRET', '')
+# For dev, default to backend callback path
+TWITTER_REDIRECT_URI = os.getenv('TWITTER_REDIRECT_URI', 'http://127.0.0.1:8000/api/integrations/twitter/callback/')
+TWITTER_SCOPES = os.getenv('TWITTER_SCOPES', 'tweet.read tweet.write users.read offline.access')
