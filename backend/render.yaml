@@ -51,26 +51,76 @@ services:
       # Web Concurrency
       - key: WEB_CONCURRENCY
         value: "4"
-      
-      # NOTE: Add the following environment variables manually in Render Dashboard
-      # for security reasons (don't put sensitive data in render.yaml):
-      # 
-      # EMAIL_HOST=smtp.gmail.com
-      # EMAIL_PORT=587
-      # EMAIL_USE_TLS=True
-      # EMAIL_HOST_USER=your-email@gmail.com
-      # EMAIL_HOST_PASSWORD=your-app-password
-      # DEFAULT_FROM_EMAIL=your-email@gmail.com
-      # 
-      # SUPABASE_URL=https://your-project.supabase.co
-      # SUPABASE_KEY=your-supabase-key
-      # SUPABASE_BUCKET=keativpictures
-      # 
-      # All your API keys (Twitter, TikTok, Reddit, Slack, etc.)
-      # Social auth keys (Google, GitHub)
-      # Any other sensitive configuration
 
-# Redis service for Celery
+  # Celery Worker Service (for background tasks)
+  - type: worker
+    name: smms-celery-worker
+    runtime: python
+    region: oregon
+    plan: starter
+    buildCommand: './build.sh'
+    startCommand: 'celery -A social_media_manager worker --loglevel=info'
+    envVars:
+      # Django Core Settings (shared with web service)
+      - key: SECRET_KEY
+        sync: false
+      - key: DEBUG
+        value: "False"
+      
+      # AWS RDS Database (same as web service)
+      - key: DATABASE_URL
+        value: "postgres://postgres:andre01ab.@social-media-db.chgyuqs4suf5.eu-north-1.rds.amazonaws.com:5432/postgres?sslmode=require"
+      
+      # Redis Configuration (same as web service)
+      - key: REDIS_URL
+        fromDatabase:
+          name: smms-redis
+          property: connectionString
+      - key: CELERY_BROKER_URL
+        fromDatabase:
+          name: smms-redis
+          property: connectionString
+      - key: CELERY_RESULT_BACKEND
+        fromDatabase:
+          name: smms-redis
+          property: connectionString
+
+  # Celery Beat Service (for scheduled tasks)
+  - type: worker
+    name: smms-celery-beat
+    runtime: python
+    region: oregon
+    plan: starter
+    buildCommand: './build.sh'
+    startCommand: 'celery -A social_media_manager beat --loglevel=info'
+    envVars:
+      # Django Core Settings (shared with web service)
+      - key: SECRET_KEY
+        sync: false
+      - key: DEBUG
+        value: "False"
+      
+      # AWS RDS Database (same as web service)
+      - key: DATABASE_URL
+        value: "postgres://postgres:andre01ab.@social-media-db.chgyuqs4suf5.eu-north-1.rds.amazonaws.com:5432/postgres?sslmode=require"
+      
+      # Redis Configuration (same as web service)
+      - key: REDIS_URL
+        fromDatabase:
+          name: smms-redis
+          property: connectionString
+      - key: CELERY_BROKER_URL
+        fromDatabase:
+          name: smms-redis
+          property: connectionString
+      - key: CELERY_RESULT_BACKEND
+        fromDatabase:
+          name: smms-redis
+          property: connectionString
+
+# Redis service for Celery and caching
 databases:
   - name: smms-redis
     plan: starter
+    databaseName: smms-redis
+    user: default
