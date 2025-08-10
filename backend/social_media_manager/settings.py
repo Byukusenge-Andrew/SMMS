@@ -12,12 +12,17 @@ import os
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = config("SECRET_KEY", default="django-insecure-change-in-production")
+SECRET_KEY = config("SECRET_KEY", default=os.environ.get('SECRET_KEY', 'django-insecure-change-in-production'))
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = config("DEBUG", default=True, cast=bool)
+DEBUG = 'RENDER' not in os.environ
 
 ALLOWED_HOSTS = config("ALLOWED_HOSTS", default="localhost,127.0.0.1", cast=lambda v: [s.strip() for s in v.split(",")])
+
+# Add Render.com hostname
+RENDER_EXTERNAL_HOSTNAME = os.environ.get('RENDER_EXTERNAL_HOSTNAME')
+if RENDER_EXTERNAL_HOSTNAME:
+    ALLOWED_HOSTS.append(RENDER_EXTERNAL_HOSTNAME)
 
 # Application definition
 DJANGO_APPS = [
@@ -139,6 +144,12 @@ USE_TZ = True
 STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
+# This production code might break development mode, so we check whether we're in DEBUG mode
+if not DEBUG:
+    # Enable the WhiteNoise storage backend, which compresses static files to reduce disk use
+    # and renames the files with unique names for each version to support long-term caching
+    STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+
 # Media files - Supabase Storage
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"  # Fallback for local development
@@ -180,18 +191,31 @@ REST_FRAMEWORK = {
     },
 }
 
-# CORS settings
+# CORS settings - Updated for production
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",  # React dev server
     "http://127.0.0.1:3000",
     "http://localhost:8081",  # React Native
-    # "http://localhost:5173",  # Vite default port
-    # "http://127.0.0.1:5173",
-    # "http://localhost:3001",  # Alternative React port
-    # "http://127.0.0.1:3001",
+    "http://localhost:5173",  # Vite default port
+    "http://127.0.0.1:5173",
 ]
 
+# Add production frontend URL if available
+FRONTEND_URL = config("FRONTEND_URL", default="http://localhost:3000")
+if FRONTEND_URL and FRONTEND_URL not in CORS_ALLOWED_ORIGINS:
+    CORS_ALLOWED_ORIGINS.append(FRONTEND_URL)
+
+# Allow additional origins from environment
+CORS_ADDITIONAL_ORIGINS = config("CORS_ALLOWED_ORIGINS", default="", cast=lambda v: [s.strip() for s in v.split(",") if s.strip()])
+CORS_ALLOWED_ORIGINS.extend(CORS_ADDITIONAL_ORIGINS)
+
 CORS_ALLOW_CREDENTIALS = True
+
+# CSRF settings for production
+CSRF_TRUSTED_ORIGINS = CORS_ALLOWED_ORIGINS.copy()
+# Add Render domain
+if RENDER_EXTERNAL_HOSTNAME:
+    CSRF_TRUSTED_ORIGINS.append(f"https://{RENDER_EXTERNAL_HOSTNAME}")
 # CORS_ALLOW_ALL_ORIGINS = True  # Set to True for development debugging
 
 # Allow common headers
