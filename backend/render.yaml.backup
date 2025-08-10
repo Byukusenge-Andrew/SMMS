@@ -1,0 +1,134 @@
+services:
+  - type: web
+    name: smms-backend
+    runtime: python
+    region: oregon
+    plan: starter
+    buildCommand: './build.sh'
+    startCommand: 'python -m gunicorn social_media_manager.asgi:application -k uvicorn.workers.UvicornWorker'
+    healthCheckPath: /api/health/
+    envVars:
+      # Django Core Settings
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DEBUG
+        value: "False"
+      - key: ALLOWED_HOSTS
+        value: "*"
+      
+      # AWS RDS Database (your existing database)
+      - key: DATABASE_URL
+        value: "postgres://postgres:andre01ab.@social-media-db.chgyuqs4suf5.eu-north-1.rds.amazonaws.com:5432/postgres?sslmode=require"
+      
+      # Redis Configuration (using Render Redis service)
+      - key: REDIS_URL
+        fromDatabase:
+          name: smms-redis
+          property: connectionString
+      - key: CELERY_BROKER_URL
+        fromDatabase:
+          name: smms-redis
+          property: connectionString
+      - key: CELERY_RESULT_BACKEND
+        fromDatabase:
+          name: smms-redis
+          property: connectionString
+      
+      # Email Configuration
+      - key: EMAIL_HOST
+        value: "smtp.gmail.com"
+      - key: EMAIL_PORT
+        value: "587"
+      - key: EMAIL_USE_TLS
+        value: "True"
+      - key: EMAIL_HOST_USER
+        value: "andrebyukusenge9@gmail.com"
+      - key: EMAIL_HOST_PASSWORD
+        value: "kxqy raah dhxh kjby"
+      - key: DEFAULT_FROM_EMAIL
+        value: "andrebyukusenge9@gmail.com"
+      
+      # Supabase Storage
+      - key: SUPABASE_URL
+        value: "https://cudeuievwnpvmuyebmgc.supabase.co"
+      - key: SUPABASE_KEY
+        value: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN1ZGV1aWV2d25wdm11eWVibWdjIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NDExNjk3MywiZXhwIjoyMDY5NjkyOTczfQ.nsymKougaTsVPpQzFCTGNcYEeoYnbAWnId-pk_P7hNs"
+      - key: SUPABASE_BUCKET
+        value: "keativpictures"
+      
+      # Twitter API Keys
+      - key: TWITTER_API_KEY
+        value: "9VwiLfVqzVLrE4JjaHVijn6PB"
+      - key: TWITTER_API_KEY_SECRET
+        value: "F5iYe9SEBnyuRsrDyUYwv22A8szxieC1wypAoX9urTh3J6HrHE"
+      - key: TWITTER_BEARER_TOKEN
+        value: "AAAAAAAAAAAAAAAAAAAAACPs3AEAAAAA524DXLxWtp9wk%2BkAJRAjH9yvrRo%3DDo78f4oSOFDmX2rGwFoMbcdsYQSRg5Tv2HSOgCOGp5qoLRRqS4"
+      - key: TWITTER_ACCESS_TOKEN
+        value: "1841004192564981761-xOYiDYI5kLTyrevaS4LyGVYagCtBpy"
+      - key: TWITTER_ACCESS_TOKEN_SECRET
+        value: "GCrs6nm60j5xv9tLZx7uZq5T6Oc4NW3LI8L6OodFs0fAt"
+      
+      # TikTok API
+      - key: TIKTOK_CLIENT_KEY
+        value: "awri2oqdqtiej4l8"
+      - key: TIKTOK_CLIENT_SECRET
+        value: "TmRZtxxEJO5PLJZkUxGvGbntgtWYRDRn"
+      
+      # Reddit API
+      - key: REDDIT_CLIENT_ID
+        value: "Izl0HYIIusIFWyuTZQX_iQ"
+      
+      # Slack Integration
+      - key: SLACK_BOT_TOKEN
+        value: "xoxb-5970417719634-9252612975492-uoCdJlEXjH1nDAVlS1J5rPfp"
+      - key: SLACK_WEBHOOK_URL
+        value: "https://hooks.slack.com/services/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"
+      - key: SLACK_CLIENT_ID
+        value: "5970417719634.9230548690211"
+      - key: SLACK_CLIENT_SECRET
+        value: "22c01f64c88414cc25842b7ed1355672"
+      - key: SLACK_SIGNING_SECRET
+        value: "9b554aa258ee184295d0bcac889fd606"
+      - key: SLACK_VERIFICATION_TOKEN
+        value: "eXzkBjnZgjtrIboovWTF4anL"
+      - key: SLACK_APP_ID
+        value: "A096SG4LA67"
+      
+      # Social Auth
+      - key: SOCIAL_AUTH_GOOGLE_OAUTH2_KEY
+        value: "751977519516-v4ts4j9fjje5mrn1gm1fdint5b57e2jn.apps.googleusercontent.com"
+      - key: SOCIAL_AUTH_GOOGLE_OAUTH2_SECRET
+        value: "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"
+      - key: SOCIAL_AUTH_GITHUB_KEY
+        value: "Ov23liUqIgKKYZzfVwCS"
+      - key: SOCIAL_AUTH_GITHUB_SECRET
+        value: "14c8e732901aaa8c60c47fc1deb9c6a510a05b0d"
+      
+      # Twitter OAuth 2.0
+      - key: TWITTER_REDIRECT_URI
+        value: "https://smms-backend.onrender.com/api/integrations/twitter/callback/"
+      - key: TWITTER_SCOPES
+        value: "tweet.read tweet.write users.read offline.access"
+      
+      # Django Admin Superuser
+      - key: DJANGO_SUPERUSER_USERNAME
+        value: "admin"
+      - key: DJANGO_SUPERUSER_EMAIL
+        value: "andrebyukusenge9@gmail.com"
+      - key: DJANGO_SUPERUSER_PASSWORD
+        generateValue: true
+      
+      # Application Settings
+      - key: FRONTEND_URL
+        value: "https://your-frontend.vercel.app"
+      - key: CORS_ALLOWED_ORIGINS
+        value: "https://your-frontend.vercel.app"
+      
+      # Web Concurrency
+      - key: WEB_CONCURRENCY
+        value: "4"
+
+# Redis service (recommended for Celery)
+databases:
+  - name: smms-redis
+    plan: starter
