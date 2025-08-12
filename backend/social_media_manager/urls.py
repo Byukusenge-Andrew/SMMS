@@ -19,6 +19,7 @@ urlpatterns = [
     path("api/notifications/", include("apps.notifications.urls")),
     path("api/collaborators/", include("apps.collaborators.urls")),
     path("api/messaging/", include("apps.messaging.urls")),  # Enable messaging
+    path("api/media/", include("apps.media.urls")),  # Media management
     path("api/core/", include("apps.core.urls")),  # Rate limiting management
     # API Documentation
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),

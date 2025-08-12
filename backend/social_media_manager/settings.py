@@ -53,6 +53,7 @@ LOCAL_APPS = [
     "apps.collaborators",
     "apps.health",
     "apps.messaging",
+    "apps.media",  # Media management app
     "apps.core",  # Rate limiting and core utilities
 ]
 
@@ -157,6 +158,7 @@ MEDIA_ROOT = BASE_DIR / "media"  # Fallback for local development
 # Supabase Storage Configuration
 SUPABASE_URL = config("SUPABASE_URL", default="")
 SUPABASE_KEY = config("SUPABASE_KEY", default="")
+SUPABASE_SERVICE_ROLE_KEY = config("SUPABASE_SERVICE_ROLE_KEY", default="")
 SUPABASE_BUCKET = config("SUPABASE_BUCKET", default="keativpictures")
 
 # Use Supabase Storage as default file storage
@@ -247,6 +249,7 @@ AUTHENTICATION_BACKENDS = (
     'apps.authentication.backends.EmailOrUsernameModelBackend',
     "social_core.backends.google.GoogleOAuth2",
     "social_core.backends.github.GithubOAuth2",
+    "social_core.backends.twitter.TwitterOAuth",
     "django.contrib.auth.backends.ModelBackend",
 )
 
@@ -254,6 +257,8 @@ SOCIAL_AUTH_GOOGLE_OAUTH2_KEY = config("SOCIAL_AUTH_GOOGLE_OAUTH2_KEY", default=
 SOCIAL_AUTH_GOOGLE_OAUTH2_SECRET = config("SOCIAL_AUTH_GOOGLE_OAUTH2_SECRET", default="")
 SOCIAL_AUTH_GITHUB_KEY = config("SOCIAL_AUTH_GITHUB_KEY", default="")
 SOCIAL_AUTH_GITHUB_SECRET = config("SOCIAL_AUTH_GITHUB_SECRET", default="")
+SOCIAL_AUTH_TWITTER_KEY = config("SOCIAL_AUTH_TWITTER_KEY", default="")
+SOCIAL_AUTH_TWITTER_SECRET = config("SOCIAL_AUTH_TWITTER_SECRET", default="")
 
 LOGIN_URL = "login"
 LOGOUT_URL = "logout"
@@ -270,6 +275,10 @@ CELERY_TIMEZONE = TIME_ZONE
 
 # Celery Beat Schedule
 CELERY_BEAT_SCHEDULE = {
+    "check-scheduled-posts": {
+        "task": "apps.posts.tasks.check_scheduled_posts",
+        "schedule": crontab(minute="*"),  # Every minute
+    },
     "weekly-analytics-report": {
         "task": "apps.analytics.tasks.send_weekly_report",
         "schedule": crontab(hour=9, minute=0, day_of_week=1),  # Monday 9 AM
@@ -420,9 +429,16 @@ if not DEBUG:
 # Frontend URL for email verification links
 FRONTEND_URL = config("FRONTEND_URL", default="http://localhost:3000")
 
-# Twitter OAuth 2.0 configuration
-TWITTER_CLIENT_ID = os.getenv('TWITTER_CLIENT_ID', '')
-TWITTER_CLIENT_SECRET = os.getenv('TWITTER_CLIENT_SECRET', '')
+# Twitter OAuth 2.0 configuration (use python-decouple to read from .env)
+TWITTER_CLIENT_ID = config('TWITTER_CLIENT_ID', default='')
+TWITTER_CLIENT_SECRET = config('TWITTER_CLIENT_SECRET', default='')
 # For dev, default to backend callback path
-TWITTER_REDIRECT_URI = os.getenv('TWITTER_REDIRECT_URI', 'http://127.0.0.1:8000/api/integrations/twitter/callback/')
-TWITTER_SCOPES = os.getenv('TWITTER_SCOPES', 'tweet.read tweet.write users.read offline.access')
+TWITTER_REDIRECT_URI = config('TWITTER_REDIRECT_URI', default='http://127.0.0.1:8000/api/integrations/twitter/callback/')
+TWITTER_SCOPES = config('TWITTER_SCOPES', default='tweet.read tweet.write users.read offline.access')
+
+# Twitter App-level API keys (OAuth 1.0a / v2 app context) used by twitter_service
+TWITTER_API_KEY = config('TWITTER_API_KEY', default='')
+TWITTER_API_KEY_SECRET = config('TWITTER_API_KEY_SECRET', default='')
+TWITTER_BEARER_TOKEN = config('TWITTER_BEARER_TOKEN', default='')
+TWITTER_ACCESS_TOKEN = config('TWITTER_ACCESS_TOKEN', default='')
+TWITTER_ACCESS_TOKEN_SECRET = config('TWITTER_ACCESS_TOKEN_SECRET', default='')

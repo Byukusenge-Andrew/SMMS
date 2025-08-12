@@ -267,7 +267,7 @@ class SocialMediaAccountListView(ListCreateAPIView):
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):
             return SocialMediaAccount.objects.none()
-        return SocialMediaAccount.objects.filter(user=self.request.user)
+        return SocialMediaAccount.objects.filter(user=self.request.user).order_by('-created_at')
 
     def perform_create(self, serializer):
         platform = serializer.validated_data.get("platform")
@@ -296,6 +296,38 @@ def remove_social_media_account(request, account_id):
         account = SocialMediaAccount.objects.get(id=account_id, user=request.user)
         platform = account.platform
         username = account.username
+        
+        # Also remove the corresponding IntegratedAccount if it exists
+        try:
+            from apps.integrations.models import IntegratedAccount, SocialMediaPlatform
+            
+            # Map platform names to the enum
+            platform_mapping = {
+                'twitter': SocialMediaPlatform.TWITTER,
+                'Twitter/X': SocialMediaPlatform.TWITTER,
+                'facebook': SocialMediaPlatform.FACEBOOK,
+                'instagram': SocialMediaPlatform.INSTAGRAM,
+                'linkedin': SocialMediaPlatform.LINKEDIN,
+                'tiktok': SocialMediaPlatform.TIKTOK,
+                'youtube': SocialMediaPlatform.YOUTUBE,
+                'pinterest': SocialMediaPlatform.PINTEREST,
+            }
+            
+            platform_enum = platform_mapping.get(platform.lower())
+            if platform_enum:
+                integrated_accounts = IntegratedAccount.objects.filter(
+                    user=request.user, 
+                    platform=platform_enum,
+                    username=username
+                )
+                deleted_count = integrated_accounts.count()
+                integrated_accounts.delete()
+                if deleted_count > 0:
+                    logger.info(f"Also removed {deleted_count} IntegratedAccount(s) for {platform} user {username}")
+        except Exception as e:
+            # Don't fail the whole operation if IntegratedAccount cleanup fails
+            logger.warning(f"Failed to cleanup IntegratedAccount for {platform} user {username}: {e}")
+        
         account.delete()
 
         return Response({"message": f"Successfully removed {platform} account '{username}'"}, status=status.HTTP_200_OK)
@@ -550,14 +582,42 @@ def register(request):
 @permission_classes([permissions.AllowAny])
 @authentication_classes([])  # Disable auth to avoid 401s on email verification link
 def verify_email(request, token):
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    logger.info(f"Email verification attempt for token: {token}")
+    
     try:
         verification_token = EmailVerificationToken.objects.get(token=token)
+        logger.info(f"Token found for user: {verification_token.user.username}")
+        logger.info(f"Token is_used: {verification_token.is_used}")
+        logger.info(f"User is_active: {verification_token.user.is_active}")
 
         if verification_token.is_used:
-            return Response({"error": "This verification link has already been used"}, status=status.HTTP_400_BAD_REQUEST)
+            # Check if user is already active (successful previous verification)
+            if verification_token.user.is_active:
+                logger.info("Token already used but user is active - returning success")
+                return Response(
+                    {
+                        "message": "Email already verified. You can log in now.",
+                        "username": verification_token.user.username,
+                        "already_verified": True
+                    }, 
+                    status=status.HTTP_200_OK
+                )
+            else:
+                logger.warning("Token already used but user not active")
+                return Response(
+                    {"error": "This verification link has already been used"}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
 
         if verification_token.is_expired():
-            return Response({"error": "This verification link has expired"}, status=status.HTTP_400_BAD_REQUEST)
+            logger.warning("Token has expired")
+            return Response(
+                {"error": "This verification link has expired"}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
         # Activate user
         user = verification_token.user
@@ -568,10 +628,22 @@ def verify_email(request, token):
         verification_token.is_used = True
         verification_token.save()
 
-        return Response({"message": "Email verified successfully. You can now log in.", "username": user.username})
+        logger.info(f"Email verification successful for user: {user.username}")
+        return Response(
+            {
+                "message": "Email verified successfully. You can now log in.", 
+                "username": user.username,
+                "verified": True
+            },
+            status=status.HTTP_200_OK
+        )
 
     except EmailVerificationToken.DoesNotExist:
-        return Response({"error": "Invalid verification token"}, status=status.HTTP_400_BAD_REQUEST)
+        logger.error(f"Invalid verification token: {token}")
+        return Response(
+            {"error": "Invalid verification token"}, 
+            status=status.HTTP_400_BAD_REQUEST
+        )
 
 
 @api_view(["POST"])
@@ -790,3 +862,34 @@ def user_time_format_setting(request):
     except Exception as e:
         logger.error(f"Error managing time format setting: {str(e)}")
         return Response({"error": "Failed to manage time format setting"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(["GET"])
+@permission_classes([permissions.AllowAny])
+def oauth_callback(request):
+    """Handle OAuth callbacks from social media platforms like X/Twitter"""
+    try:
+        code = request.GET.get("code")
+        state = request.GET.get("state")
+        error = request.GET.get("error")
+        
+        if error:
+            logger.error(f"OAuth error: {error}")
+            return Response({"error": f"OAuth error: {error}"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        if not code:
+            return Response({"error": "Missing authorization code"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Here you would handle the OAuth flow for X/Twitter
+        # For now, return a success response
+        logger.info(f"X/Twitter OAuth callback received with code: {code}")
+        
+        return Response({
+            "message": "X/Twitter OAuth callback received successfully",
+            "code": code,
+            "state": state
+        })
+        
+    except Exception as e:
+        logger.error(f"Error handling OAuth callback: {str(e)}")
+        return Response({"error": "Failed to handle OAuth callback"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

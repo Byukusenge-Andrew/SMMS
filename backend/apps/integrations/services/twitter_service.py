@@ -29,16 +29,22 @@ class TwitterService:
         """Lazy initialization of Twitter API clients"""
         if self._initialized:
             return True
-            
-        self.api_key = os.getenv('TWITTER_API_KEY')
-        self.api_secret = os.getenv('TWITTER_API_KEY_SECRET')
-        self.bearer_token = os.getenv('TWITTER_BEARER_TOKEN')
-        self.access_token = os.getenv('TWITTER_ACCESS_TOKEN')
-        self.access_token_secret = os.getenv('TWITTER_ACCESS_TOKEN_SECRET')
+        
+        # Read credentials from Django settings (backed by .env via python-decouple)
+        self.api_key = getattr(settings, 'TWITTER_API_KEY', None)
+        self.api_secret = getattr(settings, 'TWITTER_API_KEY_SECRET', None)
+        self.bearer_token = getattr(settings, 'TWITTER_BEARER_TOKEN', None)
+        self.access_token = getattr(settings, 'TWITTER_ACCESS_TOKEN', None)
+        self.access_token_secret = getattr(settings, 'TWITTER_ACCESS_TOKEN_SECRET', None)
         
         # Validate required credentials
-        if not all([self.api_key, self.api_secret, self.bearer_token, 
-                   self.access_token, self.access_token_secret]):
+        if not all([
+            self.api_key,
+            self.api_secret,
+            self.bearer_token,
+            self.access_token,
+            self.access_token_secret,
+        ]):
             logger.error("Missing Twitter API credentials")
             return False
         
@@ -189,8 +195,24 @@ class TwitterService:
                 return {'success': False, 'error': 'Failed to post tweet'}
                 
         except Exception as e:
-            logger.error(f"Failed to post tweet: {e}")
-            return {'success': False, 'error': str(e)}
+            error_msg = str(e)
+            logger.error(f"Failed to post tweet: {error_msg}")
+            
+            # Provide specific guidance for common errors
+            if "403" in error_msg and "Forbidden" in error_msg:
+                return {
+                    'success': False, 
+                    'error': 'Twitter API access denied. Your app may need "Read and write" permissions. Check your Twitter Developer Portal app settings.',
+                    'error_code': '403_FORBIDDEN'
+                }
+            elif "401" in error_msg and "Unauthorized" in error_msg:
+                return {
+                    'success': False,
+                    'error': 'Twitter API authentication failed. Please reconnect your account.',
+                    'error_code': '401_UNAUTHORIZED'
+                }
+            else:
+                return {'success': False, 'error': error_msg}
     
     def delete_tweet(self, tweet_id: str, account: Optional[Any] = None) -> Dict[str, Any]:
         """Delete a tweet"""

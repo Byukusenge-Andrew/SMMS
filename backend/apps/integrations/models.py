@@ -52,7 +52,7 @@ class SocialMediaAccount(models.Model):
     # For Twitter OAuth 1.0a: access_token=token, refresh_token=token_secret
     # For OAuth 2.0: access_token=bearer token, refresh_token=refresh token
     access_token = models.TextField(blank=True)
-    refresh_token = models.TextField(blank=True)
+    refresh_token = models.TextField(null=True, blank=True)
     token_expires_at = models.DateTimeField(null=True, blank=True)
     
     # Timestamps

@@ -4,6 +4,9 @@ Handles OAuth flows and account verification for various platforms
 """
 
 import os
+import base64
+import hashlib
+import secrets
 
 import requests
 
@@ -16,6 +19,7 @@ except ImportError:
     tweepy = None
 
 from django.conf import settings
+from decouple import config
 
 from rest_framework import status
 from rest_framework.response import Response
@@ -267,6 +271,233 @@ class SlackIntegrator(SocialMediaIntegrator):
         return self.verify_account(channel_name)
 
 
+class LinkedInIntegrator(SocialMediaIntegrator):
+    """LinkedIn integration using OAuth 2.0"""
+
+    def __init__(self):
+        super().__init__("linkedin")
+        # Use decouple.config() to read from .env file (same as Django settings)
+        self.client_id = config("LINKEDIN_CLIENT_ID", default=None)
+        self.client_secret = config("LINKEDIN_CLIENT_SECRET", default=None)
+        self.redirect_uri = config("LINKEDIN_REDIRECT_URI", default="http://127.0.0.1:8000/api/integrations/linkedin/callback/")
+        
+        # Debug logging
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"LinkedIn Integrator initialized - client_id: {self.client_id[:10] if self.client_id else 'None'}...")
+        logger.info(f"LinkedIn Integrator initialized - client_secret: {'***set***' if self.client_secret else 'None'}")
+        logger.info(f"LinkedIn Integrator initialized - redirect_uri: {self.redirect_uri}")
+        
+        # Updated scopes - using the scopes that are actually available in your LinkedIn app
+        self.scopes = "openid profile email w_member_social"
+
+    @staticmethod
+    def _b64url(data: bytes) -> str:
+        return base64.urlsafe_b64encode(data).rstrip(b"=").decode("ascii")
+
+    def generate_pkce_pair(self) -> tuple[str, str]:
+        """Generate a PKCE code_verifier and S256 code_challenge."""
+        # 64 random urlsafe chars -> >43 as required by RFC 7636
+        verifier = secrets.token_urlsafe(64)
+        challenge = self._b64url(hashlib.sha256(verifier.encode("utf-8")).digest())
+        return verifier, challenge
+
+    def start_oauth(self, callback_url=None, state: str | None = None, code_challenge: str | None = None):
+        """Start OAuth flow for LinkedIn authentication (supports PKCE)."""
+        try:
+            redirect_uri = callback_url or self.redirect_uri
+            state_param = state or secrets.token_urlsafe(16)
+
+            base = (
+                "https://www.linkedin.com/oauth/v2/authorization"
+                f"?response_type=code"
+                f"&client_id={self.client_id}"
+                f"&redirect_uri={redirect_uri}"
+                f"&scope={self.scopes}"
+                f"&state={state_param}"
+            )
+            if code_challenge:
+                base += f"&code_challenge={code_challenge}&code_challenge_method=S256"
+
+            auth_url = base
+
+            return {
+                "auth_url": auth_url,
+                "client_id": self.client_id,
+                "redirect_uri": redirect_uri,
+                "state": state_param,
+                "code_challenge_used": bool(code_challenge),
+            }
+        except Exception as e:
+            return {"error": str(e)}
+
+    def exchange_code_for_tokens(self, code, redirect_uri=None, code_verifier: str | None = None):
+        """Exchange authorization code for access token"""
+        # Setup logging at the beginning
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        try:
+            token_url = "https://www.linkedin.com/oauth/v2/accessToken"
+            
+            headers = {
+                "Content-Type": "application/x-www-form-urlencoded",
+                "User-Agent": "SMMS/1.0",
+            }
+            
+            redirect_uri_to_use = redirect_uri or self.redirect_uri
+            
+            data = {
+                "grant_type": "authorization_code",
+                "code": code,
+                "redirect_uri": redirect_uri_to_use,
+                "client_id": self.client_id,
+                "client_secret": self.client_secret,
+            }
+            # Only add code_verifier if it exists and is not empty/False
+            if code_verifier and isinstance(code_verifier, str) and len(code_verifier.strip()) > 0:
+                data["code_verifier"] = code_verifier
+                logger.info(f"LinkedIn token exchange - using PKCE with code_verifier")
+            else:
+                logger.info(f"LinkedIn token exchange - no PKCE code_verifier provided")
+            
+            # Log the parameters for debugging (without sensitive data)
+            logger.info(f"LinkedIn token exchange - redirect_uri: {redirect_uri_to_use}")
+            logger.info(f"LinkedIn token exchange - client_id: {self.client_id}")
+            logger.info(f"LinkedIn token exchange - has code_verifier: {bool(code_verifier)}")
+            
+            # Increased timeout and added headers
+            response = requests.post(token_url, data=data, headers=headers, timeout=30)
+            
+            if response.status_code == 200:
+                token_data = response.json()
+                return {
+                    "success": True,
+                    "access_token": token_data.get("access_token"),
+                    "expires_in": token_data.get("expires_in"),
+                    "refresh_token": token_data.get("refresh_token"),
+                    "scope": token_data.get("scope"),
+                }
+            else:
+                logger.error(f"LinkedIn token exchange failed: {response.status_code} - {response.text}")
+                return {"success": False, "error": response.text}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    def get_profile(self, access_token):
+        """Get LinkedIn profile information using the new API with profile scope"""
+        try:
+            headers = {
+                "Authorization": f"Bearer {access_token}",
+                "User-Agent": "SMMS/1.0",
+            }
+            
+            # Use the new LinkedIn Profile API with the profile scope
+            profile_response = requests.get(
+                "https://api.linkedin.com/v2/userinfo",
+                headers=headers,
+                timeout=30
+            )
+            
+            if profile_response.status_code == 200:
+                profile_data = profile_response.json()
+                
+                return {
+                    "success": True,
+                    "profile": {
+                        "id": profile_data.get("sub"),  # 'sub' is the user ID in userinfo endpoint
+                        "first_name": profile_data.get("given_name", ""),
+                        "last_name": profile_data.get("family_name", ""),
+                        "email": profile_data.get("email", ""),
+                        "profile_picture": profile_data.get("picture", ""),
+                        "name": profile_data.get("name", ""),
+                    }
+                }
+            else:
+                return {"success": False, "error": profile_response.text}
+                
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    def publish_post(self, content, access_token=None, credentials=None):
+        """Share a post on LinkedIn using UGC API"""
+        try:
+            if not access_token and credentials:
+                access_token = credentials.get("access_token")
+            
+            if not access_token:
+                return {"success": False, "error": "Access token is required"}
+            
+            headers = {
+                "Authorization": f"Bearer {access_token}",
+                "Content-Type": "application/json",
+                "X-Restli-Protocol-Version": "2.0.0",
+                "User-Agent": "SMMS/1.0",
+            }
+            
+            # Get the user's profile ID using the userinfo endpoint
+            profile_response = requests.get(
+                "https://api.linkedin.com/v2/userinfo",
+                headers=headers,
+                timeout=30
+            )
+            
+            if profile_response.status_code != 200:
+                return {"success": False, "error": "Failed to get profile information"}
+            
+            profile_data = profile_response.json()
+            person_urn = f"urn:li:person:{profile_data.get('sub')}"
+            
+            # Create the UGC post payload
+            post_payload = {
+                "author": person_urn,
+                "lifecycleState": "PUBLISHED",
+                "specificContent": {
+                    "com.linkedin.ugc.ShareContent": {
+                        "shareCommentary": {
+                            "text": content
+                        },
+                        "shareMediaCategory": "NONE"
+                    }
+                },
+                "visibility": {
+                    "com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC"
+                }
+            }
+            
+            # Post the UGC content
+            response = requests.post(
+                "https://api.linkedin.com/v2/ugcPosts",
+                headers=headers,
+                json=post_payload,
+                timeout=30
+            )
+            
+            if response.status_code == 201:
+                share_data = response.json()
+                share_id = share_data.get("id", "").replace("urn:li:share:", "").replace("urn:li:ugcPost:", "")
+                return {
+                    "success": True,
+                    "post_id": share_id,
+                    "url": f"https://www.linkedin.com/feed/update/{share_id}",
+                    "message": "Post shared successfully on LinkedIn"
+                }
+            else:
+                return {"success": False, "error": f"LinkedIn API error: {response.text}"}
+                
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    def verify_account(self, access_token):
+        """Verify LinkedIn account and get basic info"""
+        return self.get_profile(access_token)
+
+    def get_account_info(self, credentials):
+        """Get LinkedIn account information"""
+        access_token = credentials.get("access_token")
+        return self.verify_account(access_token)
+
+
 # Integration Factory
 class IntegrationFactory:
     """Factory for creating social media integrators"""
@@ -278,6 +509,7 @@ class IntegrationFactory:
             "twitter": TwitterIntegrator,
             "reddit": RedditIntegrator,
             "slack": SlackIntegrator,
+            "linkedin": LinkedInIntegrator,
         }
 
         integrator_class = integrators.get(platform.lower())

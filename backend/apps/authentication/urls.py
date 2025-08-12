@@ -7,6 +7,7 @@ from .views import login_view  # Import the function instead
 from .views import simple_test  # Add this import
 from .views import teams_for_invitation  # Add this import
 from .views import user_time_format_setting  # Add this import
+from .views import oauth_callback  # Add this import
 from .views import (
     LogoutView,
     SocialMediaAccountListView,
@@ -43,6 +44,8 @@ urlpatterns = [
     path("resend-verification/", resend_verification_email, name="resend_verification"),
     # Settings endpoints
     path("settings/time-format/", user_time_format_setting, name="time-format-setting"),
+    # OAuth callbacks
+    path("x/login/callback/", oauth_callback, name="x-oauth-callback"),
 ]
 
 urlpatterns += [

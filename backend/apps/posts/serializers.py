@@ -16,6 +16,8 @@ class SocialSetSerializer(serializers.ModelSerializer):
 
 
 class PostSerializer(serializers.ModelSerializer):
+    # Allow missing scheduled_time for immediate/draft posts; we'll default it to now in create()
+    scheduled_time = serializers.DateTimeField(required=False)
     hashtags_list = serializers.SerializerMethodField()
     tagged_users_list = serializers.SerializerMethodField()
     can_edit = serializers.SerializerMethodField()
@@ -64,11 +66,26 @@ class PostSerializer(serializers.ModelSerializer):
         return obj.can_edit()
 
     def validate_scheduled_time(self, value):
+        # Only enforce future time when explicitly scheduling
         from django.utils import timezone
+        status_val = None
+        try:
+            status_val = (self.initial_data or {}).get("status")
+        except Exception:
+            status_val = None
 
-        if value <= timezone.now():
-            raise serializers.ValidationError("Scheduled time must be in the future")
+        if status_val == "scheduled":
+            if not value or value <= timezone.now():
+                raise serializers.ValidationError("Scheduled time must be in the future")
+        # For drafts/published-now we accept current or missing value; missing is handled in create()
         return value
+
+    def create(self, validated_data):
+        # Default scheduled_time to now when not provided (e.g., immediate/draft posts)
+        from django.utils import timezone
+        if not validated_data.get("scheduled_time"):
+            validated_data["scheduled_time"] = timezone.now()
+        return super().create(validated_data)
 
 
 class PostCreateSerializer(serializers.ModelSerializer):

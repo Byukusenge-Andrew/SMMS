@@ -38,6 +38,34 @@ class PostListCreateView(ListCreateAPIView):
     def get_queryset(self):
         return Post.objects.filter(user=self.request.user)
 
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            self.perform_create(serializer)
+        except Exception as e:
+            msg = str(e)
+            # Surface Supabase auth/policy failures clearly to the client
+            if "signature verification failed" in msg or "Supabase" in msg:
+                from django.conf import settings as dj_settings
+                hint = (
+                    "Storage upload failed. Ensure the backend uses a Supabase service role key (SUPABASE_SERVICE_ROLE_KEY) "
+                    "or that your Storage bucket policies allow inserts for the provided key."
+                )
+                env_hint = {
+                    "SUPABASE_URL_set": bool(getattr(dj_settings, "SUPABASE_URL", None)),
+                    "SUPABASE_KEY_set": bool(getattr(dj_settings, "SUPABASE_KEY", None)),
+                    "SUPABASE_SERVICE_ROLE_KEY_set": bool(getattr(dj_settings, "SUPABASE_SERVICE_ROLE_KEY", None)),
+                    "SUPABASE_BUCKET": getattr(dj_settings, "SUPABASE_BUCKET", ""),
+                }
+                return Response(
+                    {"error": "Media upload to storage failed: signature verification failed", "hint": hint, "env": env_hint},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            raise
+        headers = self.get_success_headers(serializer.data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
 

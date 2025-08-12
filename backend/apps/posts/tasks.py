@@ -1,18 +1,102 @@
 import logging
+import os
 
 from django.contrib.auth.models import User
 from django.utils import timezone
+from django.conf import settings
 
 from celery import shared_task
 
 from .models import Post
+from apps.integrations.services.twitter_service import TwitterService
+from apps.integrations.social_media_integrator import LinkedInIntegrator
+from apps.authentication.models import SocialMediaAccount as AuthSocialMediaAccount
+from apps.integrations.models import SocialMediaAccount as IntegratedAccount, SocialMediaPlatform
 
 logger = logging.getLogger(__name__)
 
 
+def publish_to_twitter_accounts(post, accounts, errors, source_type):
+    """Helper function to publish to Twitter accounts"""
+    success_count = 0
+    
+    for account in accounts:
+        try:
+            twitter_service = TwitterService()
+            
+            # Prepare media paths if there are attachments
+            media_paths = []
+            if post.image:
+                media_path = post.image.path if hasattr(post.image, 'path') else None
+                if media_path and os.path.exists(media_path):
+                    media_paths.append(media_path)
+                else:
+                    # Try to handle Supabase storage
+                    if hasattr(post.image, 'url') and post.image.url:
+                        logger.info(f"Media stored in Supabase, URL: {post.image.url}")
+                        media_paths = []
+            
+            if post.video:
+                video_path = post.video.path if hasattr(post.video, 'path') else None
+                if video_path and os.path.exists(video_path):
+                    media_paths.append(video_path)
+            
+            # Post to Twitter
+            result = twitter_service.post_tweet(
+                text=post.content,
+                media_paths=media_paths if media_paths else None,
+                account=account
+            )
+            
+            if result.get('success'):
+                success_count += 1
+                logger.info(f"Successfully posted to {source_type} Twitter account {account.id}: {result.get('tweet_id')}")
+            else:
+                error_msg = result.get('error', 'Unknown error')
+                errors.append(f"{source_type} Twitter Account {account.id}: {error_msg}")
+                logger.error(f"Failed to post to {source_type} Twitter account {account.id}: {error_msg}")
+                
+        except Exception as e:
+            error_msg = f"{source_type} Twitter Account {account.id}: {str(e)}"
+            errors.append(error_msg)
+            logger.error(f"Error posting to {source_type} Twitter account {account.id}: {str(e)}")
+    
+    return success_count
+
+
+def publish_to_linkedin_accounts(post, accounts, errors):
+    """Helper function to publish to LinkedIn accounts"""
+    success_count = 0
+    
+    for account in accounts:
+        try:
+            linkedin_integrator = LinkedInIntegrator()
+            
+            # Post to LinkedIn
+            result = linkedin_integrator.publish_post(
+                content=post.content,
+                access_token=account.access_token
+            )
+            
+            if result.get('success'):
+                success_count += 1
+                logger.info(f"Successfully posted to LinkedIn account {account.id}: {result.get('post_id')}")
+            else:
+                error_msg = result.get('error', 'Unknown error')
+                errors.append(f"LinkedIn Account {account.id}: {error_msg}")
+                logger.error(f"Failed to post to LinkedIn account {account.id}: {error_msg}")
+                
+        except Exception as e:
+            error_msg = f"LinkedIn Account {account.id}: {str(e)}"
+            errors.append(error_msg)
+            logger.error(f"Error posting to LinkedIn account {account.id}: {str(e)}")
+    
+    return success_count
+
+
 @shared_task
 def publish_scheduled_post(post_id):
-    """Publish a scheduled post - simplified version"""
+    """Publish a scheduled post to social media platforms"""
     try:
         post = Post.objects.get(id=post_id, status="scheduled")
 
@@ -21,11 +105,76 @@ def publish_scheduled_post(post_id):
             logger.info(f"Post {post_id} not ready for publishing yet")
             return
 
-        # For now, just mark as published (integration will be added later)
-        post.status = "published"
-        post.published_at = timezone.now()
+        logger.info(f"Publishing post {post_id} for user {post.user.id} ({post.user.username}) to platform: {post.platform}")
+
+        # Get connected social media accounts for the specific platform chosen in the post
+        success_count = 0
+        errors = []
+        
+        # Normalize platform name for comparison
+        platform_lower = post.platform.lower()
+        
+        if platform_lower in ['twitter', 'x', 'twitter/x']:
+            # Handle Twitter posting
+            # Check authentication app for legacy Twitter accounts
+            auth_twitter_accounts = AuthSocialMediaAccount.objects.filter(
+                user=post.user,
+                platform__in=['twitter', 'Twitter/X', 'x'],
+                is_active=True
+            )
+            
+            # Check integrations app for newer Twitter accounts
+            integrated_twitter_accounts = IntegratedAccount.objects.filter(
+                user=post.user,
+                platform=SocialMediaPlatform.TWITTER,
+                is_active=True
+            )
+            
+            logger.info(f"Found {auth_twitter_accounts.count()} Twitter accounts in auth app")
+            logger.info(f"Found {integrated_twitter_accounts.count()} Twitter accounts in integrations app")
+            
+            # Post to Twitter accounts in auth app
+            success_count += publish_to_twitter_accounts(post, auth_twitter_accounts, errors, "auth")
+            
+            # Post to Twitter accounts in integrations app
+            success_count += publish_to_twitter_accounts(post, integrated_twitter_accounts, errors, "integrated")
+            
+        elif platform_lower == 'linkedin':
+            # Handle LinkedIn posting
+            integrated_linkedin_accounts = IntegratedAccount.objects.filter(
+                user=post.user,
+                platform=SocialMediaPlatform.LINKEDIN,
+                is_active=True
+            )
+            
+            logger.info(f"Found {integrated_linkedin_accounts.count()} LinkedIn accounts in integrations app")
+            
+            # Post to LinkedIn accounts
+            success_count += publish_to_linkedin_accounts(post, integrated_linkedin_accounts, errors)
+            
+        else:
+            error_msg = f"Unsupported platform: {post.platform}"
+            logger.error(error_msg)
+            errors.append(error_msg)
+
+        # Check if we have any accounts to post to
+        if success_count == 0 and not errors:
+            logger.warning(f"No connected {post.platform} accounts found for user {post.user.id}")
+            post.status = "failed"
+            post.error_message = f"No connected {post.platform} accounts found"
+            post.save()
+            return
+
+        # Update post status based on results
+        if success_count > 0:
+            post.status = "published"
+            post.published_at = timezone.now()
+            logger.info(f"Post {post_id} published successfully to {success_count} account(s)")
+        else:
+            post.status = "failed"
+            logger.error(f"Post {post_id} failed to publish to any accounts. Errors: {'; '.join(errors)}")
+        
         post.save()
-        logger.info(f"Post {post_id} marked as published")
 
     except Post.DoesNotExist:
         logger.error(f"Post {post_id} not found")

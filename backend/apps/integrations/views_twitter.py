@@ -143,6 +143,14 @@ def verify_twitter_credentials(request):
     """Verify Twitter API credentials"""
     try:
         account = IntegratedAccount.objects.filter(user=request.user, platform=SocialMediaPlatform.TWITTER, is_active=True).first()
+        
+        if not account:
+            # No connected Twitter account found
+            return Response({
+                'success': False,
+                'error': 'No connected Twitter account found'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
         result = twitter_service.verify_credentials(account=account)
         
         if result['success']:
@@ -640,6 +648,33 @@ def twitter_bind_tokens(request):
                 account.save(update_fields=['token_expires_at'])
             except Exception:
                 pass
+
+        # Mirror into auth app's SocialMediaAccount so the composer can list it
+        try:
+            from django.utils import timezone as _tz
+            auth_defaults = {
+                'access_token': access_token,
+                'refresh_token': refresh_token,
+                'is_active': True,
+                'platform_user_id': platform_user_id,
+                'follower_count': followers_count or 0,
+                'following_count': following_count or 0,
+            }
+            if expires_in:
+                try:
+                    auth_defaults['token_expires_at'] = _tz.now() + _tz.timedelta(seconds=int(expires_in))
+                except Exception:
+                    pass
+
+            # Lookup uses (user, platform, username) to respect unique_together in auth model
+            SocialMediaAccount.objects.update_or_create(
+                user=request.user,
+                platform='twitter',
+                username=username,
+                defaults=auth_defaults,
+            )
+        except Exception as _e:
+            logger.error(f"Failed to sync auth SocialMediaAccount for Twitter: {_e}")
         
         return Response({'success': True, 'account_id': str(account.id)})
     except Exception as e:

@@ -22,6 +22,13 @@ from .views_twitter import (
     twitter_callback,
     twitter_bind_tokens,
 )
+from .views_linkedin import (
+    linkedin_authorize,
+    linkedin_callback,
+    linkedin_bind_tokens,
+    verify_linkedin_credentials,
+    post_linkedin_share,
+)
 
 urlpatterns = [
     # OAuth and general integrations
@@ -48,4 +55,13 @@ urlpatterns = [
     path("twitter/delete/<str:tweet_id>/", delete_tweet, name="twitter-delete-tweet"),
     path("twitter/my-posts/", get_my_twitter_posts, name="twitter-get-my-posts"),
     path("twitter/rate-limit/", get_twitter_rate_limit, name="twitter-rate-limit"),
+
+    # LinkedIn OAuth connect endpoints
+    path("linkedin/authorize/", linkedin_authorize, name="linkedin-authorize"),
+    path("linkedin/callback/", linkedin_callback, name="linkedin-callback"),
+    path("linkedin/bind-tokens/", linkedin_bind_tokens, name="linkedin-bind-tokens"),
+
+    # LinkedIn API endpoints
+    path("linkedin/verify/", verify_linkedin_credentials, name="linkedin-verify-credentials"),
+    path("linkedin/post/", post_linkedin_share, name="linkedin-post-share"),
 ]
