@@ -124,3 +124,48 @@ databases:
     plan: starter
     databaseName: smms-redis
     user: default
+
+# IMPORTANT: After deployment, manually add these environment variables 
+# to ALL services (web, celery-worker, celery-beat) in Render Dashboard:
+#
+# EMAIL_HOST=smtp.gmail.com
+# EMAIL_PORT=587
+# EMAIL_USE_TLS=True
+# EMAIL_HOST_USER=andrebyukusenge9@gmail.com
+# EMAIL_HOST_PASSWORD=kxqy raah dhxh kjby
+# DEFAULT_FROM_EMAIL=andrebyukusenge9@gmail.com
+#
+# SUPABASE_URL=https://cudeuievwnpvmuyebmgc.supabase.co
+# SUPABASE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN1ZGV1aWV2d25wdm11eWVibWdjIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NDExNjk3MywiZXhwIjoyMDY5NjkyOTczfQ.nsymKougaTsVPpQzFCTGNcYEeoYnbAWnId-pk_P7hNs
+# SUPABASE_BUCKET=keativpictures
+#
+# Twitter API Keys:
+# TWITTER_API_KEY=9VwiLfVqzVLrE4JjaHVijn6PB
+# TWITTER_API_KEY_SECRET=F5iYe9SEBnyuRsrDyUYwv22A8szxieC1wypAoX9urTh3J6HrHE
+# TWITTER_BEARER_TOKEN=AAAAAAAAAAAAAAAAAAAAACPs3AEAAAAA524DXLxWtp9wk%2BkAJRAjH9yvrRo%3DDo78f4oSOFDmX2rGwFoMbcdsYQSRg5Tv2HSOgCOGp5qoLRRqS4
+# TWITTER_ACCESS_TOKEN=1841004192564981761-xOYiDYI5kLTyrevaS4LyGVYagCtBpy
+# TWITTER_ACCESS_TOKEN_SECRET=GCrs6nm60j5xv9tLZx7uZq5T6Oc4NW3LI8L6OodFs0fAt
+# TWITTER_REDIRECT_URI=https://smms-backend.onrender.com/api/integrations/twitter/callback/
+# TWITTER_SCOPES=tweet.read tweet.write users.read offline.access
+#
+# TikTok API:
+# TIKTOK_CLIENT_KEY=awri2oqdqtiej4l8
+# TIKTOK_CLIENT_SECRET=TmRZtxxEJO5PLJZkUxGvGbntgtWYRDRn
+#
+# Reddit API:
+# REDDIT_CLIENT_ID=Izl0HYIIusIFWyuTZQX_iQ
+#
+# Slack Integration:
+# SLACK_BOT_TOKEN=xoxb-5970417719634-9252612975492-uoCdJlEXjH1nDAVlS1J5rPfp
+# SLACK_WEBHOOK_URL=https://hooks.slack.com/services/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
+# SLACK_CLIENT_ID=5970417719634.9230548690211
+# SLACK_CLIENT_SECRET=22c01f64c88414cc25842b7ed1355672
+# SLACK_SIGNING_SECRET=9b554aa258ee184295d0bcac889fd606
+# SLACK_VERIFICATION_TOKEN=eXzkBjnZgjtrIboovWTF4anL
+# SLACK_APP_ID=A096SG4LA67
+#
+# Social Authentication:
+# SOCIAL_AUTH_GOOGLE_OAUTH2_KEY=751977519516-v4ts4j9fjje5mrn1gm1fdint5b57e2jn.apps.googleusercontent.com
+# SOCIAL_AUTH_GOOGLE_OAUTH2_SECRET=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
+# SOCIAL_AUTH_GITHUB_KEY=Ov23liUqIgKKYZzfVwCS
+# SOCIAL_AUTH_GITHUB_SECRET=14c8e732901aaa8c60c47fc1deb9c6a510a05b0d
