@@ -7,8 +7,11 @@ import os
 import base64
 import hashlib
 import secrets
+import logging
 
 import requests
+
+logger = logging.getLogger(__name__)
 
 try:
     import tweepy
@@ -385,36 +388,70 @@ class LinkedInIntegrator(SocialMediaIntegrator):
             return {"success": False, "error": str(e)}
 
     def get_profile(self, access_token):
-        """Get LinkedIn profile information using the new API with profile scope"""
+        """Get LinkedIn profile information with connection count"""
         try:
             headers = {
                 "Authorization": f"Bearer {access_token}",
                 "User-Agent": "SMMS/1.0",
             }
             
-            # Use the new LinkedIn Profile API with the profile scope
+            # Get basic profile info
             profile_response = requests.get(
                 "https://api.linkedin.com/v2/userinfo",
                 headers=headers,
                 timeout=30
             )
             
-            if profile_response.status_code == 200:
-                profile_data = profile_response.json()
-                
-                return {
-                    "success": True,
-                    "profile": {
-                        "id": profile_data.get("sub"),  # 'sub' is the user ID in userinfo endpoint
-                        "first_name": profile_data.get("given_name", ""),
-                        "last_name": profile_data.get("family_name", ""),
-                        "email": profile_data.get("email", ""),
-                        "profile_picture": profile_data.get("picture", ""),
-                        "name": profile_data.get("name", ""),
-                    }
-                }
-            else:
+            if profile_response.status_code != 200:
                 return {"success": False, "error": profile_response.text}
+            
+            profile_data = profile_response.json()
+            
+            # Try to get connection count from the profile API
+            # Note: LinkedIn's v2 API has limited access to connection counts
+            # We'll try the people endpoint for the authenticated user
+            connection_count = 0
+            try:
+                # Get the person's profile including connection count
+                person_id = profile_data.get("sub")
+                if person_id:
+                    person_response = requests.get(
+                        f"https://api.linkedin.com/v2/people/{person_id}:(id,firstName,lastName,numConnections)",
+                        headers=headers,
+                        timeout=30
+                    )
+                    
+                    if person_response.status_code == 200:
+                        person_data = person_response.json()
+                        connection_count = person_data.get("numConnections", 0)
+            except Exception as e:
+                logger.warning(f"Failed to get LinkedIn connection count: {e}")
+                # Fallback: try to get connection count from profile endpoint
+                try:
+                    profile_detail_response = requests.get(
+                        "https://api.linkedin.com/v2/people/~:(id,firstName,lastName,numConnections,publicProfileUrl)",
+                        headers=headers,
+                        timeout=30
+                    )
+                    if profile_detail_response.status_code == 200:
+                        detail_data = profile_detail_response.json()
+                        connection_count = detail_data.get("numConnections", 0)
+                except Exception:
+                    pass  # Keep connection_count as 0
+            
+            return {
+                "success": True,
+                "profile": {
+                    "id": profile_data.get("sub"),
+                    "first_name": profile_data.get("given_name", ""),
+                    "last_name": profile_data.get("family_name", ""),
+                    "email": profile_data.get("email", ""),
+                    "profile_picture": profile_data.get("picture", ""),
+                    "name": profile_data.get("name", ""),
+                    "connection_count": connection_count,
+                    "follower_count": connection_count,  # For LinkedIn, connections are similar to followers
+                }
+            }
                 
         except Exception as e:
             return {"success": False, "error": str(e)}

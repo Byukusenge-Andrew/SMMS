@@ -410,12 +410,14 @@ def verify_linkedin_credentials(request):
                 account.display_name = f"{profile.get('first_name', '')} {profile.get('last_name', '')}".strip() or account.display_name
                 if profile.get('profile_picture'):
                     account.profile_image_url = profile.get('profile_picture')
+                
+                # Update count from LinkedIn connections (prefer connections)
+                connection_count = profile.get('connection_count', 0) or profile.get('follower_count', 0)
+                account.followers_count = connection_count
+                
                 account.is_verified = True
-                account.save(update_fields=['display_name', 'profile_image_url', 'is_verified'])
+                account.save(update_fields=['display_name', 'profile_image_url', 'followers_count', 'is_verified'])
             except Exception:
-                pass
-                pass
-                # Non-fatal
                 pass
 
             # Return success - token is verified and working
@@ -428,6 +430,8 @@ def verify_linkedin_credentials(request):
                     'username': account.username,
                     'display_name': account.display_name,
                     'profile_image_url': account.profile_image_url,
+                    'connection_count': account.followers_count,
+                    'follower_count': account.followers_count,  # backward-compatible alias
                     'is_verified': True,
                 }
             }, status=status.HTTP_200_OK)

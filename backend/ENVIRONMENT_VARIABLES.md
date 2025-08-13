@@ -27,8 +27,6 @@ CELERY_RESULT_BACKEND=redis://red-xxxxx:6379/0
 ```
 EMAIL_HOST=smtp.gmail.com
 EMAIL_PORT=587
-EMAIL_USE_TLS=True
-EMAIL_HOST_USER=andrebyukusenge9@gmail.com
 EMAIL_HOST_PASSWORD=kxqy raah dhxh kjby
 DEFAULT_FROM_EMAIL=andrebyukusenge9@gmail.com
 ```
@@ -36,9 +34,14 @@ DEFAULT_FROM_EMAIL=andrebyukusenge9@gmail.com
 ### Supabase Storage
 ```
 SUPABASE_URL=https://cudeuievwnpvmuyebmgc.supabase.co
-SUPABASE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN1ZGV1aWV2d25wdm11eWVibWdjIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NDExNjk3MywiZXhwIjoyMDY5NjkyOTczfQ.nsymKougaTsVPpQzFCTGNcYEeoYnbAWnId-pk_P7hNs
+SUPABASE_KEY=your-anon-or-client-key
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 SUPABASE_BUCKET=keativpictures
 ```
+
+Notes:
+- For server-side uploads from Django, set SUPABASE_SERVICE_ROLE_KEY (preferred). The backend will automatically use it when present.
+- Keep SUPABASE_KEY for client-side SDKs only (anon key). Do not expose the service role key to the frontend.
 
 ### Twitter API
 ```
@@ -49,8 +52,10 @@ TWITTER_ACCESS_TOKEN=1841004192564981761-xOYiDYI5kLTyrevaS4LyGVYagCtBpy
 TWITTER_ACCESS_TOKEN_SECRET=GCrs6nm60j5xv9tLZx7uZq5T6Oc4NW3LI8L6OodFs0fAt
 TWITTER_CLIENT_ID=your-oauth2-client-id
 TWITTER_CLIENT_SECRET=your-oauth2-client-secret
-TWITTER_REDIRECT_URI=https://smms-backend.onrender.com/api/integrations/twitter/callback/
+TWITTER_REDIRECT_URI=http://localhost:8000/oauth/complete/twitter/
 TWITTER_SCOPES=tweet.read tweet.write users.read offline.access
+SOCIAL_AUTH_TWITTER_KEY=9VwiLfVqzVLrE4JjaHVijn6PB
+SOCIAL_AUTH_TWITTER_SECRET=F5iYe9SEBnyuRsrDyUYwv22A8szxieC1wypAoX9urTh3J6HrHE
 ```
 
 ### TikTok API
@@ -94,10 +99,6 @@ DJANGO_SUPERUSER_PASSWORD=generate-secure-password
 ### Application Settings
 ```
 FRONTEND_URL=https://your-frontend-domain.com
-CORS_ALLOWED_ORIGINS=https://your-frontend-domain.com
-WEB_CONCURRENCY=4
-```
-
 ### Optional (Error Tracking)
 ```
 SENTRY_DSN=your-sentry-dsn

@@ -74,7 +74,11 @@ MIDDLEWARE = [
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
-    "django.contrib.auth.middleware.AuthenticationMiddleware",  
+    "django.contrib.auth.middleware.AuthenticationMiddleware",
+    # Data isolation and security middleware - temporarily disabled for testing
+    # "apps.core.middleware.data_isolation.DataIsolationMiddleware",
+    # "apps.core.middleware.data_isolation.CrossUserAccessDetectionMiddleware", 
+    # "apps.core.middleware.data_isolation.SecurityAuditMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     # "apps.core.middleware.BurstProtectionMiddleware",  # TEMPORARILY DISABLED FOR DEBUGGING
@@ -386,6 +390,16 @@ LOGGING = {
             "level": "INFO",
             "class": "logging.StreamHandler",
         },
+        "security_file": {
+            "level": "INFO",
+            "class": "logging.FileHandler",
+            "filename": "logs/security.log",
+        },
+        "data_isolation_file": {
+            "level": "INFO",
+            "class": "logging.FileHandler", 
+            "filename": "logs/data_isolation.log",
+        },
     },
     "loggers": {
         "django": {
@@ -397,6 +411,16 @@ LOGGING = {
             "handlers": ["file", "console"],
             "level": "INFO",
             "propagate": True,
+        },
+        "data_isolation": {
+            "handlers": ["data_isolation_file", "console"],
+            "level": "INFO",
+            "propagate": False,
+        },
+        "security": {
+            "handlers": ["security_file", "console"],
+            "level": "WARNING",
+            "propagate": False,
         },
     },
 }

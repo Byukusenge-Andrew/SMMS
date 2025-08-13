@@ -1,20 +1,25 @@
 import logging
 from datetime import timedelta
+from decimal import Decimal
 
 from django.db import models
+from django.db.models import Q, Avg, Count, Sum
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 
-from rest_framework import generics, permissions, status
+from rest_framework import generics, permissions, status, filters
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.pagination import PageNumberPagination
 
-from apps.analytics.models import AnalyticsData  # Import from analytics app
-from apps.posts.models import Post  # Import Post from posts app
+from django_filters.rest_framework import DjangoFilterBackend
 
-# Fix imports - import from correct apps
-from .models import Campaign, CampaignApplication, Influencer
+from apps.analytics.models import AnalyticsData
+from apps.posts.models import Post
+from apps.integrations.models import SocialMediaAccount
+
+from .models import Campaign, CampaignApplication, Influencer, InfluencerCollaboration, InfluencerPortfolio
 from .serializers import (
     CampaignApplicationSerializer,
     CampaignListSerializer,
@@ -24,9 +29,16 @@ from .serializers import (
     InfluencerImportSerializer,
     InfluencerListSerializer,
     InfluencerSerializer,
+    InfluencerPortfolioSerializer,
 )
 
 logger = logging.getLogger(__name__)
+
+
+class InfluencerPagination(PageNumberPagination):
+    page_size = 20
+    page_size_query_param = 'page_size'
+    max_page_size = 100
 
 
 class InfluencerProfileView(generics.RetrieveUpdateAPIView):
@@ -40,18 +52,73 @@ class InfluencerProfileView(generics.RetrieveUpdateAPIView):
             user=self.request.user,
             defaults={
                 "bio": "",
-                "niche": "lifestyle",  # default niche
+                "niche": "lifestyle",
                 "total_followers": 0,
                 "avg_engagement_rate": 0.0,
             },
         )
+        
+        # Auto-sync follower count from social accounts
+        if created or influencer.total_followers == 0:
+            total_followers = SocialMediaAccount.objects.filter(
+                user=self.request.user,
+                is_active=True
+            ).aggregate(total=Sum('followers_count'))['total'] or 0
+            
+            if total_followers > 0:
+                influencer.total_followers = total_followers
+                influencer.save(update_fields=['total_followers'])
+        
         return influencer
+
+
+class InfluencerDiscoveryView(generics.ListAPIView):
+    """Discover influencers with filtering and search"""
+    
+    serializer_class = InfluencerListSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    pagination_class = InfluencerPagination
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    
+    filterset_fields = {
+        'niche': ['exact', 'in'],
+        'tier': ['exact', 'in'],
+        'total_followers': ['gte', 'lte'],
+        'avg_engagement_rate': ['gte', 'lte'],
+        'location': ['icontains'],
+        'is_verified': ['exact'],
+        'is_available': ['exact'],
+    }
+    
+    search_fields = ['user__username', 'user__first_name', 'user__last_name', 'bio', 'niche']
+    ordering_fields = ['total_followers', 'avg_engagement_rate', 'created_at']
+    ordering = ['-total_followers']
+
+    def get_queryset(self):
+        return Influencer.objects.filter(
+            is_available=True,
+            user__is_active=True
+        ).select_related('user').prefetch_related('portfolio')
 
 
 class CampaignListCreateView(generics.ListCreateAPIView):
     """List campaigns or create new campaign"""
 
     permission_classes = [permissions.IsAuthenticated]
+    pagination_class = InfluencerPagination
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    
+    filterset_fields = {
+        'status': ['exact', 'in'],
+        'campaign_type': ['exact', 'in'],
+        'is_paid': ['exact'],
+        'budget': ['gte', 'lte'],
+        'target_niches': ['contains'],
+    }
+    
+    search_fields = ['title', 'description']
+    ordering_fields = ['created_at', 'budget', 'application_deadline']
+    ordering = ['-created_at']
 
     def get_serializer_class(self):
         if self.request.method == "GET":
@@ -59,7 +126,16 @@ class CampaignListCreateView(generics.ListCreateAPIView):
         return CampaignSerializer
 
     def get_queryset(self):
-        return Campaign.objects.filter(creator=self.request.user)
+        if self.request.user.influencer_profile:
+            # Influencers see all active campaigns they can apply to
+            return Campaign.objects.filter(
+                status='active'
+            ).exclude(
+                applications__influencer=self.request.user.influencer_profile
+            ).select_related('creator')
+        else:
+            # Brand creators see their own campaigns
+            return Campaign.objects.filter(creator=self.request.user).select_related('creator')
 
     def perform_create(self, serializer):
         serializer.save(creator=self.request.user)
@@ -80,10 +156,35 @@ class CampaignApplicationListCreateView(generics.ListCreateAPIView):
 
     serializer_class = CampaignApplicationSerializer
     permission_classes = [permissions.IsAuthenticated]
+    pagination_class = InfluencerPagination
 
     def get_queryset(self):
-        return CampaignApplication.objects.filter(influencer__user=self.request.user)
+        if hasattr(self.request.user, 'influencer_profile'):
+            # Influencers see their applications
+            return CampaignApplication.objects.filter(
+                influencer=self.request.user.influencer_profile
+            ).select_related('campaign', 'campaign__creator')
+        else:
+            # Brand creators see applications to their campaigns
+            return CampaignApplication.objects.filter(
+                campaign__creator=self.request.user
+            ).select_related('influencer', 'influencer__user', 'campaign')
 
+    def perform_create(self, serializer):
+        influencer = get_object_or_404(Influencer, user=self.request.user)
+        serializer.save(influencer=influencer)
+
+
+class InfluencerPortfolioViewSet(generics.ListCreateAPIView):
+    """Manage influencer portfolio"""
+    
+    serializer_class = InfluencerPortfolioSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get_queryset(self):
+        influencer = get_object_or_404(Influencer, user=self.request.user)
+        return influencer.portfolio.all().order_by('-created_at')
+    
     def perform_create(self, serializer):
         influencer = get_object_or_404(Influencer, user=self.request.user)
         serializer.save(influencer=influencer)
@@ -328,3 +429,148 @@ def influencer_analytics(request):
     except Exception as e:
         logger.error(f"Error getting influencer analytics: {str(e)}")
         return Response({"error": "Failed to get influencer analytics"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def sync_followers_view(request):
+    """Sync follower counts from social media accounts"""
+    try:
+        influencer = get_object_or_404(Influencer, user=request.user)
+        
+        # Aggregate followers from all active social media accounts
+        total_followers = SocialMediaAccount.objects.filter(
+            user=request.user,
+            is_active=True
+        ).aggregate(total=Sum('followers_count'))['total'] or 0
+        
+        # Calculate average engagement from recent analytics
+        avg_engagement = AnalyticsData.objects.filter(
+            user=request.user,
+            date__gte=timezone.now() - timedelta(days=30)
+        ).aggregate(avg=Avg('engagement_rate'))['avg'] or 0.0
+        
+        # Update influencer data
+        influencer.total_followers = total_followers
+        influencer.avg_engagement_rate = float(avg_engagement)
+        influencer.save(update_fields=['total_followers', 'avg_engagement_rate'])
+        
+        return Response({
+            'message': 'Follower data synced successfully',
+            'total_followers': total_followers,
+            'avg_engagement_rate': influencer.avg_engagement_rate
+        })
+        
+    except Exception as e:
+        logger.error(f"Error syncing followers: {e}")
+        return Response(
+            {"error": "Failed to sync follower data"},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def update_application_status(request, application_id):
+    """Update campaign application status (for campaign creators)"""
+    try:
+        application = get_object_or_404(
+            CampaignApplication,
+            id=application_id,
+            campaign__creator=request.user
+        )
+        
+        new_status = request.data.get('status')
+        if new_status not in ['pending', 'accepted', 'rejected']:
+            return Response(
+                {"error": "Invalid status"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        application.status = new_status
+        application.save(update_fields=['status'])
+        
+        # If accepted, create collaboration record
+        if new_status == 'accepted':
+            collaboration, created = InfluencerCollaboration.objects.get_or_create(
+                influencer=application.influencer,
+                brand=application.campaign.creator,
+                campaign=application.campaign,
+                defaults={
+                    'collaboration_type': 'campaign',
+                    'status': 'active',
+                    'deliverables': application.message or 'Campaign deliverables'
+                }
+            )
+        
+        return Response({
+            'message': f'Application {new_status} successfully',
+            'application_id': application_id,
+            'status': new_status
+        })
+        
+    except Exception as e:
+        logger.error(f"Error updating application status: {e}")
+        return Response(
+            {"error": "Failed to update application"},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def collaboration_list_view(request):
+    """List collaborations for user (both as influencer and brand)"""
+    try:
+        collaborations = []
+        
+        # If user is an influencer
+        if hasattr(request.user, 'influencer_profile'):
+            influencer_collabs = InfluencerCollaboration.objects.filter(
+                influencer=request.user.influencer_profile
+            ).select_related('brand', 'campaign')
+            
+            for collab in influencer_collabs:
+                collaborations.append({
+                    'id': collab.id,
+                    'type': 'influencer',
+                    'collaboration_type': collab.collaboration_type,
+                    'status': collab.status,
+                    'brand_name': collab.brand.get_full_name() or collab.brand.username,
+                    'campaign_title': collab.campaign.title if collab.campaign else None,
+                    'deliverables': collab.deliverables,
+                    'start_date': collab.start_date,
+                    'end_date': collab.end_date,
+                    'created_at': collab.created_at
+                })
+        
+        # User as brand
+        brand_collabs = InfluencerCollaboration.objects.filter(
+            brand=request.user
+        ).select_related('influencer', 'influencer__user', 'campaign')
+        
+        for collab in brand_collabs:
+            collaborations.append({
+                'id': collab.id,
+                'type': 'brand',
+                'collaboration_type': collab.collaboration_type,
+                'status': collab.status,
+                'influencer_name': collab.influencer.user.get_full_name() or collab.influencer.user.username,
+                'campaign_title': collab.campaign.title if collab.campaign else None,
+                'deliverables': collab.deliverables,
+                'start_date': collab.start_date,
+                'end_date': collab.end_date,
+                'created_at': collab.created_at
+            })
+        
+        return Response({
+            'collaborations': collaborations,
+            'count': len(collaborations)
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting collaborations: {e}")
+        return Response(
+            {"error": "Failed to retrieve collaborations"},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
