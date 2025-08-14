@@ -157,7 +157,7 @@ if not DEBUG:
 
 # Media files - Supabase Storage
 MEDIA_URL = "/media/"
-MEDIA_ROOT = BASE_DIR / "media"  # Fallback for local development
+MEDIA_ROOT = BASE_DIR / "user_uploads"  # Fallback for local development
 
 # Supabase Storage Configuration
 SUPABASE_URL = config("SUPABASE_URL", default="")

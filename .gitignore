@@ -14,7 +14,7 @@ SMMS_frontend
 *.pyc
 *.sqlite3
 db.sqlite3
-media/
+user_uploads
 staticfiles/
 local_settings.py
 
