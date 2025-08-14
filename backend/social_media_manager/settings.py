@@ -75,10 +75,10 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
-    # Data isolation and security middleware - temporarily disabled for testing
-    # "apps.core.middleware.data_isolation.DataIsolationMiddleware",
-    # "apps.core.middleware.data_isolation.CrossUserAccessDetectionMiddleware", 
-    # "apps.core.middleware.data_isolation.SecurityAuditMiddleware",
+    # Data isolation and security middleware
+    "apps.core.middleware.data_isolation.DataIsolationMiddleware",
+    "apps.core.middleware.data_isolation.CrossUserAccessDetectionMiddleware", 
+    "apps.core.middleware.data_isolation.SecurityAuditMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     # "apps.core.middleware.BurstProtectionMiddleware",  # TEMPORARILY DISABLED FOR DEBUGGING
@@ -178,11 +178,12 @@ REST_FRAMEWORK = {
         # "rest_framework.authentication.SessionAuthentication",
     ],
     "DEFAULT_PERMISSION_CLASSES": [
-        "rest_framework.permissions.AllowAny",
+    "rest_framework.permissions.IsAuthenticated",
     ],
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
     "PAGE_SIZE": 20,
     "DEFAULT_FILTER_BACKENDS": [
+    "apps.core.filters.OwnedByUserFilterBackend",
         "django_filters.rest_framework.DjangoFilterBackend",
         "rest_framework.filters.SearchFilter",
         "rest_framework.filters.OrderingFilter",
@@ -276,6 +277,18 @@ CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"
 CELERY_TIMEZONE = TIME_ZONE
+
+# Additional Celery broker connection options for cloud Redis/Valkey
+CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
+CELERY_BROKER_CONNECTION_RETRY = True
+CELERY_BROKER_CONNECTION_MAX_RETRIES = 10
+CELERY_REDIS_MAX_CONNECTIONS = 20
+CELERY_REDIS_SOCKET_KEEPALIVE = True
+CELERY_REDIS_SOCKET_KEEPALIVE_OPTIONS = {
+    'TCP_KEEPIDLE': 1,
+    'TCP_KEEPINTVL': 3,
+    'TCP_KEEPCNT': 5,
+}
 
 # Celery Beat Schedule
 CELERY_BEAT_SCHEDULE = {

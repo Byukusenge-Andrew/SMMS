@@ -16,9 +16,9 @@ services:
       - key: ALLOWED_HOSTS
         value: "*"
       
-      # AWS RDS Database (your existing database)
+      # Database Configuration - SET IN RENDER DASHBOARD
       - key: DATABASE_URL
-        value: "postgres://postgres:andre01ab.@social-media-db.chgyuqs4suf5.eu-north-1.rds.amazonaws.com:5432/postgres?sslmode=require"
+        sync: false
       
       # Redis Configuration (using Render Redis service)
       - key: REDIS_URL
@@ -38,15 +38,15 @@ services:
       - key: DJANGO_SUPERUSER_USERNAME
         value: "admin"
       - key: DJANGO_SUPERUSER_EMAIL
-        value: "andrebyukusenge9@gmail.com"
+        sync: false
       - key: DJANGO_SUPERUSER_PASSWORD
         generateValue: true
       
       # Application Settings (update with your frontend URL)
       - key: FRONTEND_URL
-        value: "https://your-frontend.vercel.app"
+        sync: false
       - key: CORS_ALLOWED_ORIGINS
-        value: "https://your-frontend.vercel.app"
+        sync: false
       
       # Web Concurrency
       - key: WEB_CONCURRENCY
@@ -59,7 +59,7 @@ services:
     region: oregon
     plan: starter
     buildCommand: './build.sh'
-    startCommand: 'celery -A social_media_manager worker --loglevel=info'
+    startCommand: 'celery -A social_media_manager worker --loglevel=info --pool=solo'
     envVars:
       # Django Core Settings (shared with web service)
       - key: SECRET_KEY
@@ -67,9 +67,9 @@ services:
       - key: DEBUG
         value: "False"
       
-      # AWS RDS Database (same as web service)
+      # Database Configuration - SET IN RENDER DASHBOARD  
       - key: DATABASE_URL
-        value: "postgres://postgres:andre01ab.@social-media-db.chgyuqs4suf5.eu-north-1.rds.amazonaws.com:5432/postgres?sslmode=require"
+        sync: false
       
       # Redis Configuration (same as web service)
       - key: REDIS_URL
@@ -100,9 +100,9 @@ services:
       - key: DEBUG
         value: "False"
       
-      # AWS RDS Database (same as web service)
+      # Database Configuration - SET IN RENDER DASHBOARD
       - key: DATABASE_URL
-        value: "postgres://postgres:andre01ab.@social-media-db.chgyuqs4suf5.eu-north-1.rds.amazonaws.com:5432/postgres?sslmode=require"
+        sync: false
       
       # Redis Configuration (same as web service)
       - key: REDIS_URL
@@ -125,47 +125,60 @@ databases:
     databaseName: smms-redis
     user: default
 
-# IMPORTANT: After deployment, manually add these environment variables 
-# to ALL services (web, celery-worker, celery-beat) in Render Dashboard:
+# ===================================================================
+# SECURITY NOTICE: ALL SECRETS MUST BE SET IN RENDER DASHBOARD
+# ===================================================================
+# 
+# After deployment, manually add these environment variables 
+# to ALL services (web, celery-worker, celery-beat) via Render Dashboard:
 #
-# EMAIL_HOST=smtp.gmail.com
-# EMAIL_PORT=587
-# EMAIL_USE_TLS=True
-# EMAIL_HOST_USER=andrebyukusenge9@gmail.com
-# EMAIL_HOST_PASSWORD=kxqy raah dhxh kjby
-# DEFAULT_FROM_EMAIL=andrebyukusenge9@gmail.com
+# CRITICAL - Database & Infrastructure:
+# DATABASE_URL=your-postgres-connection-string
+# DJANGO_SUPERUSER_EMAIL=your-email
+# FRONTEND_URL=your-frontend-domain
+# CORS_ALLOWED_ORIGINS=your-frontend-domain
 #
-# SUPABASE_URL=https://cudeuievwnpvmuyebmgc.supabase.co
-# SUPABASE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN1ZGV1aWV2d25wdm11eWVibWdjIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NDExNjk3MywiZXhwIjoyMDY5NjkyOTczfQ.nsymKougaTsVPpQzFCTGNcYEeoYnbAWnId-pk_P7hNs
-# SUPABASE_BUCKET=keativpictures
+# CRITICAL - Email Configuration:
+# EMAIL_HOST_USER=your-email
+# EMAIL_HOST_PASSWORD=your-app-password
 #
-# Twitter API Keys:
-# TWITTER_API_KEY=9VwiLfVqzVLrE4JjaHVijn6PB
-# TWITTER_API_KEY_SECRET=F5iYe9SEBnyuRsrDyUYwv22A8szxieC1wypAoX9urTh3J6HrHE
-# TWITTER_BEARER_TOKEN=AAAAAAAAAAAAAAAAAAAAACPs3AEAAAAA524DXLxWtp9wk%2BkAJRAjH9yvrRo%3DDo78f4oSOFDmX2rGwFoMbcdsYQSRg5Tv2HSOgCOGp5qoLRRqS4
-# TWITTER_ACCESS_TOKEN=1841004192564981761-xOYiDYI5kLTyrevaS4LyGVYagCtBpy
-# TWITTER_ACCESS_TOKEN_SECRET=GCrs6nm60j5xv9tLZx7uZq5T6Oc4NW3LI8L6OodFs0fAt
-# TWITTER_REDIRECT_URI=https://smms-backend.onrender.com/api/integrations/twitter/callback/
-# TWITTER_SCOPES=tweet.read tweet.write users.read offline.access
+# CRITICAL - Third Party Services:
+# SUPABASE_URL=your-supabase-url
+# SUPABASE_SERVICE_ROLE_KEY=your-supabase-key
+# SUPABASE_BUCKET=your-bucket-name
 #
-# TikTok API:
-# TIKTOK_CLIENT_KEY=awri2oqdqtiej4l8
-# TIKTOK_CLIENT_SECRET=TmRZtxxEJO5PLJZkUxGvGbntgtWYRDRn
+# CRITICAL - Social Media API Keys:
+# TWITTER_API_KEY=your-twitter-key
+# TWITTER_API_KEY_SECRET=your-twitter-secret
+# TWITTER_BEARER_TOKEN=your-bearer-token
+# TWITTER_ACCESS_TOKEN=your-access-token
+# TWITTER_ACCESS_TOKEN_SECRET=your-access-secret
+# TWITTER_CLIENT_ID=your-twitter-client-id
+# TWITTER_CLIENT_SECRET=your-twitter-client-secret
+# TWITTER_REDIRECT_URI=https://your-domain.onrender.com/api/integrations/twitter/callback/
 #
-# Reddit API:
-# REDDIT_CLIENT_ID=Izl0HYIIusIFWyuTZQX_iQ
+# LINKEDIN_CLIENT_ID=your-linkedin-id
+# LINKEDIN_CLIENT_SECRET=your-linkedin-secret
+# LINKEDIN_REDIRECT_URI=https://your-domain.onrender.com/api/integrations/linkedin/callback/
 #
-# Slack Integration:
-# SLACK_BOT_TOKEN=xoxb-5970417719634-9252612975492-uoCdJlEXjH1nDAVlS1J5rPfp
-# SLACK_WEBHOOK_URL=https://hooks.slack.com/services/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
-# SLACK_CLIENT_ID=5970417719634.9230548690211
-# SLACK_CLIENT_SECRET=22c01f64c88414cc25842b7ed1355672
-# SLACK_SIGNING_SECRET=9b554aa258ee184295d0bcac889fd606
-# SLACK_VERIFICATION_TOKEN=eXzkBjnZgjtrIboovWTF4anL
-# SLACK_APP_ID=A096SG4LA67
+# TIKTOK_CLIENT_KEY=your-tiktok-key  
+# TIKTOK_CLIENT_SECRET=your-tiktok-secret
 #
-# Social Authentication:
-# SOCIAL_AUTH_GOOGLE_OAUTH2_KEY=751977519516-v4ts4j9fjje5mrn1gm1fdint5b57e2jn.apps.googleusercontent.com
-# SOCIAL_AUTH_GOOGLE_OAUTH2_SECRET=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
-# SOCIAL_AUTH_GITHUB_KEY=Ov23liUqIgKKYZzfVwCS
-# SOCIAL_AUTH_GITHUB_SECRET=14c8e732901aaa8c60c47fc1deb9c6a510a05b0d
+# REDDIT_CLIENT_ID=your-reddit-id
+# REDDIT_CLIENT_SECRET=your-reddit-secret
+#
+# CRITICAL - Slack Integration:
+# SLACK_BOT_TOKEN=your-slack-bot-token
+# SLACK_CLIENT_ID=your-slack-client-id
+# SLACK_CLIENT_SECRET=your-slack-client-secret
+# SLACK_SIGNING_SECRET=your-slack-signing-secret
+# SLACK_VERIFICATION_TOKEN=your-slack-verification-token
+# SLACK_WEBHOOK_URL=your-slack-webhook
+#
+# CRITICAL - Social Authentication:
+# SOCIAL_AUTH_GOOGLE_OAUTH2_KEY=your-google-oauth-key
+# SOCIAL_AUTH_GOOGLE_OAUTH2_SECRET=your-google-oauth-secret
+# SOCIAL_AUTH_GITHUB_KEY=your-github-key
+# SOCIAL_AUTH_GITHUB_SECRET=your-github-secret
+#
+# ===================================================================

@@ -203,3 +203,26 @@ class ClientDataValidator:
         """
         for obj in objects:
             ClientDataValidator.validate_user_access(user, obj)
+
+
+class OwnerIfPresent(permissions.BasePermission):
+    """
+    Global-safe permission that only enforces ownership when the object exposes a `user` field.
+    - If the object has `user`, require it matches request.user (staff bypass allowed).
+    - If no `user` field is present, allow access and defer to view-specific rules.
+    """
+
+    def has_permission(self, request, view):
+        # Rely on other permissions (e.g., IsAuthenticated) for general access
+        return True
+
+    def has_object_permission(self, request, view, obj):
+        # Allow safe methods by default; ownership will be enforced if present
+        if hasattr(obj, 'user'):
+            user = getattr(request, 'user', None)
+            if not user or not user.is_authenticated:
+                return False
+            if getattr(user, 'is_staff', False):
+                return True
+            return obj.user == user
+        return True

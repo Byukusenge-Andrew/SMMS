@@ -26,6 +26,9 @@ def send_message(message_id):
             success = send_facebook_message(message)
         elif message.platform == "linkedin":
             success = send_linkedin_message(message)
+        elif message.platform == "slack":
+            # Use helper to send to Slack channels or DMs
+            success = send_slack_message(message.user, message.recipient, message.content)
         else:
             # Default simulation
             success = True
@@ -118,16 +121,40 @@ def send_linkedin_message(message):
     """Send message via LinkedIn API"""
     try:
         logger.info(f"Sending LinkedIn message to {message.recipient}: {message.content[:50]}...")
-
-        # In a real implementation:
-        # 1. Get user's LinkedIn access token
-        # 2. Use LinkedIn Messaging API
-        # 3. Handle response
-
+        # TODO: Implement LinkedIn messaging if supported; for now simulate
         return True
     except Exception as e:
         logger.error(f"LinkedIn message failed: {str(e)}")
-        return False
+    return False
+
+def send_slack_message(user, recipient: str, text: str) -> bool:
+    """Send message to Slack. Recipient can be '#channel', '@username', or a Slack channel/user ID."""
+    try:
+        from apps.integrations.slack_service import SlackService
+
+        svc = SlackService()
+
+        # Resolve recipient
+        channel_id = None
+        if recipient.startswith("#"):
+            # Channel by name
+            name = recipient.lstrip("#")
+            channel_id = svc.find_channel_id_by_name(name) or recipient
+        elif recipient.startswith("@"):
+            # DM by username
+            user_id = svc.find_user_id_by_username(recipient)
+            if user_id:
+                api_resp = svc.send_dm(user_id, text)
+                return bool(api_resp.get("ok"))
+        else:
+            # Assume it's already a channel/user ID
+            channel_id = recipient
+
+        api_resp = svc.post_message(channel_id or "#general", text)
+        return bool(api_resp.get("ok"))
+    except Exception as e:
+        logger.error(f"Slack message failed: {str(e)}")
+    return False
 
 
 @shared_task
@@ -152,7 +179,7 @@ def share_calendar_slack(user_id, calendar_data, recipients):
 
     except Exception as e:
         logger.error(f"Error sharing calendar via Slack: {str(e)}")
-        return False
+    return False
 
 
 @shared_task
@@ -211,16 +238,7 @@ def format_calendar_for_email(calendar_data):
     return message
 
 
-def send_slack_message(user, recipient, message):
-    """Send message to Slack"""
-    try:
-        # Implement Slack API integration
-        # This would use the user's connected Slack workspace
-        logger.info(f"Sending Slack message to {recipient}")
-        return True
-    except Exception as e:
-        logger.error(f"Slack message failed: {str(e)}")
-        return False
+## Legacy stub removed; use the typed helper above
 
 
 @shared_task

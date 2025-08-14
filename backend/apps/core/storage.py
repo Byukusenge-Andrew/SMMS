@@ -12,7 +12,7 @@ from typing import Optional, Tuple
 
 from django.conf import settings
 from django.core.files.base import ContentFile
-from django.core.files.storage import Storage
+from django.core.files.storage import Storage, FileSystemStorage
 from django.utils.deconstruct import deconstructible
 
 from supabase import Client, create_client
@@ -35,9 +35,14 @@ class SupabaseStorage(Storage):
         fallback_key = getattr(settings, "SUPABASE_KEY", os.getenv("SUPABASE_KEY"))
         self.supabase_key = service_role or fallback_key
         self.bucket_name = getattr(settings, "SUPABASE_BUCKET", os.getenv("SUPABASE_BUCKET", "keativpictures"))
+        # Local filesystem fallback storage
+        self.local_storage = FileSystemStorage(location=getattr(settings, 'MEDIA_ROOT', None), base_url=getattr(settings, 'MEDIA_URL', '/media/'))
 
         if not self.supabase_url or not self.supabase_key:
-            raise ValueError("SUPABASE_URL and SUPABASE_KEY must be set")
+            # If Supabase config is missing, we will rely entirely on local storage
+            logger.warning("Supabase config missing; will use local FileSystemStorage for all media operations.")
+            self.client = None  # type: ignore
+            return
 
         self.client: Client = create_client(self.supabase_url, self.supabase_key)
         self._log_key_role_sanity()
@@ -82,23 +87,37 @@ class SupabaseStorage(Storage):
             else:
                 file_data = content
 
-            # Upload to Supabase
-            response = self.client.storage.from_(self.bucket_name).upload(
-                path=name,
-                file=file_data,
-                file_options={"content-type": mimetypes.guess_type(name)[0] or "application/octet-stream"},
-            )
+            # If Supabase client is configured, try uploading there first
+            if self.client is not None:
+                response = self.client.storage.from_(self.bucket_name).upload(
+                    path=name,
+                    file=file_data,
+                    file_options={"content-type": mimetypes.guess_type(name)[0] or "application/octet-stream"},
+                )
 
-            if getattr(response, "error", None):
-                logger.error(f"Supabase upload error: {response.error}")
-                raise Exception(f"Upload failed: {response.error}")
+                if getattr(response, "error", None):
+                    raise Exception(f"Upload failed: {response.error}")
 
-            logger.info(f"Successfully uploaded {name} to Supabase")
-            return name
+                logger.info(f"Successfully uploaded {name} to Supabase")
+                return name
+
+            # If no Supabase client, fall through to local
+            raise Exception("Supabase client not configured")
 
         except Exception as e:
+            # Fallback: save to local filesystem
             logger.error(f"Error uploading {name} to Supabase: {str(e)}")
-            raise
+            try:
+                # Ensure folder structure exists and save locally
+                local_name = name
+                # Save using FileSystemStorage; wrap bytes in ContentFile
+                saved_local_name = self.local_storage.save(local_name, ContentFile(file_data))
+                logger.warning(f"Saved media to local storage as fallback: {saved_local_name}")
+                # Prefix with 'local/' to allow url/exists/delete to route to local storage
+                return f"local/{saved_local_name}"
+            except Exception as le:
+                logger.error(f"Local storage fallback failed for {name}: {le}")
+                raise
 
     def _get_unique_name(self, name: str) -> str:
         """
@@ -119,6 +138,10 @@ class SupabaseStorage(Storage):
         Delete file from Supabase Storage
         """
         try:
+            if name.startswith('local/'):
+                return self.local_storage.delete(name.replace('local/', '', 1)) is None
+            if self.client is None:
+                return self.local_storage.delete(name) is None
             response = self.client.storage.from_(self.bucket_name).remove([name])
 
             if response.error:
@@ -137,6 +160,10 @@ class SupabaseStorage(Storage):
         Check if file exists in Supabase Storage
         """
         try:
+            if name.startswith('local/'):
+                return self.local_storage.exists(name.replace('local/', '', 1))
+            if self.client is None:
+                return self.local_storage.exists(name)
             directory = os.path.dirname(name) or ""
             basename = os.path.basename(name)
             response = self.client.storage.from_(self.bucket_name).list(path=directory)
@@ -183,6 +210,10 @@ class SupabaseStorage(Storage):
         Get file size
         """
         try:
+            if name.startswith('local/'):
+                return self.local_storage.size(name.replace('local/', '', 1))
+            if self.client is None:
+                return self.local_storage.size(name)
             directory = os.path.dirname(name) or ""
             basename = os.path.basename(name)
             response = self.client.storage.from_(self.bucket_name).list(path=directory)
@@ -206,6 +237,11 @@ class SupabaseStorage(Storage):
         Get public URL for the file
         """
         try:
+            if name.startswith('local/'):
+                local_name = name.replace('local/', '', 1)
+                return self.local_storage.url(local_name)
+            if self.client is None:
+                return self.local_storage.url(name)
             response = self.client.storage.from_(self.bucket_name).get_public_url(name)
             return response
 

@@ -8,6 +8,7 @@ from .views import simple_test  # Add this import
 from .views import teams_for_invitation  # Add this import
 from .views import user_time_format_setting  # Add this import
 from .views import oauth_callback  # Add this import
+from .views import change_password, get_user_stats, update_notification_settings, get_account_overview  # Add new endpoints
 from .views import (
     LogoutView,
     SocialMediaAccountListView,
@@ -44,6 +45,10 @@ urlpatterns = [
     path("resend-verification/", resend_verification_email, name="resend_verification"),
     # Settings endpoints
     path("settings/time-format/", user_time_format_setting, name="time-format-setting"),
+    path("settings/password/", change_password, name="change-password"),
+    path("settings/notifications/", update_notification_settings, name="update-notifications"),
+    path("settings/overview/", get_account_overview, name="account-overview"),
+    path("stats/", get_user_stats, name="user-stats"),
     # OAuth callbacks
     path("x/login/callback/", oauth_callback, name="x-oauth-callback"),
 ]

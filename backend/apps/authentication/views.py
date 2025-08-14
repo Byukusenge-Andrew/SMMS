@@ -893,3 +893,150 @@ def oauth_callback(request):
     except Exception as e:
         logger.error(f"Error handling OAuth callback: {str(e)}")
         return Response({"error": "Failed to handle OAuth callback"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def change_password(request):
+    """Change user password"""
+    try:
+        user = request.user
+        current_password = request.data.get('current_password')
+        new_password = request.data.get('new_password')
+        
+        if not current_password or not new_password:
+            return Response(
+                {"error": "Both current_password and new_password are required"}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Check current password
+        if not user.check_password(current_password):
+            return Response(
+                {"error": "Current password is incorrect"}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Validate new password
+        from django.contrib.auth.password_validation import validate_password
+        try:
+            validate_password(new_password, user)
+        except Exception as e:
+            return Response(
+                {"error": str(e)}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Set new password
+        user.set_password(new_password)
+        user.save()
+        
+        logger.info(f"Password changed successfully for user: {user.username}")
+        return Response({"message": "Password changed successfully"})
+        
+    except Exception as e:
+        logger.error(f"Error changing password: {str(e)}")
+        return Response(
+            {"error": "Failed to change password"}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def get_user_stats(request):
+    """Get user statistics for navbar display"""
+    try:
+        user = request.user
+        
+        # Get post counts by status
+        from apps.posts.models import Post
+        active_posts = Post.objects.filter(user=user, status='published').count()
+        scheduled_posts = Post.objects.filter(user=user, status='scheduled').count()
+        
+        # Get notification count
+        from apps.notifications.models import Notification
+        unread_notifications = Notification.objects.filter(user=user, is_read=False).count()
+        
+        return Response({
+            "active_posts": active_posts,
+            "scheduled_posts": scheduled_posts,
+            "unread_notifications": unread_notifications
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting user stats: {str(e)}")
+        return Response(
+            {"error": "Failed to get user stats"}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def update_notification_settings(request):
+    """Update user notification preferences"""
+    try:
+        user = request.user
+        profile = user.profile
+        
+        email_notifications = request.data.get('email_notifications')
+        slack_notifications = request.data.get('slack_notifications')
+        
+        if email_notifications is not None:
+            profile.email_notifications = email_notifications
+        
+        if slack_notifications is not None:
+            profile.slack_notifications = slack_notifications
+        
+        profile.save()
+        
+        return Response({
+            "message": "Notification settings updated successfully",
+            "email_notifications": profile.email_notifications,
+            "slack_notifications": profile.slack_notifications
+        })
+        
+    except Exception as e:
+        logger.error(f"Error updating notification settings: {str(e)}")
+        return Response(
+            {"error": "Failed to update notification settings"}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def get_account_overview(request):
+    """Get account overview data for settings page"""
+    try:
+        user = request.user
+        profile = user.profile
+        
+        # Get social account counts
+        social_accounts_count = user.social_accounts.count()
+        
+        # Get post counts
+        from apps.posts.models import Post
+        total_posts = Post.objects.filter(user=user).count()
+        
+        # Get team membership
+        team_memberships = user.team_memberships.count()
+        
+        return Response({
+            "account_created": user.date_joined,
+            "last_login": user.last_login,
+            "subscription_type": profile.subscription_type,
+            "social_accounts_count": social_accounts_count,
+            "total_posts": total_posts,
+            "team_memberships": team_memberships,
+            "storage_used": "1.2 GB",  # Placeholder - implement actual storage calculation
+            "api_calls_this_month": 1250  # Placeholder - implement actual API usage tracking
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting account overview: {str(e)}")
+        return Response(
+            {"error": "Failed to get account overview"}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )

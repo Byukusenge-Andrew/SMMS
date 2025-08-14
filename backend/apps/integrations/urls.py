@@ -3,10 +3,20 @@ from django.urls import path, include
 from .views import (
     canva_integration,
     dropbox_integration,
+    dropbox_files,
+    dropbox_import,
     google_drive_integration,
+    google_drive_files,
+    google_drive_import,
     oauth_callback,
     slack_integration,
+    slack_conversations,
+    slack_history,
+    slack_auth_status,
+    slack_send_message,
     zapier_integration,
+    hashtag_suggestions,
+    optimal_posting_times,
 )
 from .views_oauth import OAuthCallbackView, OAuthLoginView
 from .views_twitter import (
@@ -33,10 +43,20 @@ from .views_linkedin import (
 urlpatterns = [
     # OAuth and general integrations
     path("slack/", slack_integration, name="slack-integration"),
+    path("slack/conversations/", slack_conversations, name="slack-conversations"),
+    path("slack/history/", slack_history, name="slack-history"),
+    path("slack/auth-status/", slack_auth_status, name="slack-auth-status"),
+    path("slack/send/", slack_send_message, name="slack-send-message"),
     path("canva/", canva_integration, name="canva-integration"),
     path("google-drive/", google_drive_integration, name="google-drive"),
+    path("google-drive/files/", google_drive_files, name="google-drive-files"),
+    path("google-drive/import/", google_drive_import, name="google-drive-import"),
     path("dropbox/", dropbox_integration, name="dropbox"),
+    path("dropbox/files/", dropbox_files, name="dropbox-files"),
+    path("dropbox/import/", dropbox_import, name="dropbox-import"),
     path("zapier/", zapier_integration, name="zapier-integration"),
+    path("hashtags/suggest/", hashtag_suggestions, name="hashtag-suggestions"),
+    path("posting/optimal-times/", optimal_posting_times, name="optimal-posting-times"),
     path("oauth/login/<str:provider>/", OAuthLoginView.as_view(), name="oauth-login"),
     path("oauth/callback/<str:backend>/", OAuthCallbackView.as_view(), name="oauth-callback"),
     path("oauth/callback/", oauth_callback, name="oauth-callback"),
