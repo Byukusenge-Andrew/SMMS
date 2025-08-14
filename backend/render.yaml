@@ -4,7 +4,7 @@ services:
     runtime: python
     region: oregon
     plan: starter
-    buildCommand: './build.sh'
+    buildCommand: 'pip install -r requirements.txt && pip install pillow && python manage.py collectstatic --no-input && python manage.py migrate'
     startCommand: 'gunicorn social_media_manager.wsgi:application --bind 0.0.0.0:$PORT --workers 2'
     healthCheckPath: /api/health/
     envVars:
