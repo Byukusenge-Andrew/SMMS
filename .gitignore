@@ -5,9 +5,9 @@ __pycache__/
 *.pyd
 ENVIRONMENT_VARIABLES.md
 
-
 *.pyc
 SMMS_frontend
+
 # Django
 *.log
 *.pot
@@ -17,6 +17,10 @@ db.sqlite3
 user_uploads
 staticfiles/
 local_settings.py
+
+# Vercel
+.vercel
+.env.vercel
 
 # Environment
 .env

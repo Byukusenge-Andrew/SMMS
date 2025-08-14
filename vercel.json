@@ -1,0 +1,221 @@
+Skip to contentNew Project – Vercel
+
+Find…
+F
+
+New Project
+importing from GitHub
+
+Byukusenge-Andrew/SMMS
+main
+backend
+Choose where you want to create the project and give it a name.
+
+Vercel Team
+
+andrew's projects
+Hobby
+Slash Divider
+Project Name
+smms
+Framework Preset
+Framework logo
+Other
+Root Directory
+backend
+Build Command
+
+`npm run vercel-build` or `npm run build`
+Output Directory
+
+`public` if it exists, or `.`
+Install Command
+
+`yarn install`, `pnpm install`, `npm install`, or `bun install`
+Key
+SECRET_KEY
+Value
+django-insecure-9k+2$m*x@$8h+w!5n7v3z&q^4e6r7t8y9u1i2o3p4a5s6d7f8g9h0j
+DEBUG
+True
+ALLOWED_HOSTS
+localhost,127.0.0.1
+DB_NAME
+social-media-db
+DB_USER
+postgres
+DB_PASSWORD
+andre01ab.
+DB_HOST
+social-media-db.chgyuqs4suf5.eu-north-1.rds.amazonaws.com
+DB_PORT
+5432
+DATABASE_URL
+postgres://postgres:andre01ab.@social-media-db.chgyuqs4suf5.eu-north-1.rds.amazonaws.com:5432/postgres?sslmode=require
+REDIS_HOST
+valkey-17714f34-keativ.i.aivencloud.com
+REDIS_PORT
+23650
+REDIS_USERNAME
+default
+REDIS_PASSWORD
+AVNS_XrjLQ8b1UxU_9RJv4-X
+CELERY_BROKER_URL
+rediss://default:AVNS_XrjLQ8b1UxU_9RJv4-X@valkey-17714f34-keativ.i.aivencloud.com:23650/0?ssl_cert_reqs=none
+CELERY_RESULT_BACKEND
+rediss://default:AVNS_XrjLQ8b1UxU_9RJv4-X@valkey-17714f34-keativ.i.aivencloud.com:23650/0?ssl_cert_reqs=none
+EMAIL_HOST
+smtp.gmail.com
+EMAIL_PORT
+587
+EMAIL_HOST_USER
+andrebyukusenge9@gmail.com
+EMAIL_HOST_PASSWORD
+kxqy raah dhxh kjby
+DEFAULT_FROM_EMAIL
+andrebyukusenge9@gmail.com
+SUPABASE_URL
+https://cudeuievwnpvmuyebmgc.supabase.co
+SUPABASE_SERVICE_ROLE_KEY
+eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN1ZGV1aWV2d25wdm11eWVibWdjIiwicm9zZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NDExNjk3MywiZXhwIjoyMDY5NjkyOTczfQ.nsymKougaTsVPpQzFCTGNcYEeoYnbAWnId-pk_P7hNs
+SUPABASE_BUCKET
+keativpictures
+INSTAGRAM_CLIENT_ID
+I9JU23NF394R6HH
+INSTAGRAM_CLIENT_SECRET
+I9JU23NF394R6HH
+INSTAGRAM_REDIRECT_URI
+I9JU23NF394R6HH
+FACEBOOK_APP_ID
+I9JU23NF394R6HH
+FACEBOOK_APP_SECRET
+I9JU23NF394R6HH
+FACEBOOK_REDIRECT_URI
+I9JU23NF394R6HH
+TWITTER_API_KEY
+UJU9WwJDNbLINqUU3JB2AUv88
+TWITTER_API_KEY_SECRET
+L0DMuG8GkcAyasw5chAkfIlVlJVHdmJsqcwv3j0NLV7Q5KnmSp
+TWITTER_BEARER_TOKEN
+AAAAAAAAAAAAAAAAAAAAACPs3AEAAAAA524DXLxWtp9wk%2BkAJRAjH9yvrRo%3DDo78f4oSOFDmX2rGwFoMbcdsYQSRg5Tv2HSOgCOGp5qoLRRqS4
+TWITTER_ACCESS_TOKEN
+1841004192564981761-oWIrBt4FTsRdB5GFVdWqHoLHYajKsS
+TWITTER_ACCESS_TOKEN_SECRET
+6BYYo9qnUHFxov24sKaoxZfMTa10VK5sYYZ3A35UcEqn7
+LINKEDIN_CLIENT_ID
+77zfmnb2in0du5
+LINKEDIN_CLIENT_SECRET
+WPL_AP1.enaOIwlfBjL5XiA1.Jf6GBA==
+LINKEDIN_REDIRECT_URI
+http://127.0.0.1:8000/api/integrations/linkedin/callback/
+TIKTOK_CLIENT_KEY
+awri2oqdqtiej4l8
+TIKTOK_CLIENT_SECRET
+TmRZtxxEJO5PLJZkUxGvGbntgtWYRDRn
+YOUTUBE_API_KEY
+I9JU23NF394R6HH
+YOUTUBE_CLIENT_ID
+I9JU23NF394R6HH
+YOUTUBE_CLIENT_SECRET
+I9JU23NF394R6HH
+PINTEREST_APP_ID
+I9JU23NF394R6HH
+PINTEREST_APP_SECRET
+I9JU23NF394R6HH
+SNAPCHAT_CLIENT_ID
+I9JU23NF394R6HH
+SNAPCHAT_CLIENT_SECRET
+I9JU23NF394R6HH
+REDDIT_CLIENT_ID
+Izl0HYIIusIFWyuTZQX_iQ
+REDDIT_CLIENT_SECRET
+I9JU23NF394R6HH
+SLACK_BOT_TOKEN
+xoxb-5970417719634-9252612975492-uoCdJlEXjH1nDAVlS1J5rPfp
+SLACK_WEBHOOK_URL
+https://hooks.slack.com/services/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
+CANVA_API_KEY
+I9JU23NF394R6HH
+GOOGLE_DRIVE_CREDENTIALS
+I9JU23NF394R6HH
+DROPBOX_ACCESS_TOKEN
+I9JU23NF394R6HH
+SENTRY_DSN
+I9JU23NF394R6HH
+SOCIAL_AUTH_GOOGLE_OAUTH2_KEY
+751977519516-v4ts4j9fjje5mrn1gm1fdint5b57e2jn.apps.googleusercontent.com
+SOCIAL_AUTH_GOOGLE_OAUTH2_SECRET
+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
+SOCIAL_AUTH_GITHUB_KEY
+Ov23liUqIgKKYZzfVwCS
+SOCIAL_AUTH_GITHUB_SECRET
+14c8e732901aaa8c60c47fc1deb9c6a510a05b0d
+SLACK_CLIENT_ID
+5970417719634.9230548690211
+SLACK_CLIENT_SECRET
+adbb9d21984d20ddeffb53665b96f517
+SLACK_SIGNING_SECRET
+edcf154986f6ed94fb50c76d9e82eff5
+SLACK_VERIFICATION_TOKEN
+eXzkBjnZgjtrIboovWTF4anL
+SLACK_APP_ID
+A096SG4LA67
+TWITTER_CLIENT_ID
+SVZ5M2lINmtzekVHa0t5ODJXVTI6MTpjaQ
+TWITTER_CLIENT_SECRET
+Xe_-W-bbGHHOp8CJONkdcl5nGXF6s8jS38Mo3eKHHz_JCrN-w6
+TWITTER_REDIRECT_URI
+http://127.0.0.1:8000/api/integrations/twitter/callback/
+TWITTER_SCOPES
+tweet.read tweet.write users.read offline.access
+Tip: Paste an .env above to populate the form. Learn more
+
+Deployment
+Once you're ready, start deploying to see the progress here…
+Globe
+Import a different Git Repository →
+Browse Templates →
+Home
+Docs
+Guides
+Help
+Contact
+All systems normal
+
+Select a display theme:
+
+system
+
+light
+
+dark
+© 2025, Vercel Inc.{
+  "version": 2,
+  "builds": [
+    {
+      "src": "backend/social_media_manager/wsgi.py",
+      "use": "@vercel/python",
+      "config": { "maxLambdaSize": "15mb" }
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "backend/social_media_manager/wsgi.py"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "backend/social_media_manager/wsgi.py"
+    }
+  ],
+  "env": {
+    "DJANGO_SETTINGS_MODULE": "social_media_manager.settings_vercel",
+    "PYTHONPATH": "backend"
+  },
+  "functions": {
+    "backend/social_media_manager/wsgi.py": {
+      "includeFiles": "backend/**"
+    }
+  },
+  "outputDirectory": "backend"
+}
