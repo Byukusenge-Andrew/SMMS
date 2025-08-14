@@ -5,7 +5,7 @@ services:
     region: oregon
     plan: starter
     buildCommand: './build.sh'
-    startCommand: 'python -m gunicorn social_media_manager.asgi:application -k uvicorn.workers.UvicornWorker'
+    startCommand: 'gunicorn social_media_manager.wsgi:application --bind 0.0.0.0:$PORT --workers 2'
     healthCheckPath: /api/health/
     envVars:
       # Django Core Settings
@@ -15,6 +15,10 @@ services:
         value: "False"
       - key: ALLOWED_HOSTS
         value: "*"
+      
+      # Production Environment Flag
+      - key: RENDER
+        value: "true"
       
       # Database Configuration - SET IN RENDER DASHBOARD
       - key: DATABASE_URL

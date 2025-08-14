@@ -390,53 +390,94 @@ EMAIL_HOST_PASSWORD = config("EMAIL_HOST_PASSWORD", default="")
 DEFAULT_FROM_EMAIL = config("DEFAULT_FROM_EMAIL", default="")
 
 # Logging configuration
-LOGGING = {
-    "version": 1,
-    "disable_existing_loggers": False,
-    "handlers": {
-        "file": {
-            "level": "INFO",
-            "class": "logging.FileHandler",
-            "filename": "logs/django.log",
+import os
+
+# Determine if we're in production (Render)
+IS_PRODUCTION = 'RENDER' in os.environ
+
+if IS_PRODUCTION:
+    # Production logging - console only
+    LOGGING = {
+        "version": 1,
+        "disable_existing_loggers": False,
+        "handlers": {
+            "console": {
+                "level": "INFO",
+                "class": "logging.StreamHandler",
+            },
         },
-        "console": {
-            "level": "INFO",
-            "class": "logging.StreamHandler",
+        "loggers": {
+            "django": {
+                "handlers": ["console"],
+                "level": "INFO",
+                "propagate": True,
+            },
+            "apps": {
+                "handlers": ["console"],
+                "level": "INFO",
+                "propagate": True,
+            },
+            "data_isolation": {
+                "handlers": ["console"],
+                "level": "INFO",
+                "propagate": False,
+            },
+            "security": {
+                "handlers": ["console"],
+                "level": "WARNING",
+                "propagate": False,
+            },
         },
-        "security_file": {
-            "level": "INFO",
-            "class": "logging.FileHandler",
-            "filename": "logs/security.log",
+    }
+else:
+    # Development logging - files and console
+    LOGGING = {
+        "version": 1,
+        "disable_existing_loggers": False,
+        "handlers": {
+            "file": {
+                "level": "INFO",
+                "class": "logging.FileHandler",
+                "filename": "logs/django.log",
+            },
+            "console": {
+                "level": "INFO",
+                "class": "logging.StreamHandler",
+            },
+            "security_file": {
+                "level": "INFO",
+                "class": "logging.FileHandler",
+                "filename": "logs/security.log",
+            },
+            "data_isolation_file": {
+                "level": "INFO",
+                "class": "logging.FileHandler", 
+                "filename": "logs/data_isolation.log",
+            },
         },
-        "data_isolation_file": {
-            "level": "INFO",
-            "class": "logging.FileHandler", 
-            "filename": "logs/data_isolation.log",
+        "loggers": {
+            "django": {
+                "handlers": ["file", "console"],
+                "level": "INFO",
+                "propagate": True,
+            },
+            "apps": {
+                "handlers": ["file", "console"],
+                "level": "INFO",
+                "propagate": True,
+            },
+            "data_isolation": {
+                "handlers": ["data_isolation_file", "console"],
+                "level": "INFO",
+                "propagate": False,
+            },
+            "security": {
+                "handlers": ["security_file", "console"],
+                "level": "WARNING",
+                "propagate": False,
+            },
         },
-    },
-    "loggers": {
-        "django": {
-            "handlers": ["file", "console"],
-            "level": "INFO",
-            "propagate": True,
-        },
-        "apps": {
-            "handlers": ["file", "console"],
-            "level": "INFO",
-            "propagate": True,
-        },
-        "data_isolation": {
-            "handlers": ["data_isolation_file", "console"],
-            "level": "INFO",
-            "propagate": False,
-        },
-        "security": {
-            "handlers": ["security_file", "console"],
-            "level": "WARNING",
-            "propagate": False,
-        },
-    },
-}
+    }
 
 # DRF Spectacular settings
 SPECTACULAR_SETTINGS = {
