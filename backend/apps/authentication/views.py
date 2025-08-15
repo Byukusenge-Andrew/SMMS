@@ -1040,3 +1040,128 @@ def get_account_overview(request):
             {"error": "Failed to get account overview"}, 
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
+
+
+# Plan Selection Views for First-Time Users
+
+@extend_schema(
+    summary="Get available subscription tiers for plan selection",
+    description="Returns all available subscription tiers for first-time users to choose from"
+)
+@api_view(['GET'])
+@permission_classes([permissions.IsAuthenticated])
+def plan_selection_tiers(request):
+    """Get available subscription tiers for first-time users"""
+    from apps.core.models.payment_models import SubscriptionTier
+    from apps.core.serializers import SubscriptionTierSerializer
+    
+    try:
+        tiers = SubscriptionTier.objects.filter(is_active=True).order_by('price_monthly')
+        serializer = SubscriptionTierSerializer(tiers, many=True)
+        
+        return Response({
+            'tiers': serializer.data,
+            'current_user': request.user.username,
+            'is_first_login': not request.session.get('setup_completed', False)
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting subscription tiers: {str(e)}")
+        return Response(
+            {"error": "Failed to get subscription tiers"}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@extend_schema(
+    summary="Complete first-time user setup",
+    description="Handle user choice to upgrade to a paid plan or skip and continue with free tier",
+    request={
+        "type": "object",
+        "properties": {
+            "action": {"type": "string", "enum": ["upgrade", "skip"]},
+            "tier_id": {"type": "string", "description": "Required if action is 'upgrade'"}
+        }
+    }
+)
+@api_view(['POST'])
+@permission_classes([permissions.IsAuthenticated])
+def complete_setup(request):
+    """Complete first-time user setup - upgrade or skip"""
+    from apps.core.models.payment_models import SubscriptionTier, UserSubscription
+    
+    try:
+        action = request.data.get('action')
+        
+        if action == 'skip':
+            # Mark setup as completed, keep free tier
+            request.session['setup_completed'] = True
+            
+            # Update user profile if exists
+            if hasattr(request.user, 'profile'):
+                request.user.profile.setup_completed = True
+                request.user.profile.save()
+            
+            return Response({
+                'message': 'Setup completed with free plan',
+                'redirect_url': '/dashboard'
+            })
+            
+        elif action == 'upgrade':
+            tier_id = request.data.get('tier_id')
+            
+            if not tier_id:
+                return Response(
+                    {"error": "tier_id is required for upgrade action"}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            try:
+                selected_tier = SubscriptionTier.objects.get(id=tier_id, is_active=True)
+                
+                # Update user's subscription to selected tier
+                user_subscription, created = UserSubscription.objects.get_or_create(
+                    user=request.user,
+                    defaults={
+                        'tier': selected_tier,
+                        'status': 'pending',  # Will be activated after payment
+                        'billing_period': 'monthly'
+                    }
+                )
+                
+                if not created:
+                    user_subscription.tier = selected_tier
+                    user_subscription.status = 'pending'
+                    user_subscription.save()
+                
+                # Mark setup as completed
+                request.session['setup_completed'] = True
+                
+                if hasattr(request.user, 'profile'):
+                    request.user.profile.setup_completed = True
+                    request.user.profile.save()
+                
+                return Response({
+                    'message': f'Plan selected: {selected_tier.display_name}',
+                    'tier': selected_tier.display_name,
+                    'redirect_url': '/dashboard/billing',
+                    'requires_payment': selected_tier.price_monthly > 0
+                })
+                
+            except SubscriptionTier.DoesNotExist:
+                return Response(
+                    {"error": "Invalid subscription tier"}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        else:
+            return Response(
+                {"error": "Invalid action. Must be 'upgrade' or 'skip'"}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
+    except Exception as e:
+        logger.error(f"Error completing setup: {str(e)}")
+        return Response(
+            {"error": "Failed to complete setup"}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )

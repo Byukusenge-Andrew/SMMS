@@ -8,7 +8,7 @@ from django.core.management.base import BaseCommand
 from django.db.models import Avg, Count, Max
 from django.utils import timezone
 
-from apps.core.models import RateLimitLog, RateLimitStats
+from apps.core.models.rate_limit_models import RateLimitLog, RateLimitStats
 
 
 class Command(BaseCommand):

@@ -4,7 +4,7 @@ Management command to create default rate limiting rules
 
 from django.core.management.base import BaseCommand
 
-from apps.core.models import RateLimitRule
+from apps.core.models.rate_limit_models import RateLimitRule
 
 
 class Command(BaseCommand):

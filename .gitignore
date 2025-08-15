@@ -4,7 +4,8 @@ __pycache__/
 *.pyo
 *.pyd
 ENVIRONMENT_VARIABLES.md
-
+keativ.pem
+ubuntu.txt
 *.pyc
 SMMS_frontend
 

@@ -46,8 +46,9 @@ This guide will help you deploy your Django backend to Render while keeping your
 
 Add these environment variables in Render Dashboard:
 
-### Required Variables (Add these manually):
-```
+### Required Variables (Add these manually)
+
+```bash
 SECRET_KEY=generate-in-render-dashboard
 DEBUG=False
 DATABASE_URL=postgres://postgres:andre01ab.@social-media-db.chgyuqs4suf5.eu-north-1.rds.amazonaws.com:5432/postgres?sslmode=require
@@ -57,7 +58,8 @@ DJANGO_SUPERUSER_EMAIL=andrebyukusenge9@gmail.com
 DJANGO_SUPERUSER_PASSWORD=create-secure-password
 ```
 
-### Copy from your .env file:
+### Copy from your .env file
+
 - All your API keys (Twitter, TikTok, etc.)
 - Supabase configuration
 - Slack integration keys
@@ -67,16 +69,19 @@ DJANGO_SUPERUSER_PASSWORD=create-secure-password
 ## Step 4: Set Up Redis (Choose One)
 
 ### Option A: Use Render Redis (Recommended)
+
 1. In Render Dashboard, create a new Redis service
 2. Copy the Redis URL
 3. Update these environment variables:
-   ```
+
+```bash
    REDIS_URL=redis://red-xxxxx:6379
    CELERY_BROKER_URL=redis://red-xxxxx:6379/0
    CELERY_RESULT_BACKEND=redis://red-xxxxx:6379/0
    ```
 
 ### Option B: Use External Redis
+
 - Use AWS ElastiCache or another Redis service
 - Update the Redis URLs accordingly
 
@@ -120,7 +125,7 @@ Your AWS RDS database should work without changes, but ensure:
 
 ## Troubleshooting
 
-### Common Issues:
+### Common Issues
 
 1. **Database Connection Failed**:
    - Check AWS RDS security group
@@ -141,7 +146,8 @@ Your AWS RDS database should work without changes, but ensure:
    - Check Celery configuration
    - Consider deploying Celery as a separate background worker
 
-### Logs:
+### Logs
+
 - Check deployment logs in Render Dashboard
 - Use `python manage.py check --deploy` for production readiness
 

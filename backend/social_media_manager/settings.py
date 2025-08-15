@@ -75,6 +75,8 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    # First-time user setup middleware
+    "apps.authentication.middleware.FirstLoginSetupMiddleware",
     # Data isolation and security middleware
     "apps.core.middleware.data_isolation.DataIsolationMiddleware",
     "apps.core.middleware.data_isolation.CrossUserAccessDetectionMiddleware", 
@@ -379,6 +381,14 @@ ZAPIER_API_KEY = config("ZAPIER_API_KEY", default="")
 
 GOOGLE_DRIVE_CREDENTIALS = config("GOOGLE_DRIVE_CREDENTIALS", default="")
 DROPBOX_ACCESS_TOKEN = config("DROPBOX_ACCESS_TOKEN", default="")
+
+# Payment and CRM Integration Settings
+STRIPE_PUBLISHABLE_KEY = config("STRIPE_PUBLISHABLE_KEY", default="pk_test_51QRVHpJa56HMqHf0R3oJAmnBjeBUZwQHHkobSYKBO7EF5CfBM0uHA1Th8m4Z6SE9HyaSPh5pRK9VlGKzTomLMJa300CxxeuLRT")
+STRIPE_SECRET_KEY = config("STRIPE_SECRET_KEY", default="sk_test_51QRVHpJa56HMqHf0R3oJAmnBjeBUZwQHHkobSYKBO7EF5CfBM0uHA1Th8m4Z6SE9HyaSPh5pRK9VlGKzTomLMJa300CxxeuLRT")
+STRIPE_WEBHOOK_SECRET = config("STRIPE_WEBHOOK_SECRET", default="")
+
+GOHIGHLEVEL_API_KEY = config("GOHIGHLEVEL_API_KEY", default="")
+GOHIGHLEVEL_WEBHOOK_SECRET = config("GOHIGHLEVEL_WEBHOOK_SECRET", default="")
 
 # Email configuration
 EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
