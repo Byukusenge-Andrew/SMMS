@@ -17,6 +17,32 @@ from .tasks import analyze_comment_sentiment, collect_analytics_data, generate_p
 logger = logging.getLogger(__name__)
 
 
+def get_user_social_accounts(user):
+    """Get social accounts from both auth and integrations apps"""
+    # Get accounts from both legacy (auth) and new (integrations) models
+    auth_accounts = user.social_accounts.all()
+    integrated_accounts = user.connected_social_accounts.all()
+    
+    # Combine platforms from both sources
+    platforms = set()
+    total_followers = 0
+    
+    for account in auth_accounts:
+        platforms.add(account.platform)
+        total_followers += account.follower_count or 0
+    
+    for account in integrated_accounts:
+        platforms.add(account.platform)
+        total_followers += account.followers_count or 0
+    
+    return {
+        'platforms': list(platforms),
+        'total_followers': total_followers,
+        'auth_accounts': auth_accounts,
+        'integrated_accounts': integrated_accounts
+    }
+
+
 @api_view(["GET"])
 @permission_classes([permissions.IsAuthenticated])
 def analytics_dashboard(request):
@@ -26,11 +52,12 @@ def analytics_dashboard(request):
     # Get recent analytics data
     recent_data = AnalyticsData.objects.filter(user=user, date__gte=timezone.now().date() - timedelta(days=7))
 
+    # Get social accounts from both apps
+    social_data = get_user_social_accounts(user)
+    
     # Platform breakdown
     platform_stats = {}
-    platforms = user.social_accounts.values_list("platform", flat=True).distinct()
-
-    for platform in platforms:
+    for platform in social_data['platforms']:
         platform_data = recent_data.filter(platform=platform)
         platform_stats[platform] = {
             "impressions": sum(platform_data.filter(metric_type="impressions").values_list("value", flat=True)),
@@ -42,7 +69,7 @@ def analytics_dashboard(request):
         {
             "platform_stats": platform_stats,
             "total_posts": user.posts.count(),
-            "total_followers": sum(user.social_accounts.values_list("follower_count", flat=True)),
+            "total_followers": social_data['total_followers'],
         }
     )
 
@@ -358,11 +385,12 @@ def ai_insights(request):
                 }
             )
 
-        # Get user context
+        # Get user context using our helper function
+        social_data = get_user_social_accounts(user)
         user_context = {
-            "total_followers": sum(user.social_accounts.values_list("follower_count", flat=True)),
+            "total_followers": social_data['total_followers'],
             "account_age_days": (timezone.now().date() - user.date_joined.date()).days,
-            "platforms": list(user.social_accounts.values_list("platform", flat=True)),
+            "platforms": social_data['platforms'],
         }
 
         # Generate AI insights

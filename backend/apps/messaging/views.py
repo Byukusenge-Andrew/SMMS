@@ -1,8 +1,10 @@
 from django.utils import timezone
 
 from rest_framework import generics, permissions, status
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.authentication import TokenAuthentication
+from rest_framework.decorators import api_view, permission_classes, authentication_classes
 from rest_framework.response import Response
+from .tasks import share_calendar_slack, share_calendar_email
 
 from .models import AutomatedMessage, Message
 from .serializers import AutomatedMessageSerializer, MessageSerializer
@@ -14,8 +16,10 @@ class MessageListCreateView(generics.ListCreateAPIView):
 
     serializer_class = MessageSerializer
     permission_classes = [permissions.IsAuthenticated]
+    authentication_classes = [TokenAuthentication]
 
     def get_queryset(self):
+        # Extra safety: ensure we only ever return messages for the authenticated user
         return Message.objects.filter(user=self.request.user).order_by("-created_at")
 
     def perform_create(self, serializer):
@@ -29,6 +33,7 @@ class MessageDetailView(generics.RetrieveUpdateDestroyAPIView):
 
     serializer_class = MessageSerializer
     permission_classes = [permissions.IsAuthenticated]
+    authentication_classes = [TokenAuthentication]
 
     def get_queryset(self):
         return Message.objects.filter(user=self.request.user)
@@ -39,8 +44,10 @@ class AutomatedMessageListCreateView(generics.ListCreateAPIView):
 
     serializer_class = AutomatedMessageSerializer
     permission_classes = [permissions.IsAuthenticated]
+    authentication_classes = [TokenAuthentication]
 
     def get_queryset(self):
+        # Extra safety: ensure we only ever return records for the authenticated user
         return AutomatedMessage.objects.filter(user=self.request.user)
 
     def perform_create(self, serializer):
@@ -52,6 +59,7 @@ class AutomatedMessageDetailView(generics.RetrieveUpdateDestroyAPIView):
 
     serializer_class = AutomatedMessageSerializer
     permission_classes = [permissions.IsAuthenticated]
+    authentication_classes = [TokenAuthentication]
 
     def get_queryset(self):
         return AutomatedMessage.objects.filter(user=self.request.user)
@@ -59,6 +67,7 @@ class AutomatedMessageDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 @api_view(["POST"])
 @permission_classes([permissions.IsAuthenticated])
+@authentication_classes([TokenAuthentication])
 def send_message_now(request):
     """Send a message immediately"""
     try:
@@ -88,22 +97,43 @@ def send_message_now(request):
         return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 
+    @api_view(["POST"])
+    @permission_classes([permissions.IsAuthenticated])
+    def share_calendar(request: Request):
+        """Share calendar to Slack channels / emails.
+
+        Body: { entries: [{platform, scheduled_time, title, status}], slack_recipients: ["#channel"|"@user"], emails: ["user@example.com"] }
+        """
+        data = request.data or {}
+        entries = data.get("entries", [])
+        slack_recipients = data.get("slack_recipients", [])
+        emails = data.get("emails", [])
+        if not entries:
+            return Response({"error": "entries required"}, status=400)
+        # Fire async tasks
+        if slack_recipients:
+            share_calendar_slack.delay(request.user.id, entries, slack_recipients)
+        if emails:
+            share_calendar_email.delay(request.user.id, entries, emails)
+        return Response({"queued": True, "slack": len(slack_recipients), "emails": len(emails)})
 @api_view(["POST"])
 @permission_classes([permissions.IsAuthenticated])
+@authentication_classes([TokenAuthentication])
 def toggle_automated_message(request, message_id):
     """Toggle automated message active status"""
     try:
         automated_msg = AutomatedMessage.objects.get(id=message_id, user=request.user)
 
-        automated_msg.is_active = not automated_msg.is_active
+        automated_msg.active = not automated_msg.active
         automated_msg.save()
 
         return Response(
             {
                 "id": str(automated_msg.id),
-                "name": automated_msg.name,
-                "is_active": automated_msg.is_active,
-                "status": "active" if automated_msg.is_active else "inactive",
+                "platform": automated_msg.platform,
+                "trigger": automated_msg.trigger,
+                "active": automated_msg.active,
+                "status": "active" if automated_msg.active else "inactive",
             }
         )
 
@@ -115,6 +145,7 @@ def toggle_automated_message(request, message_id):
 
 @api_view(["GET"])
 @permission_classes([permissions.IsAuthenticated])
+@authentication_classes([TokenAuthentication])
 def message_stats(request):
     """Get messaging statistics for user"""
     try:
@@ -157,6 +188,7 @@ def message_stats(request):
 
 @api_view(["POST"])
 @permission_classes([permissions.IsAuthenticated])
+@authentication_classes([TokenAuthentication])
 def test_automated_message(request, message_id):
     """Test an automated message by sending it once"""
     try:
@@ -171,7 +203,7 @@ def test_automated_message(request, message_id):
             user=request.user,
             platform=automated_msg.platform,
             recipient=test_recipient,
-            content=f"[TEST] {automated_msg.template_content}",
+            content=f"[TEST] {automated_msg.content_template}",
             message_type="test",
             priority="normal",
         )

@@ -38,6 +38,8 @@ class SocialMediaAccount(models.Model):
     username = models.CharField(max_length=100)
     display_name = models.CharField(max_length=200, blank=True)
     profile_image_url = models.URLField(blank=True)
+    # Optional per-account signature appended to messages/posts (user-configurable)
+    signature = models.CharField(max_length=120, blank=True, help_text="Optional signature to append to outbound content for this account")
     
     # Connection status
     is_active = models.BooleanField(default=True)
@@ -52,7 +54,7 @@ class SocialMediaAccount(models.Model):
     # For Twitter OAuth 1.0a: access_token=token, refresh_token=token_secret
     # For OAuth 2.0: access_token=bearer token, refresh_token=refresh token
     access_token = models.TextField(blank=True)
-    refresh_token = models.TextField(blank=True)
+    refresh_token = models.TextField(null=True, blank=True)
     token_expires_at = models.DateTimeField(null=True, blank=True)
     
     # Timestamps
@@ -262,3 +264,44 @@ class ScheduledPostQueue(models.Model):
     
     def __str__(self):
         return f"{self.platform} post scheduled for {self.scheduled_at}"
+
+
+class IntegrationProvider(models.TextChoices):
+    """3rd-party non-social integration providers (file storage, design, automation, chat)."""
+    GOOGLE_DRIVE = 'google_drive', 'Google Drive'
+    DROPBOX = 'dropbox', 'Dropbox'
+    CANVA = 'canva', 'Canva'
+    ZAPIER = 'zapier', 'Zapier'
+    SLACK = 'slack', 'Slack'
+
+
+class IntegrationConnection(models.Model):
+    """Per-user connection for generic integrations (distinct from social media account OAuth).
+
+    Stores access / refresh tokens or API keys plus minimal metadata. Slack kept here to allow
+    future per-user bot/user tokens while still supporting current global token fallback.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='integration_connections')
+    provider = models.CharField(max_length=40, choices=IntegrationProvider.choices)
+    access_token = models.TextField(blank=True)
+    refresh_token = models.TextField(blank=True)
+    token_expires_at = models.DateTimeField(null=True, blank=True)
+    scopes = models.JSONField(default=list, blank=True)
+    metadata = models.JSONField(default=dict, blank=True)
+    active = models.BooleanField(default=True)
+    connected_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ['user', 'provider']
+        ordering = ['provider']
+
+    def __str__(self):
+        return f"{self.user.username} -> {self.provider} ({'active' if self.active else 'inactive'})"
+
+    @property
+    def is_token_expired(self):
+        if not self.token_expires_at:
+            return False
+        return timezone.now() > self.token_expires_at

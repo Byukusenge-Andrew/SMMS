@@ -12,7 +12,7 @@ from rest_framework.permissions import IsAdminUser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import IPBlacklist, IPWhitelist, RateLimitLog, RateLimitStats
+from .models.rate_limit_models import IPBlacklist, IPWhitelist, RateLimitLog, RateLimitStats
 from .serializers import IPBlacklistSerializer, IPWhitelistSerializer, RateLimitLogSerializer, RateLimitStatsSerializer
 
 

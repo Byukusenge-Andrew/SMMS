@@ -44,14 +44,38 @@ class SMMSCustomThrottle(BaseThrottle):
     }
 
     def get_user_type(self, request: Request) -> str:
-        """Determine user type for rate limiting"""
+        """Determine user type for rate limiting based on subscription tier"""
         if not request.user.is_authenticated:
             return "anonymous"
         elif request.user.is_staff or request.user.is_superuser:
             return "admin"
-        elif hasattr(request.user, "profile") and request.user.profile.is_premium:
-            return "premium"
         else:
+            # Check subscription tier for premium users
+            try:
+                from .models import UserSubscription
+                subscription = UserSubscription.objects.get(user=request.user)
+                
+                if subscription.is_active:
+                    # Map subscription tiers to rate limit types
+                    tier_mapping = {
+                        'enterprise': 'admin',
+                        'professional': 'premium', 
+                        'basic': 'authenticated',
+                        'free': 'authenticated'
+                    }
+                    return tier_mapping.get(subscription.tier.name, 'authenticated')
+                    
+            except UserSubscription.DoesNotExist:
+                pass
+            except Exception as e:
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.warning(f"Error checking subscription for user {request.user.username}: {e}")
+            
+            # Fallback to checking legacy profile attribute
+            if hasattr(request.user, "profile") and request.user.profile.subscription_type == "premium":
+                return "premium"
+            
             return "authenticated"
 
     def get_ident(self, request: Request) -> str:

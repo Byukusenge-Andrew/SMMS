@@ -53,6 +53,7 @@ LOCAL_APPS = [
     "apps.collaborators",
     "apps.health",
     "apps.messaging",
+    "apps.media",  # Media management app
     "apps.core",  # Rate limiting and core utilities
 ]
 
@@ -73,7 +74,13 @@ MIDDLEWARE = [
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
-    "django.contrib.auth.middleware.AuthenticationMiddleware",  
+    "django.contrib.auth.middleware.AuthenticationMiddleware",
+    # First-time user setup middleware
+    "apps.authentication.middleware.FirstLoginSetupMiddleware",
+    # Data isolation and security middleware
+    "apps.core.middleware.data_isolation.DataIsolationMiddleware",
+    "apps.core.middleware.data_isolation.CrossUserAccessDetectionMiddleware", 
+    "apps.core.middleware.data_isolation.SecurityAuditMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     # "apps.core.middleware.BurstProtectionMiddleware",  # TEMPORARILY DISABLED FOR DEBUGGING
@@ -152,11 +159,12 @@ if not DEBUG:
 
 # Media files - Supabase Storage
 MEDIA_URL = "/media/"
-MEDIA_ROOT = BASE_DIR / "media"  # Fallback for local development
+MEDIA_ROOT = BASE_DIR / "user_uploads"  # Fallback for local development
 
 # Supabase Storage Configuration
 SUPABASE_URL = config("SUPABASE_URL", default="")
 SUPABASE_KEY = config("SUPABASE_KEY", default="")
+SUPABASE_SERVICE_ROLE_KEY = config("SUPABASE_SERVICE_ROLE_KEY", default="")
 SUPABASE_BUCKET = config("SUPABASE_BUCKET", default="keativpictures")
 
 # Use Supabase Storage as default file storage
@@ -172,11 +180,12 @@ REST_FRAMEWORK = {
         # "rest_framework.authentication.SessionAuthentication",
     ],
     "DEFAULT_PERMISSION_CLASSES": [
-        "rest_framework.permissions.AllowAny",
+    "rest_framework.permissions.IsAuthenticated",
     ],
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
     "PAGE_SIZE": 20,
     "DEFAULT_FILTER_BACKENDS": [
+    "apps.core.filters.OwnedByUserFilterBackend",
         "django_filters.rest_framework.DjangoFilterBackend",
         "rest_framework.filters.SearchFilter",
         "rest_framework.filters.OrderingFilter",
@@ -247,6 +256,7 @@ AUTHENTICATION_BACKENDS = (
     'apps.authentication.backends.EmailOrUsernameModelBackend',
     "social_core.backends.google.GoogleOAuth2",
     "social_core.backends.github.GithubOAuth2",
+    "social_core.backends.twitter.TwitterOAuth",
     "django.contrib.auth.backends.ModelBackend",
 )
 
@@ -254,6 +264,8 @@ SOCIAL_AUTH_GOOGLE_OAUTH2_KEY = config("SOCIAL_AUTH_GOOGLE_OAUTH2_KEY", default=
 SOCIAL_AUTH_GOOGLE_OAUTH2_SECRET = config("SOCIAL_AUTH_GOOGLE_OAUTH2_SECRET", default="")
 SOCIAL_AUTH_GITHUB_KEY = config("SOCIAL_AUTH_GITHUB_KEY", default="")
 SOCIAL_AUTH_GITHUB_SECRET = config("SOCIAL_AUTH_GITHUB_SECRET", default="")
+SOCIAL_AUTH_TWITTER_KEY = config("SOCIAL_AUTH_TWITTER_KEY", default="")
+SOCIAL_AUTH_TWITTER_SECRET = config("SOCIAL_AUTH_TWITTER_SECRET", default="")
 
 LOGIN_URL = "login"
 LOGOUT_URL = "logout"
@@ -268,8 +280,24 @@ CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"
 CELERY_TIMEZONE = TIME_ZONE
 
+# Additional Celery broker connection options for cloud Redis/Valkey
+CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
+CELERY_BROKER_CONNECTION_RETRY = True
+CELERY_BROKER_CONNECTION_MAX_RETRIES = 10
+CELERY_REDIS_MAX_CONNECTIONS = 20
+CELERY_REDIS_SOCKET_KEEPALIVE = True
+CELERY_REDIS_SOCKET_KEEPALIVE_OPTIONS = {
+    'TCP_KEEPIDLE': 1,
+    'TCP_KEEPINTVL': 3,
+    'TCP_KEEPCNT': 5,
+}
+
 # Celery Beat Schedule
 CELERY_BEAT_SCHEDULE = {
+    "check-scheduled-posts": {
+        "task": "apps.posts.tasks.check_scheduled_posts",
+        "schedule": crontab(minute="*"),  # Every minute
+    },
     "weekly-analytics-report": {
         "task": "apps.analytics.tasks.send_weekly_report",
         "schedule": crontab(hour=9, minute=0, day_of_week=1),  # Monday 9 AM
@@ -354,6 +382,14 @@ ZAPIER_API_KEY = config("ZAPIER_API_KEY", default="")
 GOOGLE_DRIVE_CREDENTIALS = config("GOOGLE_DRIVE_CREDENTIALS", default="")
 DROPBOX_ACCESS_TOKEN = config("DROPBOX_ACCESS_TOKEN", default="")
 
+# Payment and CRM Integration Settings
+STRIPE_PUBLISHABLE_KEY = config("STRIPE_PUBLISHABLE_KEY", default="pk_test_51QRVHpJa56HMqHf0R3oJAmnBjeBUZwQHHkobSYKBO7EF5CfBM0uHA1Th8m4Z6SE9HyaSPh5pRK9VlGKzTomLMJa300CxxeuLRT")
+STRIPE_SECRET_KEY = config("STRIPE_SECRET_KEY", default="sk_test_51QRVHpJa56HMqHf0R3oJAmnBjeBUZwQHHkobSYKBO7EF5CfBM0uHA1Th8m4Z6SE9HyaSPh5pRK9VlGKzTomLMJa300CxxeuLRT")
+STRIPE_WEBHOOK_SECRET = config("STRIPE_WEBHOOK_SECRET", default="")
+
+GOHIGHLEVEL_API_KEY = config("GOHIGHLEVEL_API_KEY", default="")
+GOHIGHLEVEL_WEBHOOK_SECRET = config("GOHIGHLEVEL_WEBHOOK_SECRET", default="")
+
 # Email configuration
 EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
 EMAIL_HOST = config("EMAIL_HOST", default="smtp.gmail.com")
@@ -364,33 +400,94 @@ EMAIL_HOST_PASSWORD = config("EMAIL_HOST_PASSWORD", default="")
 DEFAULT_FROM_EMAIL = config("DEFAULT_FROM_EMAIL", default="")
 
 # Logging configuration
-LOGGING = {
-    "version": 1,
-    "disable_existing_loggers": False,
-    "handlers": {
-        "file": {
-            "level": "INFO",
-            "class": "logging.FileHandler",
-            "filename": "logs/django.log",
+import os
+
+# Determine if we're in production (Render)
+IS_PRODUCTION = 'RENDER' in os.environ
+
+if IS_PRODUCTION:
+    # Production logging - console only
+    LOGGING = {
+        "version": 1,
+        "disable_existing_loggers": False,
+        "handlers": {
+            "console": {
+                "level": "INFO",
+                "class": "logging.StreamHandler",
+            },
         },
-        "console": {
-            "level": "INFO",
-            "class": "logging.StreamHandler",
+        "loggers": {
+            "django": {
+                "handlers": ["console"],
+                "level": "INFO",
+                "propagate": True,
+            },
+            "apps": {
+                "handlers": ["console"],
+                "level": "INFO",
+                "propagate": True,
+            },
+            "data_isolation": {
+                "handlers": ["console"],
+                "level": "INFO",
+                "propagate": False,
+            },
+            "security": {
+                "handlers": ["console"],
+                "level": "WARNING",
+                "propagate": False,
+            },
         },
-    },
-    "loggers": {
-        "django": {
-            "handlers": ["file", "console"],
-            "level": "INFO",
-            "propagate": True,
+    }
+else:
+    # Development logging - files and console
+    LOGGING = {
+        "version": 1,
+        "disable_existing_loggers": False,
+        "handlers": {
+            "file": {
+                "level": "INFO",
+                "class": "logging.FileHandler",
+                "filename": "logs/django.log",
+            },
+            "console": {
+                "level": "INFO",
+                "class": "logging.StreamHandler",
+            },
+            "security_file": {
+                "level": "INFO",
+                "class": "logging.FileHandler",
+                "filename": "logs/security.log",
+            },
+            "data_isolation_file": {
+                "level": "INFO",
+                "class": "logging.FileHandler", 
+                "filename": "logs/data_isolation.log",
+            },
         },
-        "apps": {
-            "handlers": ["file", "console"],
-            "level": "INFO",
-            "propagate": True,
+        "loggers": {
+            "django": {
+                "handlers": ["file", "console"],
+                "level": "INFO",
+                "propagate": True,
+            },
+            "apps": {
+                "handlers": ["file", "console"],
+                "level": "INFO",
+                "propagate": True,
+            },
+            "data_isolation": {
+                "handlers": ["data_isolation_file", "console"],
+                "level": "INFO",
+                "propagate": False,
+            },
+            "security": {
+                "handlers": ["security_file", "console"],
+                "level": "WARNING",
+                "propagate": False,
+            },
         },
-    },
-}
+    }
 
 # DRF Spectacular settings
 SPECTACULAR_SETTINGS = {
@@ -420,9 +517,16 @@ if not DEBUG:
 # Frontend URL for email verification links
 FRONTEND_URL = config("FRONTEND_URL", default="http://localhost:3000")
 
-# Twitter OAuth 2.0 configuration
-TWITTER_CLIENT_ID = os.getenv('TWITTER_CLIENT_ID', '')
-TWITTER_CLIENT_SECRET = os.getenv('TWITTER_CLIENT_SECRET', '')
+# Twitter OAuth 2.0 configuration (use python-decouple to read from .env)
+TWITTER_CLIENT_ID = config('TWITTER_CLIENT_ID', default='')
+TWITTER_CLIENT_SECRET = config('TWITTER_CLIENT_SECRET', default='')
 # For dev, default to backend callback path
-TWITTER_REDIRECT_URI = os.getenv('TWITTER_REDIRECT_URI', 'http://127.0.0.1:8000/api/integrations/twitter/callback/')
-TWITTER_SCOPES = os.getenv('TWITTER_SCOPES', 'tweet.read tweet.write users.read offline.access')
+TWITTER_REDIRECT_URI = config('TWITTER_REDIRECT_URI', default='http://127.0.0.1:8000/api/integrations/twitter/callback/')
+TWITTER_SCOPES = config('TWITTER_SCOPES', default='tweet.read tweet.write users.read offline.access')
+
+# Twitter App-level API keys (OAuth 1.0a / v2 app context) used by twitter_service
+TWITTER_API_KEY = config('TWITTER_API_KEY', default='')
+TWITTER_API_KEY_SECRET = config('TWITTER_API_KEY_SECRET', default='')
+TWITTER_BEARER_TOKEN = config('TWITTER_BEARER_TOKEN', default='')
+TWITTER_ACCESS_TOKEN = config('TWITTER_ACCESS_TOKEN', default='')
+TWITTER_ACCESS_TOKEN_SECRET = config('TWITTER_ACCESS_TOKEN_SECRET', default='')

@@ -12,10 +12,12 @@ from typing import Optional, Tuple
 
 from django.conf import settings
 from django.core.files.base import ContentFile
-from django.core.files.storage import Storage
+from django.core.files.storage import Storage, FileSystemStorage
 from django.utils.deconstruct import deconstructible
 
 from supabase import Client, create_client
+import base64
+import json
 
 logger = logging.getLogger(__name__)
 
@@ -28,13 +30,44 @@ class SupabaseStorage(Storage):
 
     def __init__(self):
         self.supabase_url = getattr(settings, "SUPABASE_URL", os.getenv("SUPABASE_URL"))
-        self.supabase_key = getattr(settings, "SUPABASE_KEY", os.getenv("SUPABASE_KEY"))
+        # Prefer a dedicated service role key when present; fall back to SUPABASE_KEY
+        service_role = getattr(settings, "SUPABASE_SERVICE_ROLE_KEY", os.getenv("SUPABASE_SERVICE_ROLE_KEY"))
+        fallback_key = getattr(settings, "SUPABASE_KEY", os.getenv("SUPABASE_KEY"))
+        self.supabase_key = service_role or fallback_key
         self.bucket_name = getattr(settings, "SUPABASE_BUCKET", os.getenv("SUPABASE_BUCKET", "keativpictures"))
+        # Local filesystem fallback storage
+        self.local_storage = FileSystemStorage(location=getattr(settings, 'MEDIA_ROOT', None), base_url=getattr(settings, 'MEDIA_URL', '/media/'))
 
         if not self.supabase_url or not self.supabase_key:
-            raise ValueError("SUPABASE_URL and SUPABASE_KEY must be set")
+            # If Supabase config is missing, we will rely entirely on local storage
+            logger.warning("Supabase config missing; will use local FileSystemStorage for all media operations.")
+            self.client = None  # type: ignore
+            return
 
         self.client: Client = create_client(self.supabase_url, self.supabase_key)
+        self._log_key_role_sanity()
+
+    def _decode_jwt_payload(self, token: str) -> dict:
+        try:
+            parts = token.split(".")
+            if len(parts) < 2:
+                return {}
+            # Base64 URL decode the payload (second part)
+            padded = parts[1] + "=" * (-len(parts[1]) % 4)
+            data = base64.urlsafe_b64decode(padded.encode("utf-8"))
+            return json.loads(data.decode("utf-8"))
+        except Exception:
+            return {}
+
+    def _log_key_role_sanity(self) -> None:
+        """Log a helpful warning if the provided key is an anon key (will cause 403 for uploads unless policies allow)."""
+        claims = self._decode_jwt_payload(self.supabase_key)
+        role = claims.get("role") if isinstance(claims, dict) else None
+        if role and role != "service_role":
+            logger.warning(
+                "Supabase key role is '%s'. For server-side uploads, use the service role key or set storage policies to allow inserts.",
+                role,
+            )
 
     def _save(self, name: str, content) -> str:
         """
@@ -54,23 +87,37 @@ class SupabaseStorage(Storage):
             else:
                 file_data = content
 
-            # Upload to Supabase
-            response = self.client.storage.from_(self.bucket_name).upload(
-                path=name,
-                file=file_data,
-                file_options={"content-type": mimetypes.guess_type(name)[0] or "application/octet-stream"},
-            )
+            # If Supabase client is configured, try uploading there first
+            if self.client is not None:
+                response = self.client.storage.from_(self.bucket_name).upload(
+                    path=name,
+                    file=file_data,
+                    file_options={"content-type": mimetypes.guess_type(name)[0] or "application/octet-stream"},
+                )
 
-            if response.error:
-                logger.error(f"Supabase upload error: {response.error}")
-                raise Exception(f"Upload failed: {response.error}")
+                if getattr(response, "error", None):
+                    raise Exception(f"Upload failed: {response.error}")
 
-            logger.info(f"Successfully uploaded {name} to Supabase")
-            return name
+                logger.info(f"Successfully uploaded {name} to Supabase")
+                return name
+
+            # If no Supabase client, fall through to local
+            raise Exception("Supabase client not configured")
 
         except Exception as e:
+            # Fallback: save to local filesystem
             logger.error(f"Error uploading {name} to Supabase: {str(e)}")
-            raise
+            try:
+                # Ensure folder structure exists and save locally
+                local_name = name
+                # Save using FileSystemStorage; wrap bytes in ContentFile
+                saved_local_name = self.local_storage.save(local_name, ContentFile(file_data))
+                logger.warning(f"Saved media to local storage as fallback: {saved_local_name}")
+                # Prefix with 'local/' to allow url/exists/delete to route to local storage
+                return f"local/{saved_local_name}"
+            except Exception as le:
+                logger.error(f"Local storage fallback failed for {name}: {le}")
+                raise
 
     def _get_unique_name(self, name: str) -> str:
         """
@@ -91,6 +138,10 @@ class SupabaseStorage(Storage):
         Delete file from Supabase Storage
         """
         try:
+            if name.startswith('local/'):
+                return self.local_storage.delete(name.replace('local/', '', 1)) is None
+            if self.client is None:
+                return self.local_storage.delete(name) is None
             response = self.client.storage.from_(self.bucket_name).remove([name])
 
             if response.error:
@@ -109,14 +160,21 @@ class SupabaseStorage(Storage):
         Check if file exists in Supabase Storage
         """
         try:
-            response = self.client.storage.from_(self.bucket_name).list(
-                path=os.path.dirname(name) or "", search=os.path.basename(name)
-            )
+            if name.startswith('local/'):
+                return self.local_storage.exists(name.replace('local/', '', 1))
+            if self.client is None:
+                return self.local_storage.exists(name)
+            directory = os.path.dirname(name) or ""
+            basename = os.path.basename(name)
+            response = self.client.storage.from_(self.bucket_name).list(path=directory)
 
-            if response.error:
+            # storage3 may return a simple list or an object with .data/.error
+            data = getattr(response, "data", response)
+            error = getattr(response, "error", None)
+            if error or not data:
                 return False
 
-            return len(response.data) > 0
+            return any(item.get("name") == basename for item in data)
 
         except Exception as e:
             logger.error(f"Error checking if {name} exists: {str(e)}")
@@ -152,15 +210,23 @@ class SupabaseStorage(Storage):
         Get file size
         """
         try:
-            response = self.client.storage.from_(self.bucket_name).list(
-                path=os.path.dirname(name) or "", search=os.path.basename(name)
-            )
+            if name.startswith('local/'):
+                return self.local_storage.size(name.replace('local/', '', 1))
+            if self.client is None:
+                return self.local_storage.size(name)
+            directory = os.path.dirname(name) or ""
+            basename = os.path.basename(name)
+            response = self.client.storage.from_(self.bucket_name).list(path=directory)
 
-            if response.error or not response.data:
+            data = getattr(response, "data", response)
+            error = getattr(response, "error", None)
+            if error or not data:
                 return 0
 
-            file_info = response.data[0]
-            return file_info.get("metadata", {}).get("size", 0)
+            for item in data:
+                if item.get("name") == basename:
+                    return item.get("metadata", {}).get("size", 0)
+            return 0
 
         except Exception as e:
             logger.error(f"Error getting size of {name}: {str(e)}")
@@ -171,6 +237,11 @@ class SupabaseStorage(Storage):
         Get public URL for the file
         """
         try:
+            if name.startswith('local/'):
+                local_name = name.replace('local/', '', 1)
+                return self.local_storage.url(local_name)
+            if self.client is None:
+                return self.local_storage.url(name)
             response = self.client.storage.from_(self.bucket_name).get_public_url(name)
             return response
 
@@ -189,15 +260,19 @@ class SupabaseStorage(Storage):
         Get file creation time
         """
         try:
-            response = self.client.storage.from_(self.bucket_name).list(
-                path=os.path.dirname(name) or "", search=os.path.basename(name)
-            )
+            directory = os.path.dirname(name) or ""
+            basename = os.path.basename(name)
+            response = self.client.storage.from_(self.bucket_name).list(path=directory)
 
-            if response.error or not response.data:
+            data = getattr(response, "data", response)
+            error = getattr(response, "error", None)
+            if error or not data:
                 return None
 
-            file_info = response.data[0]
-            return file_info.get("created_at")
+            for item in data:
+                if item.get("name") == basename:
+                    return item.get("created_at")
+            return None
 
         except Exception as e:
             logger.error(f"Error getting creation time for {name}: {str(e)}")
@@ -208,15 +283,19 @@ class SupabaseStorage(Storage):
         Get file modification time
         """
         try:
-            response = self.client.storage.from_(self.bucket_name).list(
-                path=os.path.dirname(name) or "", search=os.path.basename(name)
-            )
+            directory = os.path.dirname(name) or ""
+            basename = os.path.basename(name)
+            response = self.client.storage.from_(self.bucket_name).list(path=directory)
 
-            if response.error or not response.data:
+            data = getattr(response, "data", response)
+            error = getattr(response, "error", None)
+            if error or not data:
                 return None
 
-            file_info = response.data[0]
-            return file_info.get("updated_at")
+            for item in data:
+                if item.get("name") == basename:
+                    return item.get("created_at")
+            return None
 
         except Exception as e:
             logger.error(f"Error getting modification time for {name}: {str(e)}")
@@ -310,5 +389,20 @@ class SupabaseMediaHandler:
         return ".jpg"  # Default extension
 
 
-# Global instance
-supabase_media_handler = SupabaseMediaHandler()
+# Global instances (lazy initialization to avoid Django settings issues during import)
+_supabase_storage = None
+_supabase_media_handler = None
+
+def get_supabase_storage():
+    """Get or create the global supabase storage instance"""
+    global _supabase_storage
+    if _supabase_storage is None:
+        _supabase_storage = SupabaseStorage()
+    return _supabase_storage
+
+def get_supabase_media_handler():
+    """Get or create the global supabase media handler instance"""
+    global _supabase_media_handler
+    if _supabase_media_handler is None:
+        _supabase_media_handler = SupabaseMediaHandler()
+    return _supabase_media_handler

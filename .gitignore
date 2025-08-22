@@ -3,17 +3,25 @@ __pycache__/
 *.py[cod]
 *.pyo
 *.pyd
+ENVIRONMENT_VARIABLES.md
+keativ.pem
+ubuntu.txt
 *.pyc
 SMMS_frontend
+
 # Django
 *.log
 *.pot
 *.pyc
 *.sqlite3
 db.sqlite3
-media/
+user_uploads
 staticfiles/
 local_settings.py
+
+# Vercel
+.vercel
+.env.vercel
 
 # Environment
 .env

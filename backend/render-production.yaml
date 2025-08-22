@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: smms-backend
+    runtime: python
+    region: oregon
+    plan: starter
+    buildCommand: 'pip install -r requirements.txt && python manage.py collectstatic --no-input && python manage.py migrate'
+    startCommand: 'gunicorn social_media_manager.wsgi:application --bind 0.0.0.0:$PORT'
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DEBUG
+        value: "False"  
+      - key: ALLOWED_HOSTS
+        value: "*"
+      - key: RENDER
+        value: "true"
+      - key: DATABASE_URL
+        sync: false
+      - key: WEB_CONCURRENCY
+        value: "2"
+
+# Note: Add all API keys and secrets manually in Render Dashboard
+# Do NOT put sensitive values in this file - it will be committed to git

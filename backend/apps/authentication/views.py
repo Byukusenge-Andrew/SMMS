@@ -267,7 +267,7 @@ class SocialMediaAccountListView(ListCreateAPIView):
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):
             return SocialMediaAccount.objects.none()
-        return SocialMediaAccount.objects.filter(user=self.request.user)
+        return SocialMediaAccount.objects.filter(user=self.request.user).order_by('-created_at')
 
     def perform_create(self, serializer):
         platform = serializer.validated_data.get("platform")
@@ -296,6 +296,38 @@ def remove_social_media_account(request, account_id):
         account = SocialMediaAccount.objects.get(id=account_id, user=request.user)
         platform = account.platform
         username = account.username
+        
+        # Also remove the corresponding IntegratedAccount if it exists
+        try:
+            from apps.integrations.models import IntegratedAccount, SocialMediaPlatform
+            
+            # Map platform names to the enum
+            platform_mapping = {
+                'twitter': SocialMediaPlatform.TWITTER,
+                'Twitter/X': SocialMediaPlatform.TWITTER,
+                'facebook': SocialMediaPlatform.FACEBOOK,
+                'instagram': SocialMediaPlatform.INSTAGRAM,
+                'linkedin': SocialMediaPlatform.LINKEDIN,
+                'tiktok': SocialMediaPlatform.TIKTOK,
+                'youtube': SocialMediaPlatform.YOUTUBE,
+                'pinterest': SocialMediaPlatform.PINTEREST,
+            }
+            
+            platform_enum = platform_mapping.get(platform.lower())
+            if platform_enum:
+                integrated_accounts = IntegratedAccount.objects.filter(
+                    user=request.user, 
+                    platform=platform_enum,
+                    username=username
+                )
+                deleted_count = integrated_accounts.count()
+                integrated_accounts.delete()
+                if deleted_count > 0:
+                    logger.info(f"Also removed {deleted_count} IntegratedAccount(s) for {platform} user {username}")
+        except Exception as e:
+            # Don't fail the whole operation if IntegratedAccount cleanup fails
+            logger.warning(f"Failed to cleanup IntegratedAccount for {platform} user {username}: {e}")
+        
         account.delete()
 
         return Response({"message": f"Successfully removed {platform} account '{username}'"}, status=status.HTTP_200_OK)
@@ -550,14 +582,42 @@ def register(request):
 @permission_classes([permissions.AllowAny])
 @authentication_classes([])  # Disable auth to avoid 401s on email verification link
 def verify_email(request, token):
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    logger.info(f"Email verification attempt for token: {token}")
+    
     try:
         verification_token = EmailVerificationToken.objects.get(token=token)
+        logger.info(f"Token found for user: {verification_token.user.username}")
+        logger.info(f"Token is_used: {verification_token.is_used}")
+        logger.info(f"User is_active: {verification_token.user.is_active}")
 
         if verification_token.is_used:
-            return Response({"error": "This verification link has already been used"}, status=status.HTTP_400_BAD_REQUEST)
+            # Check if user is already active (successful previous verification)
+            if verification_token.user.is_active:
+                logger.info("Token already used but user is active - returning success")
+                return Response(
+                    {
+                        "message": "Email already verified. You can log in now.",
+                        "username": verification_token.user.username,
+                        "already_verified": True
+                    }, 
+                    status=status.HTTP_200_OK
+                )
+            else:
+                logger.warning("Token already used but user not active")
+                return Response(
+                    {"error": "This verification link has already been used"}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
 
         if verification_token.is_expired():
-            return Response({"error": "This verification link has expired"}, status=status.HTTP_400_BAD_REQUEST)
+            logger.warning("Token has expired")
+            return Response(
+                {"error": "This verification link has expired"}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
         # Activate user
         user = verification_token.user
@@ -568,10 +628,22 @@ def verify_email(request, token):
         verification_token.is_used = True
         verification_token.save()
 
-        return Response({"message": "Email verified successfully. You can now log in.", "username": user.username})
+        logger.info(f"Email verification successful for user: {user.username}")
+        return Response(
+            {
+                "message": "Email verified successfully. You can now log in.", 
+                "username": user.username,
+                "verified": True
+            },
+            status=status.HTTP_200_OK
+        )
 
     except EmailVerificationToken.DoesNotExist:
-        return Response({"error": "Invalid verification token"}, status=status.HTTP_400_BAD_REQUEST)
+        logger.error(f"Invalid verification token: {token}")
+        return Response(
+            {"error": "Invalid verification token"}, 
+            status=status.HTTP_400_BAD_REQUEST
+        )
 
 
 @api_view(["POST"])
@@ -790,3 +862,306 @@ def user_time_format_setting(request):
     except Exception as e:
         logger.error(f"Error managing time format setting: {str(e)}")
         return Response({"error": "Failed to manage time format setting"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(["GET"])
+@permission_classes([permissions.AllowAny])
+def oauth_callback(request):
+    """Handle OAuth callbacks from social media platforms like X/Twitter"""
+    try:
+        code = request.GET.get("code")
+        state = request.GET.get("state")
+        error = request.GET.get("error")
+        
+        if error:
+            logger.error(f"OAuth error: {error}")
+            return Response({"error": f"OAuth error: {error}"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        if not code:
+            return Response({"error": "Missing authorization code"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Here you would handle the OAuth flow for X/Twitter
+        # For now, return a success response
+        logger.info(f"X/Twitter OAuth callback received with code: {code}")
+        
+        return Response({
+            "message": "X/Twitter OAuth callback received successfully",
+            "code": code,
+            "state": state
+        })
+        
+    except Exception as e:
+        logger.error(f"Error handling OAuth callback: {str(e)}")
+        return Response({"error": "Failed to handle OAuth callback"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def change_password(request):
+    """Change user password"""
+    try:
+        user = request.user
+        current_password = request.data.get('current_password')
+        new_password = request.data.get('new_password')
+        
+        if not current_password or not new_password:
+            return Response(
+                {"error": "Both current_password and new_password are required"}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Check current password
+        if not user.check_password(current_password):
+            return Response(
+                {"error": "Current password is incorrect"}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Validate new password
+        from django.contrib.auth.password_validation import validate_password
+        try:
+            validate_password(new_password, user)
+        except Exception as e:
+            return Response(
+                {"error": str(e)}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Set new password
+        user.set_password(new_password)
+        user.save()
+        
+        logger.info(f"Password changed successfully for user: {user.username}")
+        return Response({"message": "Password changed successfully"})
+        
+    except Exception as e:
+        logger.error(f"Error changing password: {str(e)}")
+        return Response(
+            {"error": "Failed to change password"}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def get_user_stats(request):
+    """Get user statistics for navbar display"""
+    try:
+        user = request.user
+        
+        # Get post counts by status
+        from apps.posts.models import Post
+        active_posts = Post.objects.filter(user=user, status='published').count()
+        scheduled_posts = Post.objects.filter(user=user, status='scheduled').count()
+        
+        # Get notification count
+        from apps.notifications.models import Notification
+        unread_notifications = Notification.objects.filter(user=user, is_read=False).count()
+        
+        return Response({
+            "active_posts": active_posts,
+            "scheduled_posts": scheduled_posts,
+            "unread_notifications": unread_notifications
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting user stats: {str(e)}")
+        return Response(
+            {"error": "Failed to get user stats"}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def update_notification_settings(request):
+    """Update user notification preferences"""
+    try:
+        user = request.user
+        profile = user.profile
+        
+        email_notifications = request.data.get('email_notifications')
+        slack_notifications = request.data.get('slack_notifications')
+        
+        if email_notifications is not None:
+            profile.email_notifications = email_notifications
+        
+        if slack_notifications is not None:
+            profile.slack_notifications = slack_notifications
+        
+        profile.save()
+        
+        return Response({
+            "message": "Notification settings updated successfully",
+            "email_notifications": profile.email_notifications,
+            "slack_notifications": profile.slack_notifications
+        })
+        
+    except Exception as e:
+        logger.error(f"Error updating notification settings: {str(e)}")
+        return Response(
+            {"error": "Failed to update notification settings"}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def get_account_overview(request):
+    """Get account overview data for settings page"""
+    try:
+        user = request.user
+        profile = user.profile
+        
+        # Get social account counts
+        social_accounts_count = user.social_accounts.count()
+        
+        # Get post counts
+        from apps.posts.models import Post
+        total_posts = Post.objects.filter(user=user).count()
+        
+        # Get team membership
+        team_memberships = user.team_memberships.count()
+        
+        return Response({
+            "account_created": user.date_joined,
+            "last_login": user.last_login,
+            "subscription_type": profile.subscription_type,
+            "social_accounts_count": social_accounts_count,
+            "total_posts": total_posts,
+            "team_memberships": team_memberships,
+            "storage_used": "1.2 GB",  # Placeholder - implement actual storage calculation
+            "api_calls_this_month": 1250  # Placeholder - implement actual API usage tracking
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting account overview: {str(e)}")
+        return Response(
+            {"error": "Failed to get account overview"}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+# Plan Selection Views for First-Time Users
+
+@extend_schema(
+    summary="Get available subscription tiers for plan selection",
+    description="Returns all available subscription tiers for first-time users to choose from"
+)
+@api_view(['GET'])
+@permission_classes([permissions.IsAuthenticated])
+def plan_selection_tiers(request):
+    """Get available subscription tiers for first-time users"""
+    from apps.core.models.payment_models import SubscriptionTier
+    from apps.core.serializers import SubscriptionTierSerializer
+    
+    try:
+        tiers = SubscriptionTier.objects.filter(is_active=True).order_by('price_monthly')
+        serializer = SubscriptionTierSerializer(tiers, many=True)
+        
+        return Response({
+            'tiers': serializer.data,
+            'current_user': request.user.username,
+            'is_first_login': not request.session.get('setup_completed', False)
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting subscription tiers: {str(e)}")
+        return Response(
+            {"error": "Failed to get subscription tiers"}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@extend_schema(
+    summary="Complete first-time user setup",
+    description="Handle user choice to upgrade to a paid plan or skip and continue with free tier",
+    request={
+        "type": "object",
+        "properties": {
+            "action": {"type": "string", "enum": ["upgrade", "skip"]},
+            "tier_id": {"type": "string", "description": "Required if action is 'upgrade'"}
+        }
+    }
+)
+@api_view(['POST'])
+@permission_classes([permissions.IsAuthenticated])
+def complete_setup(request):
+    """Complete first-time user setup - upgrade or skip"""
+    from apps.core.models.payment_models import SubscriptionTier, UserSubscription
+    
+    try:
+        action = request.data.get('action')
+        
+        if action == 'skip':
+            # Mark setup as completed, keep free tier
+            request.session['setup_completed'] = True
+            
+            # Update user profile if exists
+            if hasattr(request.user, 'profile'):
+                request.user.profile.setup_completed = True
+                request.user.profile.save()
+            
+            return Response({
+                'message': 'Setup completed with free plan',
+                'redirect_url': '/dashboard'
+            })
+            
+        elif action == 'upgrade':
+            tier_id = request.data.get('tier_id')
+            
+            if not tier_id:
+                return Response(
+                    {"error": "tier_id is required for upgrade action"}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            try:
+                selected_tier = SubscriptionTier.objects.get(id=tier_id, is_active=True)
+                
+                # Update user's subscription to selected tier
+                user_subscription, created = UserSubscription.objects.get_or_create(
+                    user=request.user,
+                    defaults={
+                        'tier': selected_tier,
+                        'status': 'pending',  # Will be activated after payment
+                        'billing_period': 'monthly'
+                    }
+                )
+                
+                if not created:
+                    user_subscription.tier = selected_tier
+                    user_subscription.status = 'pending'
+                    user_subscription.save()
+                
+                # Mark setup as completed
+                request.session['setup_completed'] = True
+                
+                if hasattr(request.user, 'profile'):
+                    request.user.profile.setup_completed = True
+                    request.user.profile.save()
+                
+                return Response({
+                    'message': f'Plan selected: {selected_tier.display_name}',
+                    'tier': selected_tier.display_name,
+                    'redirect_url': '/dashboard/billing',
+                    'requires_payment': selected_tier.price_monthly > 0
+                })
+                
+            except SubscriptionTier.DoesNotExist:
+                return Response(
+                    {"error": "Invalid subscription tier"}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        else:
+            return Response(
+                {"error": "Invalid action. Must be 'upgrade' or 'skip'"}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
+    except Exception as e:
+        logger.error(f"Error completing setup: {str(e)}")
+        return Response(
+            {"error": "Failed to complete setup"}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
