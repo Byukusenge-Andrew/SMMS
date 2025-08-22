@@ -7,7 +7,7 @@ if [ ! -d "venv" ]; then
 fi
 
 # Activate venv
-./venv/bin/activate
+.\venv\Scripts\Activate.ps1
 
 # Install requirements
 pip install --upgrade pip
