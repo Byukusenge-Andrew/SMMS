@@ -354,6 +354,30 @@ def linkedin_bind_tokens(request):
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+@api_view(['POST'])
+@authentication_classes([TokenAuthentication])
+@permission_classes([permissions.IsAuthenticated])
+def linkedin_disconnect(request):
+    """Deactivate LinkedIn integration and clear tokens."""
+    try:
+        acct = IntegratedAccount.objects.filter(user=request.user, platform=SocialMediaPlatform.LINKEDIN, is_active=True).first()
+        if not acct:
+            return Response({'success': False, 'error': 'No active LinkedIn account'}, status=status.HTTP_400_BAD_REQUEST)
+        acct.is_active = False
+        acct.access_token = ''
+        acct.refresh_token = ''
+        acct.save(update_fields=['is_active', 'access_token', 'refresh_token'])
+        try:
+            from apps.authentication.models import SocialMediaAccount as AuthSMA
+            AuthSMA.objects.filter(user=request.user, platform='linkedin', username=acct.username).update(is_active=False, access_token='')
+        except Exception:
+            pass
+        return Response({'success': True, 'message': 'LinkedIn disconnected'})
+    except Exception as e:
+        logger.error(f"Error disconnecting LinkedIn: {e}")
+        return Response({'success': False, 'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
 @extend_schema(
     operation_id="verify_linkedin_credentials",
     responses={

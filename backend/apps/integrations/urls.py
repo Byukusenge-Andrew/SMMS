@@ -31,6 +31,7 @@ from .views_twitter import (
     twitter_authorize,
     twitter_callback,
     twitter_bind_tokens,
+    twitter_disconnect,
 )
 from .views_linkedin import (
     linkedin_authorize,
@@ -38,6 +39,25 @@ from .views_linkedin import (
     linkedin_bind_tokens,
     verify_linkedin_credentials,
     post_linkedin_share,
+    linkedin_disconnect,
+)
+from .tiktok_views import (
+    tiktok_auth_url,
+    tiktok_oauth_callback,
+    tiktok_oauth_callback_get,
+    tiktok_accounts,
+    tiktok_disconnect,
+    tiktok_create_post,
+    tiktok_posts,
+    tiktok_post_detail,
+    tiktok_delete_post,
+    tiktok_video_analytics,
+)
+from .views_canva import (
+    canva_authorize,
+    canva_callback,
+    canva_bind_tokens,
+    canva_disconnect,
 )
 
 urlpatterns = [
@@ -48,6 +68,11 @@ urlpatterns = [
     path("slack/auth-status/", slack_auth_status, name="slack-auth-status"),
     path("slack/send/", slack_send_message, name="slack-send-message"),
     path("canva/", canva_integration, name="canva-integration"),
+    # Canva OAuth endpoints
+    path("canva/authorize/", canva_authorize, name="canva-authorize"),
+    path("canva/callback/", canva_callback, name="canva-callback"),
+    path("canva/bind-tokens/", canva_bind_tokens, name="canva-bind-tokens"),
+    path("canva/disconnect/", canva_disconnect, name="canva-disconnect"),
     path("google-drive/", google_drive_integration, name="google-drive"),
     path("google-drive/files/", google_drive_files, name="google-drive-files"),
     path("google-drive/import/", google_drive_import, name="google-drive-import"),
@@ -65,6 +90,7 @@ urlpatterns = [
     path("twitter/authorize/", twitter_authorize, name="twitter-authorize"),
     path("twitter/callback/", twitter_callback, name="twitter-callback"),
     path("twitter/bind-tokens/", twitter_bind_tokens, name="twitter-bind-tokens"),
+    path("twitter/disconnect/", twitter_disconnect, name="twitter-disconnect"),
 
     # Twitter/X API endpoints
     path("twitter/verify/", verify_twitter_credentials, name="twitter-verify-credentials"),
@@ -80,8 +106,23 @@ urlpatterns = [
     path("linkedin/authorize/", linkedin_authorize, name="linkedin-authorize"),
     path("linkedin/callback/", linkedin_callback, name="linkedin-callback"),
     path("linkedin/bind-tokens/", linkedin_bind_tokens, name="linkedin-bind-tokens"),
+    path("linkedin/disconnect/", linkedin_disconnect, name="linkedin-disconnect"),
 
     # LinkedIn API endpoints
     path("linkedin/verify/", verify_linkedin_credentials, name="linkedin-verify-credentials"),
     path("linkedin/post/", post_linkedin_share, name="linkedin-post-share"),
+
+    # TikTok OAuth connect endpoints
+    path("tiktok/auth-url/", tiktok_auth_url, name="tiktok-auth-url"),
+    path("tiktok/callback/", tiktok_oauth_callback, name="tiktok-oauth-callback"),
+    path("tiktok/callback-get/", tiktok_oauth_callback_get, name="tiktok-oauth-callback-get"),
+    path("tiktok/accounts/", tiktok_accounts, name="tiktok-accounts"),
+    path("tiktok/disconnect/<str:account_id>/", tiktok_disconnect, name="tiktok-disconnect"),
+
+    # TikTok API endpoints
+    path("tiktok/create-post/", tiktok_create_post, name="tiktok-create-post"),
+    path("tiktok/posts/", tiktok_posts, name="tiktok-posts"),
+    path("tiktok/posts/<str:post_id>/", tiktok_post_detail, name="tiktok-post-detail"),
+    path("tiktok/posts/<str:post_id>/delete/", tiktok_delete_post, name="tiktok-delete-post"),
+    path("tiktok/analytics/", tiktok_video_analytics, name="tiktok-video-analytics"),
 ]

@@ -229,6 +229,107 @@ class SocialMediaAnalytics(models.Model):
         return f"{self.social_media_account} - {self.date}"
 
 
+class TikTokPost(models.Model):
+    """Model specifically for TikTok posts with platform-specific fields"""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='tiktok_posts')
+    social_media_account = models.ForeignKey(
+        SocialMediaAccount, 
+        on_delete=models.CASCADE, 
+        related_name='tiktok_posts'
+    )
+    
+    # Post content
+    title = models.CharField(max_length=150, blank=True)  # TikTok video title
+    description = models.TextField(max_length=2200, blank=True)  # TikTok description limit
+    video_path = models.CharField(max_length=500)  # Local video file path
+    
+    # TikTok-specific fields
+    tiktok_video_id = models.CharField(max_length=100, blank=True)  # TikTok's video ID
+    upload_id = models.CharField(max_length=100, blank=True)  # Upload session ID
+    publish_id = models.CharField(max_length=100, blank=True)  # Publish ID
+    
+    # Video metadata
+    duration_ms = models.IntegerField(null=True, blank=True)  # Video duration in milliseconds
+    video_width = models.IntegerField(null=True, blank=True)
+    video_height = models.IntegerField(null=True, blank=True)
+    file_size_bytes = models.BigIntegerField(null=True, blank=True)
+    
+    # Privacy and interaction settings
+    privacy_level = models.CharField(
+        max_length=30, 
+        choices=[
+            ('PUBLIC_TO_EVERYONE', 'Public to Everyone'),
+            ('MUTUAL_FOLLOW_FRIEND', 'Friends'),
+            ('SELF_ONLY', 'Private'),
+        ],
+        default='PUBLIC_TO_EVERYONE'
+    )
+    disable_duet = models.BooleanField(default=False)
+    disable_comment = models.BooleanField(default=False)
+    disable_stitch = models.BooleanField(default=False)
+    
+    # Brand content settings
+    brand_content_toggle = models.BooleanField(default=False)
+    brand_organic_toggle = models.BooleanField(default=False)
+    
+    # Video cover settings
+    video_cover_timestamp_ms = models.IntegerField(default=1000)  # Thumbnail timestamp
+    
+    # Hashtags and mentions
+    hashtags = models.JSONField(default=list, blank=True)  # List of hashtags
+    mentions = models.JSONField(default=list, blank=True)  # List of mentions
+    
+    # Scheduling
+    scheduled_at = models.DateTimeField(null=True, blank=True)
+    status = models.CharField(max_length=20, choices=PostStatus.choices, default=PostStatus.DRAFT)
+    
+    # Analytics (updated periodically)
+    view_count = models.IntegerField(default=0)
+    like_count = models.IntegerField(default=0)
+    comment_count = models.IntegerField(default=0)
+    share_count = models.IntegerField(default=0)
+    
+    # Error tracking
+    error_message = models.TextField(blank=True)
+    retry_count = models.IntegerField(default=0)
+    max_retries = models.IntegerField(default=3)
+    
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    published_at = models.DateTimeField(null=True, blank=True)
+    
+    class Meta:
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        title = self.title or "Untitled"
+        return f"{title[:30]}... ({self.status})"
+    
+    @property
+    def is_scheduled(self):
+        """Check if post is scheduled for future"""
+        return (
+            self.status == PostStatus.SCHEDULED and 
+            self.scheduled_at and 
+            self.scheduled_at > timezone.now()
+        )
+    
+    @property
+    def can_retry(self):
+        """Check if post can be retried after failure"""
+        return self.status == PostStatus.FAILED and self.retry_count < self.max_retries
+    
+    @property
+    def engagement_rate(self):
+        """Calculate engagement rate as percentage"""
+        if self.view_count > 0:
+            total_engagement = self.like_count + self.comment_count + self.share_count
+            return round((total_engagement / self.view_count) * 100, 2)
+        return 0.0
+
+
 class ScheduledPostQueue(models.Model):
     """Queue for scheduled social media posts"""
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)

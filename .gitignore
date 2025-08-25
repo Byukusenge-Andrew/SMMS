@@ -8,6 +8,7 @@ keativ.pem
 ubuntu.txt
 *.pyc
 SMMS_frontend
+myfrontend
 
 # Django
 *.log

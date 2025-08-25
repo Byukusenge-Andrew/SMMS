@@ -1,9 +1,9 @@
 """
-Serializers for Twitter/X API integrations
+Serializers for social media API integrations
 """
 from rest_framework import serializers
 from django.utils import timezone
-from .models import TwitterPost, SocialMediaAccount, SocialMediaAnalytics
+from .models import TwitterPost, TikTokPost, SocialMediaAccount, SocialMediaAnalytics
 
 
 class TwitterPostCreateSerializer(serializers.Serializer):
@@ -289,3 +289,245 @@ class TweetResponseSerializer(serializers.Serializer):
     
     class Meta:
         fields = ['id', 'text', 'author', 'created_at', 'public_metrics', 'entities']
+
+
+# TikTok Serializers
+
+class TikTokPostCreateSerializer(serializers.Serializer):
+    """Serializer for creating a new TikTok post"""
+    
+    title = serializers.CharField(
+        max_length=150,
+        required=False,
+        allow_blank=True,
+        help_text="Title of the TikTok video (max 150 characters)"
+    )
+    
+    description = serializers.CharField(
+        max_length=2200,
+        required=False,
+        allow_blank=True,
+        help_text="Description/caption for the TikTok video (max 2200 characters)"
+    )
+    
+    video_file = serializers.FileField(
+        help_text="Video file to upload to TikTok (MP4, MOV, or WEBM format)"
+    )
+    
+    privacy_level = serializers.ChoiceField(
+        choices=[
+            ('PUBLIC_TO_EVERYONE', 'Public to Everyone'),
+            ('MUTUAL_FOLLOW_FRIEND', 'Friends'),
+            ('SELF_ONLY', 'Private'),
+        ],
+        default='PUBLIC_TO_EVERYONE',
+        help_text="Privacy level for the TikTok video"
+    )
+    
+    disable_duet = serializers.BooleanField(
+        default=False,
+        help_text="Disable duet functionality for this video"
+    )
+    
+    disable_comment = serializers.BooleanField(
+        default=False,
+        help_text="Disable comments for this video"
+    )
+    
+    disable_stitch = serializers.BooleanField(
+        default=False,
+        help_text="Disable stitch functionality for this video"
+    )
+    
+    brand_content_toggle = serializers.BooleanField(
+        default=False,
+        help_text="Mark as brand content"
+    )
+    
+    brand_organic_toggle = serializers.BooleanField(
+        default=False,
+        help_text="Mark as organic brand content"
+    )
+    
+    video_cover_timestamp_ms = serializers.IntegerField(
+        default=1000,
+        min_value=0,
+        help_text="Timestamp in milliseconds for video thumbnail (default: 1000ms)"
+    )
+    
+    hashtags = serializers.ListField(
+        child=serializers.CharField(max_length=50),
+        required=False,
+        allow_empty=True,
+        help_text="List of hashtags for the video (without # symbol)"
+    )
+    
+    mentions = serializers.ListField(
+        child=serializers.CharField(max_length=50),
+        required=False,
+        allow_empty=True,
+        help_text="List of user mentions for the video (without @ symbol)"
+    )
+    
+    scheduled_at = serializers.DateTimeField(
+        required=False,
+        allow_null=True,
+        help_text="Schedule the video to be posted at a specific time (ISO 8601 format)"
+    )
+    
+    def validate_video_file(self, value):
+        """Validate video file format and size"""
+        # Check file extension
+        valid_extensions = ['.mp4', '.mov', '.webm']
+        if not any(value.name.lower().endswith(ext) for ext in valid_extensions):
+            raise serializers.ValidationError(
+                "Invalid file format. Supported formats: MP4, MOV, WEBM"
+            )
+        
+        # Check file size (TikTok limit is typically 500MB)
+        max_size = 500 * 1024 * 1024  # 500MB in bytes
+        if value.size > max_size:
+            raise serializers.ValidationError(
+                "File size exceeds 500MB limit"
+            )
+        
+        return value
+    
+    def validate_scheduled_at(self, value):
+        """Validate scheduled time is in the future"""
+        if value and value <= timezone.now():
+            raise serializers.ValidationError("Scheduled time must be in the future")
+        
+        return value
+    
+    def validate_hashtags(self, value):
+        """Validate hashtags format"""
+        if value:
+            for hashtag in value:
+                if hashtag.startswith('#'):
+                    raise serializers.ValidationError(
+                        "Hashtags should not include the # symbol"
+                    )
+                if len(hashtag) > 50:
+                    raise serializers.ValidationError(
+                        f"Hashtag '{hashtag}' exceeds 50 character limit"
+                    )
+        return value
+    
+    def validate_mentions(self, value):
+        """Validate mentions format"""
+        if value:
+            for mention in value:
+                if mention.startswith('@'):
+                    raise serializers.ValidationError(
+                        "Mentions should not include the @ symbol"
+                    )
+                if len(mention) > 50:
+                    raise serializers.ValidationError(
+                        f"Mention '{mention}' exceeds 50 character limit"
+                    )
+        return value
+
+
+class TikTokPostSerializer(serializers.ModelSerializer):
+    """Serializer for TikTok post model"""
+    
+    engagement_rate = serializers.SerializerMethodField()
+    is_scheduled = serializers.SerializerMethodField()
+    can_retry = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = TikTokPost
+        fields = [
+            'id', 'title', 'description', 'video_path', 'tiktok_video_id',
+            'privacy_level', 'disable_duet', 'disable_comment', 'disable_stitch',
+            'brand_content_toggle', 'brand_organic_toggle', 'hashtags', 'mentions',
+            'scheduled_at', 'status', 'view_count', 'like_count', 'comment_count', 
+            'share_count', 'engagement_rate', 'is_scheduled', 'can_retry',
+            'error_message', 'retry_count', 'created_at', 'updated_at', 'published_at'
+        ]
+        read_only_fields = [
+            'id', 'tiktok_video_id', 'view_count', 'like_count', 'comment_count',
+            'share_count', 'engagement_rate', 'is_scheduled', 'can_retry', 
+            'error_message', 'retry_count', 'created_at', 'updated_at', 'published_at'
+        ]
+    
+    def get_engagement_rate(self, obj):
+        """Get engagement rate for the post"""
+        return obj.engagement_rate
+    
+    def get_is_scheduled(self, obj):
+        """Check if post is scheduled"""
+        return obj.is_scheduled
+    
+    def get_can_retry(self, obj):
+        """Check if post can be retried"""
+        return obj.can_retry
+
+
+class TikTokPostListSerializer(serializers.ModelSerializer):
+    """Simplified serializer for TikTok post lists"""
+    
+    engagement_rate = serializers.SerializerMethodField()
+    status_display = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = TikTokPost
+        fields = [
+            'id', 'title', 'description', 'status', 'status_display', 
+            'view_count', 'like_count', 'engagement_rate', 'scheduled_at',
+            'created_at', 'published_at'
+        ]
+    
+    def get_engagement_rate(self, obj):
+        """Get engagement rate for the post"""
+        return obj.engagement_rate
+    
+    def get_status_display(self, obj):
+        """Get human-readable status"""
+        return obj.get_status_display()
+
+
+class TikTokAnalyticsSerializer(serializers.Serializer):
+    """Serializer for TikTok video analytics"""
+    
+    video_id = serializers.CharField()
+    views = serializers.IntegerField()
+    likes = serializers.IntegerField()
+    comments = serializers.IntegerField()
+    shares = serializers.IntegerField()
+    engagement_rate = serializers.FloatField()
+    
+    class Meta:
+        fields = ['video_id', 'views', 'likes', 'comments', 'shares', 'engagement_rate']
+
+
+class TikTokVideoListSerializer(serializers.Serializer):
+    """Serializer for TikTok video list response"""
+    
+    id = serializers.CharField()
+    create_time = serializers.IntegerField()
+    cover_image_url = serializers.URLField()
+    share_url = serializers.URLField()
+    video_description = serializers.CharField()
+    duration = serializers.IntegerField()
+    height = serializers.IntegerField()
+    width = serializers.IntegerField()
+    
+    class Meta:
+        fields = [
+            'id', 'create_time', 'cover_image_url', 'share_url', 
+            'video_description', 'duration', 'height', 'width'
+        ]
+
+
+class TikTokAuthSerializer(serializers.Serializer):
+    """Serializer for TikTok authentication responses"""
+    
+    access_token = serializers.CharField()
+    refresh_token = serializers.CharField()
+    expires_in = serializers.IntegerField()
+    scope = serializers.CharField()
+    
+    class Meta:
+        fields = ['access_token', 'refresh_token', 'expires_in', 'scope']

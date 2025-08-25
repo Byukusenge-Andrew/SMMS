@@ -47,6 +47,7 @@ LOCAL_APPS = [
     "apps.authentication",
     "apps.posts",
     "apps.analytics",
+    "apps.billing",  # Billing and subscription management
     "apps.integrations",
     "apps.influencers",
     "apps.notifications",

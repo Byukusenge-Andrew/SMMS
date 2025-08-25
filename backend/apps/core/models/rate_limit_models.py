@@ -92,12 +92,12 @@ class RateLimitLog(models.Model):
 
     # Rate Limiting Details
     rule_applied = models.ForeignKey(RateLimitRule, on_delete=models.SET_NULL, null=True)
-    block_type = models.CharField(max_length=20, choices=BLOCK_TYPE_CHOICES)
+    block_type = models.CharField(max_length=20, choices=BLOCK_TYPE_CHOICES, default="both")
     tokens_remaining = models.IntegerField(null=True, blank=True)
     requests_in_window = models.IntegerField(null=True, blank=True)
 
     # Timestamps
-    blocked_at = models.DateTimeField(auto_now_add=True)
+    blocked_at = models.DateTimeField(default=timezone.now)
     retry_after = models.DateTimeField(null=True, blank=True)
 
     class Meta:
@@ -127,9 +127,10 @@ class RateLimitStats(models.Model):
     ]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    period_type = models.CharField(max_length=10, choices=PERIOD_CHOICES)
-    period_start = models.DateTimeField()
-    period_end = models.DateTimeField()
+    # Provide default to simplify future migrations / data creation
+    period_type = models.CharField(max_length=10, choices=PERIOD_CHOICES, default="hourly")
+    period_start = models.DateTimeField(default=timezone.now)
+    period_end = models.DateTimeField(default=timezone.now)
 
     # Statistics
     total_requests = models.BigIntegerField(default=0)

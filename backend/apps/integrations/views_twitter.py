@@ -33,13 +33,22 @@ def twitter_authorize(request):
     if not client_id:
         return Response({'success': False, 'error': 'TWITTER_CLIENT_ID not configured'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+    # Generate a per-request state and store in session for CSRF protection
+    import secrets
+    state_val = secrets.token_urlsafe(16)
+    request.session['twitter_oauth'] = {
+        'state': state_val,
+        'redirect_uri': redirect_uri,
+    }
+    request.session.modified = True
+
     params = {
         'response_type': 'code',
         'client_id': client_id,
         'redirect_uri': redirect_uri,
         'scope': scope,
-        'state': 'smms',
-        'code_challenge': '',  # add PKCE if required later
+        'state': state_val,
+        'code_challenge': '',  # add PKCE if/when required
         'code_challenge_method': ''
     }
     url = f"https://twitter.com/i/oauth2/authorize?{urlencode({k:v for k,v in params.items() if v})}"
@@ -56,6 +65,37 @@ def twitter_callback(request):
     state = request.GET.get('state')
     if not code:
         return Response({'success': False, 'error': 'Missing code'}, status=status.HTTP_400_BAD_REQUEST)
+
+    # If this looks like a browser navigation (no explicit JSON accept header), redirect the user
+    # to the SPA callback route so the frontend can finish binding (similar to linkedin_callback).
+    # This avoids attempting to bind here (we have no authenticated user context: AllowAny).
+    accept = (request.META.get('HTTP_ACCEPT') or '')
+    session_data = request.session.get('twitter_oauth') or {}
+    expected_state = session_data.get('state')
+    # Validate state (if we have one). If mismatch, surface error early.
+    state_ok = (not expected_state) or (expected_state == state)
+    if 'application/json' not in accept:
+        try:
+            from urllib.parse import quote
+            frontend_url = getattr(settings, 'FRONTEND_URL', '').rstrip('/') or ''
+            if frontend_url:
+                target = f"{frontend_url}/dashboard/integrations/twitter/callback"
+                sep = '?' if ('?' not in target) else '&'
+                if not state_ok:
+                    return redirect(f"{target}{sep}error=state_mismatch")
+                # Preserve code & state for the SPA page to call JSON mode
+                return redirect(f"{target}{sep}code={quote(code)}&state={quote(state or '')}")
+        except Exception:
+            # Fall through to JSON mode if redirect prep fails
+            pass
+
+    if not state_ok:
+        # JSON mode state failure
+        try:
+            del request.session['twitter_oauth']
+        except Exception:
+            pass
+        return Response({'success': False, 'error': 'Invalid OAuth state. Please retry connection.'}, status=status.HTTP_400_BAD_REQUEST)
 
     client_id = getattr(settings, 'TWITTER_CLIENT_ID', None)
     client_secret = getattr(settings, 'TWITTER_CLIENT_SECRET', None)
@@ -105,6 +145,12 @@ def twitter_callback(request):
     # Associate with the most recent authenticated user session via token auth is not available here (AllowAny).
     # In SPA, you can call this endpoint from frontend without auth and then call a separate endpoint to bind tokens.
     # For simplicity here, we return tokens and profile so the frontend can POST them to a bind endpoint (not implemented here).
+    # Clear used state
+    try:
+        del request.session['twitter_oauth']
+    except Exception:
+        pass
+
     return Response({
         'success': True,
         'account': {
@@ -679,4 +725,29 @@ def twitter_bind_tokens(request):
         return Response({'success': True, 'account_id': str(account.id)})
     except Exception as e:
         logger.error(f"Error binding Twitter tokens: {e}")
+        return Response({'success': False, 'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['POST'])
+@authentication_classes([TokenAuthentication])
+@permission_classes([permissions.IsAuthenticated])
+def twitter_disconnect(request):
+    """Deactivate user's Twitter integration and purge tokens."""
+    try:
+        acct = IntegratedAccount.objects.filter(user=request.user, platform=SocialMediaPlatform.TWITTER, is_active=True).first()
+        if not acct:
+            return Response({'success': False, 'error': 'No active Twitter account'}, status=status.HTTP_400_BAD_REQUEST)
+        acct.is_active = False
+        acct.access_token = ''
+        acct.refresh_token = ''
+        acct.save(update_fields=['is_active', 'access_token', 'refresh_token'])
+        # Also disable mirrored auth SocialMediaAccount if present
+        try:
+            from apps.authentication.models import SocialMediaAccount as AuthSMA
+            AuthSMA.objects.filter(user=request.user, platform='twitter', username=acct.username).update(is_active=False, access_token='')
+        except Exception:
+            pass
+        return Response({'success': True, 'message': 'Twitter disconnected'})
+    except Exception as e:
+        logger.error(f"Error disconnecting Twitter: {e}")
         return Response({'success': False, 'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
