@@ -15,7 +15,6 @@ class SubscriptionTier(models.Model):
     
     TIER_CHOICES = [
         ('free', 'Free'),
-        ('basic', 'Basic'),
         ('professional', 'Professional'),
         ('enterprise', 'Enterprise'),
     ]
@@ -35,10 +34,22 @@ class SubscriptionTier(models.Model):
     max_team_members = models.IntegerField(default=1)
     analytics_retention_days = models.IntegerField(default=30)
     api_rate_limit = models.IntegerField(default=1000)  # requests per hour
+    
+    # Feature flags
     gohighlevel_integration = models.BooleanField(default=False)
     advanced_analytics = models.BooleanField(default=False)
     priority_support = models.BooleanField(default=False)
     white_label = models.BooleanField(default=False)
+    custom_branding = models.BooleanField(default=False)
+    bulk_upload_scheduling = models.BooleanField(default=False)
+    hashtag_suggestions = models.BooleanField(default=False)
+    best_time_insights = models.BooleanField(default=False)
+    approval_workflows = models.BooleanField(default=False)
+    sso_support = models.BooleanField(default=False)
+    two_factor_auth = models.BooleanField(default=False)
+    custom_integrations = models.BooleanField(default=False)
+    phone_support = models.BooleanField(default=False)
+    dedicated_account_manager = models.BooleanField(default=False)
     
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

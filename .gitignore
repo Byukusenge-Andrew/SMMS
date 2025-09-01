@@ -66,3 +66,4 @@ celerybeat.pid
 backend/test/
 # Ignore specific directories
 Requirements.pdf
+backend/prompt.txt

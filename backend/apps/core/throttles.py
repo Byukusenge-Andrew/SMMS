@@ -72,9 +72,10 @@ class SMMSCustomThrottle(BaseThrottle):
                 logger = logging.getLogger(__name__)
                 logger.warning(f"Error checking subscription for user {request.user.username}: {e}")
             
-            # Fallback to checking legacy profile attribute
-            if hasattr(request.user, "profile") and request.user.profile.subscription_type == "premium":
-                return "premium"
+            # Fallback to checking profile subscription tier
+            if hasattr(request.user, "profile") and request.user.profile.subscription_tier:
+                if request.user.profile.subscription_tier.name in ["professional", "enterprise"]:
+                    return "premium"
             
             return "authenticated"
 

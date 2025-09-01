@@ -5,6 +5,35 @@ from django.contrib.auth.password_validation import validate_password
 from rest_framework import serializers
 
 from .models import SocialMediaAccount, Team, TeamMember, UserProfile
+from apps.core.models.payment_models import SubscriptionTier
+
+
+class SubscriptionTierSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SubscriptionTier
+        fields = [
+            "id",
+            "name", 
+            "display_name",
+            "description",
+            "price_monthly",
+            "price_yearly",
+            "max_social_accounts",
+            "max_scheduled_posts",
+            "max_team_members",
+            "advanced_analytics",
+            "priority_support",
+            "custom_branding",
+            "bulk_upload_scheduling",
+            "hashtag_suggestions",
+            "best_time_insights",
+            "approval_workflows",
+            "sso_support",
+            "two_factor_auth",
+            "custom_integrations",
+            "phone_support",
+            "dedicated_account_manager",
+        ]
 
 
 class TeamSerializer(serializers.ModelSerializer):
@@ -34,7 +63,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
             "company_name",
             "role",
             "avatar",
-            "subscription_type",
+            "subscription_tier",
             "timezone",
             "time_format",
             "email_notifications",
@@ -46,19 +75,30 @@ class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, validators=[validate_password])
     password_confirm = serializers.CharField(write_only=True)
     company_name = serializers.CharField(required=False, allow_blank=True)
+    subscription_tier_id = serializers.UUIDField(required=False, allow_null=True)
 
     class Meta:
         model = User
-        fields = ["username", "email", "password", "password_confirm", "first_name", "last_name", "company_name"]
+        fields = ["username", "email", "password", "password_confirm", "first_name", "last_name", "company_name", "subscription_tier_id"]
 
     def validate(self, attrs):
         if attrs["password"] != attrs["password_confirm"]:
             raise serializers.ValidationError("Passwords don't match")
+        
+        # Validate subscription tier ID
+        subscription_tier_id = attrs.get("subscription_tier_id")
+        if subscription_tier_id:
+            try:
+                SubscriptionTier.objects.get(id=subscription_tier_id, is_active=True)
+            except SubscriptionTier.DoesNotExist:
+                raise serializers.ValidationError(f"Invalid subscription tier ID: {subscription_tier_id}")
+        
         return attrs
 
     def create(self, validated_data):
         validated_data.pop("password_confirm")
         company_name = validated_data.pop("company_name", "")
+        subscription_tier_id = validated_data.pop("subscription_tier_id", None)
 
         password = validated_data.pop("password")
         user = User.objects.create_user(
@@ -69,11 +109,32 @@ class RegisterSerializer(serializers.ModelSerializer):
             password=password,
         )
 
-        # Create or get profile
-        profile, created = UserProfile.objects.get_or_create(user=user, defaults={"company_name": company_name})
+        # Get the subscription tier
+        subscription_tier = None
+        if subscription_tier_id:
+            try:
+                subscription_tier = SubscriptionTier.objects.get(id=subscription_tier_id, is_active=True)
+            except SubscriptionTier.DoesNotExist:
+                # Fallback to free tier if provided ID is invalid
+                subscription_tier = SubscriptionTier.objects.filter(name="free", is_active=True).first()
+        else:
+            # Default to free tier if no tier specified
+            subscription_tier = SubscriptionTier.objects.filter(name="free", is_active=True).first()
 
-        if not created and company_name:
-            profile.company_name = company_name
+        # Create or get profile with subscription tier
+        profile, created = UserProfile.objects.get_or_create(
+            user=user, 
+            defaults={
+                "company_name": company_name,
+                "subscription_tier": subscription_tier
+            }
+        )
+
+        if not created:
+            if company_name:
+                profile.company_name = company_name
+            if subscription_tier:
+                profile.subscription_tier = subscription_tier
             profile.save()
 
         return user

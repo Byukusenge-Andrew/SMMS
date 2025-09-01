@@ -7,6 +7,7 @@ from django.dispatch import receiver
 from django.utils import timezone
 
 from apps.core.storage import SupabaseStorage
+from apps.core.models.payment_models import SubscriptionTier
 
 # Initialize Supabase storage
 supabase_storage = SupabaseStorage()
@@ -20,8 +21,14 @@ class UserProfile(models.Model):
     company_name = models.CharField(max_length=255, blank=True, null=True)
     role = models.CharField(max_length=100, blank=True, null=True)  # User's role in the company
     avatar = models.ImageField(upload_to="avatars/", null=True, blank=True, storage=supabase_storage)
-    # Match initial migration width
-    subscription_type = models.CharField(max_length=20, default="free")
+    # Link to subscription tier instead of simple string
+    subscription_tier = models.ForeignKey(
+        SubscriptionTier, 
+        on_delete=models.PROTECT, 
+        null=True, 
+        blank=True,
+        related_name="user_profiles"
+    )
     # Match 0002 migration width
     timezone = models.CharField(max_length=50, default="UTC")
     # Added to match migrations and serializer

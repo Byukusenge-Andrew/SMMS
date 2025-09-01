@@ -5,8 +5,8 @@ from .models import SocialMediaAccount, UserProfile
 
 @admin.register(UserProfile)
 class UserProfileAdmin(admin.ModelAdmin):
-    list_display = ["user", "company_name", "subscription_type", "created_at", "is_active"]
-    list_filter = ["subscription_type", "is_active", "created_at"]
+    list_display = ["user", "company_name", "subscription_tier", "created_at", "is_active"]
+    list_filter = ["subscription_tier", "is_active", "created_at"]
     search_fields = ["user__username", "user__email", "company_name"]
     date_hierarchy = "created_at"
 

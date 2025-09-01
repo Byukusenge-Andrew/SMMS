@@ -28,6 +28,7 @@ from .serializers import (
     LoginSerializer,
     RegisterSerializer,
     SocialMediaAccountSerializer,
+    SubscriptionTierSerializer,
     TeamMemberSerializer,
     TeamSerializer,
     UserProfileSerializer,
@@ -35,9 +36,26 @@ from .serializers import (
     UserSerializer,
 )
 from .tasks import send_team_invitation_email
+from apps.core.models.payment_models import SubscriptionTier
 
 # Set up logger
 logger = logging.getLogger(__name__)
+
+
+@extend_schema(
+    responses={
+        200: SubscriptionTierSerializer(many=True),
+    },
+    summary="Get available subscription tiers",
+    description="Get list of available subscription tiers for registration",
+)
+@api_view(["GET"])
+@permission_classes([permissions.AllowAny])
+def subscription_tiers_view(request):
+    """Get available subscription tiers"""
+    tiers = SubscriptionTier.objects.filter(is_active=True).order_by('price_monthly')
+    serializer = SubscriptionTierSerializer(tiers, many=True)
+    return Response(serializer.data)
 
 
 @extend_schema(
@@ -47,6 +65,22 @@ logger = logging.getLogger(__name__)
         400: OpenApiResponse(description="Validation error"),
     },
     summary="Register a new user",
+    examples=[
+        OpenApiExample(
+            "User Registration with Subscription",
+            description="Example registration with subscription tier selection",
+            value={
+                "username": "john_doe",
+                "email": "john@example.com",
+                "password": "SecurePass123!",
+                "password_confirm": "SecurePass123!",
+                "first_name": "John",
+                "last_name": "Doe",
+                "company_name": "My Company",
+                "subscription_tier_id": "uuid-of-professional-tier"
+            },
+        )
+    ],
 )
 @method_decorator(csrf_exempt, name="dispatch")
 class RegisterView(APIView):
@@ -185,7 +219,7 @@ class LogoutView(APIView):
             description="Example profile update with file upload",
             value={
                 "company_name": "Keative",
-                "subscription_type": "premium",
+                "subscription_tier": "premium",
                 "time_format": "12h",
                 "timezone": "UTC",
                 "email_notifications": True,
@@ -412,7 +446,7 @@ def user_dashboard(request):
             "profile": UserProfileSerializer(profile).data,
             "social_accounts": SocialMediaAccountSerializer(social_accounts, many=True).data,
             "team_members_count": team_members.count(),
-            "subscription": profile.subscription_type,
+            "subscription": profile.subscription_tier.name if profile.subscription_tier else "free",
         }
     )
 
@@ -1026,7 +1060,7 @@ def get_account_overview(request):
         return Response({
             "account_created": user.date_joined,
             "last_login": user.last_login,
-            "subscription_type": profile.subscription_type,
+            "subscription_type": profile.subscription_tier.name if profile.subscription_tier else "free",
             "social_accounts_count": social_accounts_count,
             "total_posts": total_posts,
             "team_memberships": team_memberships,

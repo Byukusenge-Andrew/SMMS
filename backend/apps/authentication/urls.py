@@ -8,6 +8,7 @@ from .views import simple_test  # Add this import
 from .views import teams_for_invitation  # Add this import
 from .views import user_time_format_setting  # Add this import
 from .views import oauth_callback  # Add this import
+from .views import subscription_tiers_view  # Add this import
 from .views import change_password, get_user_stats, update_notification_settings, get_account_overview, plan_selection_tiers, complete_setup  # Add new endpoints
 from .views import (
     LogoutView,
@@ -26,6 +27,7 @@ from .views import (
 )
 
 urlpatterns = [
+    path("subscription-tiers/", subscription_tiers_view, name="subscription-tiers"),
     path("register/", register, name="register"),
     path("login/", login_view, name="login"),  # Use function directly, no .as_view()
     path("logout/", LogoutView.as_view(), name="logout"),
