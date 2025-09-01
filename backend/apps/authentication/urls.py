@@ -9,6 +9,7 @@ from .views import teams_for_invitation  # Add this import
 from .views import user_time_format_setting  # Add this import
 from .views import oauth_callback  # Add this import
 from .views import subscription_tiers_view  # Add this import
+from .views import trial_status_view, start_trial_view  # Add trial endpoints
 from .views import change_password, get_user_stats, update_notification_settings, get_account_overview, plan_selection_tiers, complete_setup  # Add new endpoints
 from .views import (
     LogoutView,
@@ -57,6 +58,10 @@ urlpatterns = [
     # First-time user plan selection
     path("setup/plan-selection/", plan_selection_tiers, name="plan_selection"),
     path("setup/complete/", complete_setup, name="complete_setup"),
+    
+    # Trial management
+    path("trial/status/", trial_status_view, name="trial-status"),
+    path("trial/start/", start_trial_view, name="start-trial"),
 ]
 
 urlpatterns += [

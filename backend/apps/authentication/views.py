@@ -59,6 +59,121 @@ def subscription_tiers_view(request):
 
 
 @extend_schema(
+    responses={
+        200: OpenApiResponse(description="Trial status retrieved successfully"),
+        404: OpenApiResponse(description="User profile not found"),
+    },
+    summary="Get user trial status",
+    description="Get current trial status including days left and effective subscription tier",
+)
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+@authentication_classes([TokenAuthentication])
+def trial_status_view(request):
+    """Get user trial status"""
+    try:
+        profile = request.user.profile
+        
+        return Response({
+            "is_trial_active": profile.is_trial_active,
+            "trial_days_left": profile.days_left_in_trial(),
+            "trial_expired": profile.is_trial_expired(),
+            "has_paid_subscription": profile.has_paid_subscription(),
+            "effective_tier": {
+                "id": str(profile.get_effective_subscription_tier().id),
+                "name": profile.get_effective_subscription_tier().name,
+                "display_name": profile.get_effective_subscription_tier().display_name,
+            } if profile.get_effective_subscription_tier() else None,
+            "selected_tier": {
+                "id": str(profile.subscription_tier.id),
+                "name": profile.subscription_tier.name,
+                "display_name": profile.subscription_tier.display_name,
+            } if profile.subscription_tier else None
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting trial status: {str(e)}")
+        return Response(
+            {"error": "Failed to get trial status"}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@extend_schema(
+    request={
+        "application/json": {
+            "type": "object",
+            "properties": {
+                "subscription_tier_id": {"type": "string", "format": "uuid"}
+            },
+            "required": ["subscription_tier_id"]
+        }
+    },
+    responses={
+        200: OpenApiResponse(description="Trial started successfully"),
+        400: OpenApiResponse(description="Invalid subscription tier or trial already active"),
+    },
+    summary="Start trial for a subscription tier",
+    description="Start a 14-day trial for a paid subscription tier",
+)
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+@authentication_classes([TokenAuthentication])
+def start_trial_view(request):
+    """Start trial for a subscription tier"""
+    try:
+        from apps.core.models.payment_models import SubscriptionTier
+        
+        subscription_tier_id = request.data.get("subscription_tier_id")
+        if not subscription_tier_id:
+            return Response(
+                {"error": "subscription_tier_id is required"}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            tier = SubscriptionTier.objects.get(id=subscription_tier_id, is_active=True)
+        except SubscriptionTier.DoesNotExist:
+            return Response(
+                {"error": "Invalid subscription tier"}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        profile = request.user.profile
+        
+        # Check if already on trial
+        if profile.is_trial_active and not profile.is_trial_expired():
+            return Response(
+                {"error": "Trial already active"}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Check if tier is paid
+        if tier.price_monthly <= 0:
+            return Response(
+                {"error": "Cannot start trial for free tier"}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Update subscription tier and start trial
+        profile.subscription_tier = tier
+        profile.start_trial(trial_days=14)
+        
+        return Response({
+            "message": "Trial started successfully",
+            "trial_days_left": profile.days_left_in_trial(),
+            "trial_end_date": profile.trial_end_date
+        })
+        
+    except Exception as e:
+        logger.error(f"Error starting trial: {str(e)}")
+        return Response(
+            {"error": "Failed to start trial"}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@extend_schema(
     request=RegisterSerializer,
     responses={
         201: OpenApiResponse(description="User registered successfully. Email verification required."),

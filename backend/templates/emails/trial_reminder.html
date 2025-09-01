@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Your Free Trial Ends Soon</title>
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background: #667eea; color: white; padding: 20px; text-align: center; }
+        .content { padding: 20px; background: #f9f9f9; }
+        .button { display: inline-block; background: #667eea; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; margin: 20px 0; }
+        .footer { text-align: center; padding: 20px; font-size: 12px; color: #666; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Your Trial Ends in {{ days_left }} Days!</h1>
+        </div>
+        
+        <div class="content">
+            <p>Hi {{ user_name }},</p>
+            
+            <p>Your <strong>{{ subscription_tier }}</strong> free trial ends in <strong>{{ days_left }} days</strong>.</p>
+            
+            <p>Don't lose access to your premium features! Upgrade now to continue enjoying:</p>
+            <ul>
+                <li>✅ Unlimited social accounts</li>
+                <li>✅ Advanced analytics & reports</li>
+                <li>✅ Team collaboration</li>
+                <li>✅ Custom branding</li>
+                <li>✅ Bulk upload & scheduling</li>
+                <li>✅ Priority support</li>
+            </ul>
+            
+            <p style="text-align: center;">
+                <a href="{{ upgrade_url }}" class="button">Upgrade Now</a>
+            </p>
+            
+            <p>If you have any questions, feel free to reach out to our support team.</p>
+            
+            <p>Best regards,<br>The Keativ Team</p>
+        </div>
+        
+        <div class="footer">
+            <p>© 2025 Keativ. All rights reserved.</p>
+        </div>
+    </div>
+</body>
+</html>

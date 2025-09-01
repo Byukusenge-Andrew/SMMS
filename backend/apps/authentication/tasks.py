@@ -11,7 +11,7 @@ from django.utils.html import strip_tags
 
 from celery import shared_task
 
-from .models import Team, TeamMember
+from .models import Team, TeamMember, UserProfile
 
 logger = logging.getLogger(__name__)
 
@@ -154,4 +154,187 @@ The Social Media Manager Team
 
     except Exception as e:
         logger.error(f"Error sending welcome email: {str(e)}")
+        return False
+
+
+@shared_task
+def check_expired_trials():
+    """Check for expired trials and downgrade users to free tier"""
+    try:
+        from django.utils import timezone
+        from apps.core.models.payment_models import SubscriptionTier
+        
+        # Get profiles with active trials that have expired
+        expired_profiles = UserProfile.objects.filter(
+            is_trial_active=True,
+            trial_end_date__lt=timezone.now(),
+            trial_expired_notified=False
+        )
+        
+        free_tier = SubscriptionTier.objects.filter(name="free", is_active=True).first()
+        if not free_tier:
+            logger.error("Free tier not found - cannot downgrade expired trials")
+            return False
+        
+        downgraded_count = 0
+        
+        for profile in expired_profiles:
+            # Check if user has paid subscription
+            if not profile.has_paid_subscription():
+                # Send notification email before downgrading
+                send_trial_expired_notification.delay(profile.user.id)
+                
+                # Downgrade to free tier
+                profile.end_trial_and_downgrade()
+                downgraded_count += 1
+                
+                logger.info(f"Downgraded user {profile.user.username} from trial to free tier")
+        
+        logger.info(f"Processed {downgraded_count} expired trials")
+        return True
+        
+    except Exception as e:
+        logger.error(f"Error checking expired trials: {str(e)}")
+        return False
+
+
+@shared_task 
+def send_trial_expired_notification(user_id):
+    """Send notification email when trial expires"""
+    try:
+        from django.contrib.auth.models import User
+        
+        user = User.objects.get(id=user_id)
+        profile = user.profile
+        
+        subject = "Your free trial has ended - Time to upgrade!"
+        
+        context = {
+            "user_name": user.first_name or user.username,
+            "upgrade_url": f"{settings.FRONTEND_URL}/billing/upgrade",
+            "subscription_tier": profile.subscription_tier.display_name if profile.subscription_tier else "Premium"
+        }
+        
+        # Try to render HTML template
+        try:
+            html_message = render_to_string("emails/trial_expired.html", context)
+        except:
+            html_message = None
+        
+        plain_message = f"""
+Hi {context['user_name']},
+
+Your 14-day free trial of {context['subscription_tier']} has ended. 
+
+Your account has been moved to our free plan, but you can upgrade anytime to regain access to all premium features.
+
+Upgrade now: {context['upgrade_url']}
+
+Thanks for trying our premium features!
+
+The Social Media Manager Team
+        """.strip()
+        
+        send_mail(
+            subject=subject,
+            message=plain_message,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[user.email],
+            html_message=html_message,
+            fail_silently=False,
+        )
+        
+        logger.info(f"Trial expired notification sent to {user.email}")
+        return True
+        
+    except Exception as e:
+        logger.error(f"Error sending trial expired notification: {str(e)}")
+        return False
+
+
+@shared_task
+def send_trial_reminder_notification(user_id, days_left):
+    """Send reminder when trial is about to expire"""
+    try:
+        from django.contrib.auth.models import User
+        
+        user = User.objects.get(id=user_id)
+        profile = user.profile
+        
+        subject = f"Your free trial ends in {days_left} days"
+        
+        context = {
+            "user_name": user.first_name or user.username,
+            "days_left": days_left,
+            "upgrade_url": f"{settings.FRONTEND_URL}/billing/upgrade",
+            "subscription_tier": profile.subscription_tier.display_name if profile.subscription_tier else "Premium"
+        }
+        
+        # Try to render HTML template
+        try:
+            html_message = render_to_string("emails/trial_reminder.html", context)
+        except:
+            html_message = None
+        
+        plain_message = f"""
+Hi {context['user_name']},
+
+Your {context['subscription_tier']} free trial ends in {days_left} days.
+
+Don't lose access to your premium features! Upgrade now to continue enjoying:
+- Unlimited social accounts
+- Advanced analytics
+- Team collaboration
+- And much more!
+
+Upgrade now: {context['upgrade_url']}
+
+The Social Media Manager Team
+        """.strip()
+        
+        send_mail(
+            subject=subject,
+            message=plain_message,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[user.email],
+            html_message=html_message,
+            fail_silently=False,
+        )
+        
+        logger.info(f"Trial reminder sent to {user.email} ({days_left} days left)")
+        return True
+        
+    except Exception as e:
+        logger.error(f"Error sending trial reminder: {str(e)}")
+        return False
+
+
+@shared_task
+def send_trial_reminders():
+    """Send reminders for trials ending soon"""
+    try:
+        from django.utils import timezone
+        from datetime import timedelta
+        
+        # Check for trials ending in 3 days
+        reminder_date = timezone.now() + timedelta(days=3)
+        
+        profiles_to_remind = UserProfile.objects.filter(
+            is_trial_active=True,
+            trial_end_date__date=reminder_date.date()
+        )
+        
+        reminded_count = 0
+        
+        for profile in profiles_to_remind:
+            if not profile.has_paid_subscription():
+                days_left = profile.days_left_in_trial()
+                send_trial_reminder_notification.delay(profile.user.id, days_left)
+                reminded_count += 1
+        
+        logger.info(f"Sent trial reminders to {reminded_count} users")
+        return True
+        
+    except Exception as e:
+        logger.error(f"Error sending trial reminders: {str(e)}")
         return False

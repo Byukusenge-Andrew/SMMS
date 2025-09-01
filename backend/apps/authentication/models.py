@@ -29,6 +29,12 @@ class UserProfile(models.Model):
         blank=True,
         related_name="user_profiles"
     )
+    # Trial period management
+    trial_start_date = models.DateTimeField(null=True, blank=True)
+    trial_end_date = models.DateTimeField(null=True, blank=True)
+    is_trial_active = models.BooleanField(default=False)
+    trial_expired_notified = models.BooleanField(default=False)
+    
     # Match 0002 migration width
     timezone = models.CharField(max_length=50, default="UTC")
     # Added to match migrations and serializer
@@ -48,6 +54,58 @@ class UserProfile(models.Model):
 
     def __str__(self):
         return f"{self.user.username} - {self.company_name or 'Personal'}"
+    
+    def is_trial_expired(self):
+        """Check if trial period has expired"""
+        if not self.is_trial_active or not self.trial_end_date:
+            return False
+        return timezone.now() > self.trial_end_date
+    
+    def days_left_in_trial(self):
+        """Get number of days left in trial period"""
+        if not self.is_trial_active or not self.trial_end_date:
+            return 0
+        delta = self.trial_end_date - timezone.now()
+        return max(0, delta.days)
+    
+    def start_trial(self, trial_days=14):
+        """Start trial period for paid tier"""
+        if self.subscription_tier and self.subscription_tier.price_monthly > 0:
+            self.trial_start_date = timezone.now()
+            self.trial_end_date = timezone.now() + timezone.timedelta(days=trial_days)
+            self.is_trial_active = True
+            self.trial_expired_notified = False
+            self.save()
+    
+    def end_trial_and_downgrade(self):
+        """End trial and downgrade to free tier"""
+        free_tier = SubscriptionTier.objects.filter(name="free", is_active=True).first()
+        if free_tier:
+            self.subscription_tier = free_tier
+            self.is_trial_active = False
+            self.trial_expired_notified = True
+            self.save()
+    
+    def get_effective_subscription_tier(self):
+        """Get the effective subscription tier considering trial status"""
+        if self.is_trial_expired() and not self.has_paid_subscription():
+            # If trial expired and no payment, return free tier
+            return SubscriptionTier.objects.filter(name="free", is_active=True).first()
+        return self.subscription_tier
+    
+    def has_paid_subscription(self):
+        """Check if user has an active paid subscription"""
+        # This would check with Stripe or payment processor
+        # For now, we'll assume no paid subscription unless implemented
+        try:
+            from apps.core.models.payment_models import UserSubscription
+            subscription = UserSubscription.objects.filter(
+                user=self.user, 
+                status='active'
+            ).first()
+            return subscription is not None
+        except:
+            return False
 
 
 # Signal to create user profile when a new user is created

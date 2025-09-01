@@ -20,11 +20,11 @@ def create_subscription_tiers():
     
     tiers = [
         {
-            'name': 'free',
+            'name': 'Basic',
             'display_name': 'Starter',
             'description': 'Perfect for individuals and small creators getting started',
-            'price_monthly': Decimal('0.00'),
-            'price_yearly': Decimal('0.00'),
+            'price_monthly': Decimal('9.99'),
+            'price_yearly': Decimal('9.99'),
             'max_social_accounts': 3,
             'max_scheduled_posts': 10,
             'max_team_members': 1,
@@ -50,8 +50,8 @@ def create_subscription_tiers():
             'name': 'professional',
             'display_name': 'Professional',
             'description': 'For growing businesses and marketing teams',
-            'price_monthly': Decimal('29.00'),
-            'price_yearly': Decimal('290.00'),  # 2 months free
+            'price_monthly': Decimal('14.99'),
+            'price_yearly': Decimal('14.99'),  # 2 months free
             'max_social_accounts': -1,  # Unlimited
             'max_scheduled_posts': -1,  # Unlimited
             'max_team_members': 5,
@@ -77,8 +77,8 @@ def create_subscription_tiers():
             'name': 'enterprise',
             'display_name': 'Enterprise',
             'description': 'For large organizations with advanced needs',
-            'price_monthly': Decimal('99.00'),
-            'price_yearly': Decimal('990.00'),  # 2 months free
+            'price_monthly': Decimal('`19.99'),
+            'price_yearly': Decimal('19.99'),  # 2 months free
             'max_social_accounts': -1,  # Unlimited
             'max_scheduled_posts': -1,  # Unlimited
             'max_team_members': -1,  # Unlimited

@@ -56,6 +56,9 @@ class UserSerializer(serializers.ModelSerializer):
 
 
 class UserProfileSerializer(serializers.ModelSerializer):
+    trial_days_left = serializers.SerializerMethodField()
+    effective_subscription_tier = serializers.SerializerMethodField()
+    
     class Meta:
         model = UserProfile
         fields = [
@@ -68,7 +71,26 @@ class UserProfileSerializer(serializers.ModelSerializer):
             "time_format",
             "email_notifications",
             "slack_notifications",
+            "is_trial_active",
+            "trial_end_date",
+            "trial_days_left",
+            "effective_subscription_tier",
         ]
+        read_only_fields = ["is_trial_active", "trial_end_date", "trial_days_left", "effective_subscription_tier"]
+    
+    def get_trial_days_left(self, obj):
+        return obj.days_left_in_trial()
+    
+    def get_effective_subscription_tier(self, obj):
+        effective_tier = obj.get_effective_subscription_tier()
+        if effective_tier:
+            return {
+                "id": str(effective_tier.id),
+                "name": effective_tier.name,
+                "display_name": effective_tier.display_name,
+                "price_monthly": effective_tier.price_monthly
+            }
+        return None
 
 
 class RegisterSerializer(serializers.ModelSerializer):
@@ -136,6 +158,10 @@ class RegisterSerializer(serializers.ModelSerializer):
             if subscription_tier:
                 profile.subscription_tier = subscription_tier
             profile.save()
+
+        # Start trial if it's a paid tier
+        if subscription_tier and subscription_tier.price_monthly > 0:
+            profile.start_trial(trial_days=14)
 
         return user
 
