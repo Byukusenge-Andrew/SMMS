@@ -25,5 +25,15 @@ urlpatterns = [
     
     # Stripe integration
     path('stripe/customer/', views.create_stripe_customer, name='create_stripe_customer'),
+    path('stripe/checkout/', views.create_checkout_session, name='create_checkout_session'),
+    path('stripe/customer-portal/', views.create_customer_portal_session, name='customer_portal'),
     path('stripe/webhook/', views.stripe_webhook, name='stripe_webhook'),
+    path('stripe/payment-success/', views.handle_payment_success, name='handle_payment_success'),
+    
+    # Subscription API endpoints
+    path('api/subscription-tiers/', views.subscription_tiers_list, name='subscription_tiers_list'),
+    path('api/subscription-status/', views.current_subscription_status, name='subscription_status'),
+    
+    # Trial conversion
+    path('trial/convert/', views.convert_trial_to_paid, name='convert_trial_to_paid'),
 ]
