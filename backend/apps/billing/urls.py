@@ -26,6 +26,8 @@ urlpatterns = [
     # Stripe integration
     path('stripe/customer/', views.create_stripe_customer, name='create_stripe_customer'),
     path('stripe/checkout/', views.create_checkout_session, name='create_checkout_session'),
+    # Public key for Stripe.js
+    path('stripe/public-key/', views.stripe_public_key, name='stripe_public_key'),
     path('stripe/customer-portal/', views.create_customer_portal_session, name='customer_portal'),
     path('stripe/webhook/', views.stripe_webhook, name='stripe_webhook'),
     path('stripe/payment-success/', views.handle_payment_success, name='handle_payment_success'),

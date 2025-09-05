@@ -227,6 +227,7 @@ CSRF_TRUSTED_ORIGINS = CORS_ALLOWED_ORIGINS.copy()
 if RENDER_EXTERNAL_HOSTNAME:
     CSRF_TRUSTED_ORIGINS.append(f"https://{RENDER_EXTERNAL_HOSTNAME}")
 # CORS_ALLOW_ALL_ORIGINS = True  # Set to True for development debugging
+CORS_ALLOW_ALL_ORIGINS = True  # Temporarily enabled for Stripe testing
 
 # Allow common headers
 # CORS_ALLOW_HEADERS = [

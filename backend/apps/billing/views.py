@@ -34,6 +34,18 @@ stripe.api_key = settings.STRIPE_SECRET_KEY
 # Configure logging
 logger = logging.getLogger(__name__)
 
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def stripe_public_key(request: Request):
+    """Return the Stripe publishable key for Stripe.js initialization"""
+    try:
+        return Response({
+            'publicKey': settings.STRIPE_PUBLISHABLE_KEY
+        })
+    except Exception as e:
+        logger.error(f"Error retrieving Stripe public key: {e}")
+        return Response({'error': 'Failed to load Stripe public key'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 
 @api_view(['GET'])
 @permission_classes([permissions.IsAuthenticated])
