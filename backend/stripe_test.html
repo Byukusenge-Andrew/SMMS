@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stripe Payment Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .tier-card {
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 10px 0;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .tier-card:hover {
+            border-color: #007cff;
+            transform: translateY(-2px);
+        }
+        .tier-card.selected {
+            border-color: #007cff;
+            background-color: #f0f8ff;
+        }
+        .price {
+            font-size: 24px;
+            font-weight: bold;
+            color: #007cff;
+        }
+        .features {
+            list-style: none;
+            padding: 0;
+        }
+        .features li {
+            padding: 5px 0;
+            border-bottom: 1px solid #eee;
+        }
+        .test-card-info {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        .auth-section {
+            background: #e7f3ff;
+            border: 1px solid #b3d9ff;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        button {
+            background: #007cff;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .response {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 10px 0;
+            font-family: monospace;
+            white-space: pre-wrap;
+        }
+        .error {
+            background: #f8d7da;
+            border-color: #f5c6cb;
+            color: #721c24;
+        }
+        .success {
+            background: #d4edda;
+            border-color: #c3e6cb;
+            color: #155724;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 Stripe Payment Integration Test</h1>
+        
+        <div class="auth-section">
+            <h3>Step 1: Authentication</h3>
+            <p>First, you need to authenticate to test the payment flow:</p>
+            <input type="email" id="email" placeholder="Email" value="test@example.com">
+            <input type="password" id="password" placeholder="Password" value="testpass123">
+            <button onclick="login()">Login</button>
+            <div id="auth-status"></div>
+        </div>
+
+        <div class="test-card-info">
+            <h3>📋 Test Card Information</h3>
+            <p><strong>Card Number:</strong> 4242 4242 4242 4242</p>
+            <p><strong>Expiry:</strong> Any future date (e.g., 12/34)</p>
+            <p><strong>CVC:</strong> Any 3 digits (e.g., 123)</p>
+            <p><strong>Postal Code:</strong> Any valid postal code</p>
+        </div>
+
+        <h2>Step 2: Choose Subscription Plan</h2>
+        <div id="tiers-container">
+            <button onclick="loadTiers()">Load Available Plans</button>
+        </div>
+
+        <h2>Step 3: Test Payment</h2>
+        <div>
+            <label>
+                <input type="radio" name="billing" value="monthly" checked> Monthly
+            </label>
+            <label>
+                <input type="radio" name="billing" value="yearly"> Yearly
+            </label>
+        </div>
+        <button onclick="createCheckout()" id="checkout-btn" disabled>Create Checkout Session</button>
+
+        <div id="response-area"></div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://127.0.0.1:8000';
+        let authToken = '';
+        let selectedTier = null;
+        let availableTiers = [];
+
+        function showResponse(data, isError = false) {
+            const area = document.getElementById('response-area');
+            const div = document.createElement('div');
+            div.className = `response ${isError ? 'error' : 'success'}`;
+            div.textContent = JSON.stringify(data, null, 2);
+            area.appendChild(div);
+        }
+
+        async function login() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            
+            try {
+                // The login endpoint expects 'username' field, not 'email'
+                const response = await fetch(API_BASE + '/api/auth/login/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        username: email,  // Use email as username
+                        password: password
+                    })
+                });
+                
+                console.log('Login response status:', response.status);
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    console.log('Login response data:', data);
+                    
+                    // The token field is 'token' according to the login view
+                    authToken = data.token;
+                    
+                    if (authToken) {
+                        document.getElementById('auth-status').innerHTML = 
+                            `<span style="color: green;">✅ Authenticated successfully! Token: ${authToken.substring(0, 10)}...</span>`;
+                        showResponse({message: 'Login successful', token_preview: authToken.substring(0, 10) + '...'});
+                        return;
+                    } else {
+                        console.log('No token found in response:', data);
+                        document.getElementById('auth-status').innerHTML = 
+                            `<span style="color: orange;">⚠️ Login successful but no token found. Response: ${JSON.stringify(data)}</span>`;
+                    }
+                } else {
+                    const errorData = await response.json().catch(() => ({}));
+                    console.log('Login error response:', errorData);
+                    document.getElementById('auth-status').innerHTML = 
+                        `<span style="color: red;">❌ Login failed: ${JSON.stringify(errorData)}</span>`;
+                    showResponse({error: 'Login failed', details: errorData}, true);
+                }
+                
+            } catch (error) {
+                console.error('Login error:', error);
+                document.getElementById('auth-status').innerHTML = 
+                    `<span style="color: red;">❌ Login error: ${error.message}</span>`;
+                showResponse({error: error.message}, true);
+            }
+        }
+
+        async function loadTiers() {
+            try {
+                const response = await fetch(API_BASE + '/api/billing/api/subscription-tiers/');
+                const data = await response.json();
+                
+                if (data.success && data.tiers) {
+                    availableTiers = data.tiers;
+                    renderTiers(data.tiers);
+                    showResponse({message: `Loaded ${data.tiers.length} subscription tiers`});
+                } else {
+                    showResponse(data, true);
+                }
+            } catch (error) {
+                showResponse({error: error.message}, true);
+            }
+        }
+
+        function renderTiers(tiers) {
+            const container = document.getElementById('tiers-container');
+            container.innerHTML = '';
+            
+            tiers.forEach(tier => {
+                if (tier.price_monthly > 0) { // Only show paid tiers
+                    const card = document.createElement('div');
+                    card.className = 'tier-card';
+                    card.onclick = () => selectTier(tier);
+                    
+                    card.innerHTML = `
+                        <h3>${tier.display_name}</h3>
+                        <div class="price">$${tier.price_monthly}/month - $${tier.price_yearly}/year</div>
+                        <p>${tier.description || 'No description available'}</p>
+                        <ul class="features">
+                            <li>Max Social Accounts: ${tier.features.max_social_accounts || 'Unlimited'}</li>
+                            <li>Max Scheduled Posts: ${tier.features.max_scheduled_posts || 'Unlimited'}</li>
+                            <li>Team Members: ${tier.features.max_team_members || 'Unlimited'}</li>
+                            <li>Analytics Retention: ${tier.features.analytics_retention_days || 'Forever'} days</li>
+                        </ul>
+                    `;
+                    
+                    container.appendChild(card);
+                }
+            });
+        }
+
+        function selectTier(tier) {
+            // Remove previous selection
+            document.querySelectorAll('.tier-card').forEach(card => {
+                card.classList.remove('selected');
+            });
+            
+            // Add selection to clicked card
+            event.target.closest('.tier-card').classList.add('selected');
+            
+            selectedTier = tier;
+            document.getElementById('checkout-btn').disabled = false;
+            showResponse({message: `Selected: ${tier.display_name}`});
+        }
+
+        async function createCheckout() {
+            if (!authToken) {
+                showResponse({error: 'Please login first'}, true);
+                return;
+            }
+            
+            if (!selectedTier) {
+                showResponse({error: 'Please select a subscription tier'}, true);
+                return;
+            }
+            
+            const billingPeriod = document.querySelector('input[name="billing"]:checked').value;
+            
+            try {
+        const response = await fetch(API_BASE + '/api/billing/stripe/checkout/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+            // DRF TokenAuthentication expects the 'Token' scheme
+            'Authorization': `Token ${authToken}`
+                    },
+                    body: JSON.stringify({
+                        tier_id: selectedTier.id,
+                        billing_period: billingPeriod
+                    })
+                });
+                
+                const data = await response.json();
+
+                if (data.session_id) {
+                    // Prefer Stripe.js redirect to avoid URL issues
+                    // 1) fetch publishable key
+                    const keyRes = await fetch(API_BASE + '/api/billing/stripe/public-key/');
+                    const keyJson = await keyRes.json();
+                    if (!keyRes.ok || !keyJson.publicKey) {
+                        showResponse({ error: 'Failed to load Stripe public key', details: keyJson }, true);
+                        return;
+                    }
+                    
+                    // 2) load Stripe.js and redirect
+                    const stripeJs = document.createElement('script');
+                    stripeJs.src = 'https://js.stripe.com/v3/';
+                    stripeJs.onload = async () => {
+                        const stripe = Stripe(keyJson.publicKey);
+                        const { error } = await stripe.redirectToCheckout({ sessionId: data.session_id });
+                        if (error) {
+                            showResponse({ error: error.message }, true);
+                        }
+                    };
+                    document.body.appendChild(stripeJs);
+
+                    // Also show info for debugging
+                    showResponse({
+                        message: 'Checkout session created successfully! Redirecting with Stripe.js...',
+                        session_id: data.session_id,
+                        tier: selectedTier.display_name,
+                        billing: billingPeriod,
+                        price: billingPeriod === 'monthly' ? selectedTier.price_monthly : selectedTier.price_yearly
+                    });
+                } else if (data.success && data.checkout_url) {
+                    // Fallback to opening the URL directly
+                    showResponse({
+                        message: 'Checkout session created. Opening checkout URL...',
+                        checkout_url: data.checkout_url
+                    });
+                    window.open(data.checkout_url, '_blank');
+                } else {
+                    showResponse(data, true);
+                }
+            } catch (error) {
+                showResponse({error: error.message}, true);
+            }
+        }
+
+        // Auto-load tiers on page load
+        window.onload = function() {
+            loadTiers();
+        };
+    </script>
+</body>
+</html>
