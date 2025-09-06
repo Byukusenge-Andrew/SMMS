@@ -20,8 +20,8 @@ def create_subscription_tiers():
     
     tiers = [
         {
-            'name': 'Basic',
-            'display_name': 'Starter',
+            'name': 'basic',
+            'display_name': 'Basic',
             'description': 'Perfect for individuals and small creators getting started',
             'price_monthly': Decimal('9.99'),
             'price_yearly': Decimal('9.99'),
@@ -77,7 +77,7 @@ def create_subscription_tiers():
             'name': 'enterprise',
             'display_name': 'Enterprise',
             'description': 'For large organizations with advanced needs',
-            'price_monthly': Decimal('`19.99'),
+            'price_monthly': Decimal('19.99'),
             'price_yearly': Decimal('19.99'),  # 2 months free
             'max_social_accounts': -1,  # Unlimited
             'max_scheduled_posts': -1,  # Unlimited
