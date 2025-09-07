@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Facebook Integration Test - Keativ</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #1877f2;
+            text-align: center;
+            border-bottom: 3px solid #1877f2;
+            padding-bottom: 10px;
+        }
+        .app-info {
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        button {
+            background: #1877f2;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #166fe5;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .result {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 5px;
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .success {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        .error {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+        .info {
+            background: #d1ecf1;
+            border: 1px solid #bee5eb;
+            color: #0c5460;
+        }
+        .auth-url {
+            word-break: break-all;
+            background: #fff3cd;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .status {
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 Facebook Integration Test</h1>
+        
+        <div class="app-info">
+            <h3>📱 Meta App Configuration - Keativ</h3>
+            <p><strong>App ID:</strong> 678085037958557</p>
+            <p><strong>App Name:</strong> Keativ</p>
+            <p><strong>Contact:</strong> byuridrew@gmail.com</p>
+            <p><strong>Terms:</strong> <a href="https://keativ.netlify.app/terms" target="_blank" rel="noopener noreferrer">https://keativ.netlify.app/terms</a></p>
+            <p><strong>Redirect URI:</strong> http://127.0.0.1:8000/api/integrations/facebook/callback/</p>
+        </div>
+
+        <div class="test-section">
+            <h3>🔑 Authentication Setup</h3>
+            <p>You need a valid user authentication token to test the Facebook integration.</p>
+            <div style="margin: 10px 0;">
+                <input type="text" id="token-input" placeholder="Enter your authentication token" style="width: 60%; padding: 8px; margin: 5px;">
+                <button onclick="setToken()">Set Token</button>
+                <button onclick="clearToken()">Clear Token</button>
+            </div>
+            <div id="token-status" class="result" style="display: none;"></div>
+            <div style="margin-top: 10px; padding: 10px; background: #fff3cd; border-radius: 5px; font-size: 0.9em;">
+                <strong>How to get a token:</strong><br>
+                1. Login to your app<br>
+                2. Check the browser developer tools → Application/Storage → Cookies<br>
+                3. Look for 'sessionid' or 'authtoken' value<br>
+                4. Or get it from your app's authentication system
+            </div>
+        </div>
+(venv) PS D:\SMMS\backend> python -c "from apps.integrations.views_facebook import *"
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+    from apps.integrations.views_facebook import *  
+  File "D:\SMMS\backend\apps\integrations\views_facebook.py", line 10, in <module>
+    from rest_framework.decorators import api_view, authentication_classes, permission_classes
+  File "D:\SMMS\backend\venv\Lib\site-packages\rest_framework\decorators.py", line 13, in <module>      
+    from rest_framework.views import APIView        
+  File "D:\SMMS\backend\venv\Lib\site-packages\rest_framework\views.py", line 17, in <module>
+    from rest_framework.schemas import DefaultSchema
+  File "D:\SMMS\backend\venv\Lib\site-packages\rest_framework\schemas\__init__.py", line 25, in <module>
+    from . import coreapi, openapi
+  File "D:\SMMS\backend\venv\Lib\site-packages\rest_framework\schemas\openapi.py", line 21, in <module> 
+    from rest_framework import RemovedInDRF315Warning, exceptions, renderers, serializers
+  File "D:\SMMS\backend\venv\Lib\site-packages\rest_framework\renderers.py", line 58, in <module>       
+    class JSONRenderer(BaseRenderer):
+    ...<56 lines>...
+            return ret.encode()
+  File "D:\SMMS\backend\venv\Lib\site-packages\rest_framework\renderers.py", line 65, in JSONRenderer   
+    ensure_ascii = not api_settings.UNICODE_JSON    
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^    
+  File "D:\SMMS\backend\venv\Lib\site-packages\rest_framework\settings.py", line 218, in __getattr__    
+    val = self.user_settings[attr]
+          ^^^^^^^^^^^^^^^^^^
+  File "D:\SMMS\backend\venv\Lib\site-packages\rest_framework\settings.py", line 209, in user_settings  
+    self._user_settings = getattr(settings, 'REST_FRAMEWORK', {})
+                          ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\SMMS\backend\venv\Lib\site-packages\django\conf\__init__.py", line 89, in __getattr__        
+    self._setup(name)
+    ~~~~~~~~~~~^^^^^^
+  File "D:\SMMS\backend\venv\Lib\site-packages\django\conf\__init__.py", line 69, in _setup
+    raise ImproperlyConfigured(
+    ...<4 lines>...
+    )
+django.core.exceptions.ImproperlyConfigured: Requested setting REST_FRAMEWORK, but settings are not configured. You must either define the environment variable DJANGO_SETTINGS_MODULE or call settings.configure() before accessing settings.
+(venv) PS D:\SMMS\backend>
+        <div class="test-section">
+            <h3>1. 🔗 Test Facebook Authorization</h3>
+            <p>Generate Facebook OAuth authorization URL</p>
+            <button onclick="testAuthorization()">Generate Authorization URL</button>
+            <div id="auth-result" class="result" style="display: none;"></div>
+            <div id="auth-url-display" class="auth-url" style="display: none;">
+                <strong>Authorization URL:</strong><br>
+                <a id="auth-link" href="#" target="_blank">Click here to authorize</a>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h3>2. ✅ Test Account Verification</h3>
+            <p>Check if Facebook account is connected</p>
+            <button onclick="testVerification()">Check Connection Status</button>
+            <div id="verify-result" class="result" style="display: none;"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>3. 📄 Test Endpoint Availability</h3>
+            <p>Check if all Facebook endpoints are accessible</p>
+            <button onclick="testEndpoints()">Test All Endpoints</button>
+            <div id="endpoints-result" class="result" style="display: none;"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>4. 📝 Test Post Creation</h3>
+            <p>Test posting to Facebook (requires connected account)</p>
+            <input type="text" id="post-message" placeholder="Enter test message" style="width: 70%; padding: 8px; margin: 5px;">
+            <button onclick="testPosting()">Test Post</button>
+            <div id="post-result" class="result" style="display: none;"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>5. ❌ Test Disconnect</h3>
+            <p>Disconnect Facebook account</p>
+            <button onclick="testDisconnect()">Disconnect Account</button>
+            <div id="disconnect-result" class="result" style="display: none;"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>📊 Test Status</h3>
+            <div id="overall-status" class="status">Ready to test...</div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://127.0.0.1:8000';
+        let USER_TOKEN = localStorage.getItem('test_token') || ''; // Get token from localStorage
+
+        function updateStatus(message, type = 'info') {
+            const status = document.getElementById('overall-status');
+            status.textContent = message;
+            status.className = `status ${type}`;
+        }
+
+        function showResult(elementId, content, type = 'info') {
+            const element = document.getElementById(elementId);
+            element.textContent = content;
+            element.className = `result ${type}`;
+            element.style.display = 'block';
+        }
+
+        // Function to get or prompt for authentication token
+        function ensureAuthentication() {
+            if (!USER_TOKEN || USER_TOKEN === 'YOUR_TOKEN_HERE') {
+                USER_TOKEN = prompt('Please enter your authentication token:');
+                if (USER_TOKEN) {
+                    localStorage.setItem('test_token', USER_TOKEN);
+                } else {
+                    showResult('overall-status', 'Authentication token is required for testing', 'error');
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        async function makeRequest(endpoint, method = 'GET', body = null) {
+            const headers = {
+                'Content-Type': 'application/json'
+            };
+            
+            // Add authorization header if token is available
+            if (USER_TOKEN && USER_TOKEN !== 'YOUR_TOKEN_HERE') {
+                headers['Authorization'] = `Token ${USER_TOKEN}`;
+            }
+
+            const config = {
+                method,
+                headers,
+                credentials: 'omit'
+            };
+
+            if (body) {
+                config.body = JSON.stringify(body);
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}${endpoint}`, config);
+                const data = await response.json();
+                return { status: response.status, data, ok: response.ok };
+            } catch (error) {
+                return { status: 0, data: { error: error.message }, ok: false };
+            }
+        }
+
+        async function testAuthorization() {
+            if (!ensureAuthentication()) return;
+            
+            updateStatus('Testing Facebook authorization...');
+            const result = await makeRequest('/api/integrations/facebook/authorize/');
+            
+            if (result.ok && result.data.authorization_url) {
+                showResult('auth-result', `✅ Success! Status: ${result.status}`, 'success');
+                
+                // Show clickable authorization URL
+                const authUrlDiv = document.getElementById('auth-url-display');
+                const authLink = document.getElementById('auth-link');
+                authLink.href = result.data.authorization_url;
+                authLink.textContent = result.data.authorization_url;
+                authUrlDiv.style.display = 'block';
+                
+                updateStatus('Authorization URL generated successfully!', 'success');
+            } else {
+                showResult('auth-result', `❌ Error: ${JSON.stringify(result.data, null, 2)}`, 'error');
+                updateStatus('Authorization test failed', 'error');
+            }
+        }
+
+        async function testVerification() {
+            updateStatus('Testing Facebook account verification...');
+            const result = await makeRequest('/api/integrations/facebook/verify/');
+            
+            if (result.ok) {
+                if (result.data.connected) {
+                    showResult('verify-result', `✅ Connected! Account: ${result.data.account.username}`, 'success');
+                    updateStatus('Facebook account is connected', 'success');
+                } else {
+                    showResult('verify-result', '📝 No Facebook account connected', 'info');
+                    updateStatus('No Facebook account connected', 'info');
+                }
+            } else {
+                showResult('verify-result', `❌ Error: ${JSON.stringify(result.data, null, 2)}`, 'error');
+                updateStatus('Verification test failed', 'error');
+            }
+        }
+
+        async function testEndpoints() {
+            updateStatus('Testing all Facebook endpoints...');
+            
+            const endpoints = [
+                '/api/integrations/facebook/authorize/',
+                '/api/integrations/facebook/callback/',
+                '/api/integrations/facebook/verify/',
+                '/api/integrations/facebook/post/',
+                '/api/integrations/facebook/disconnect/'
+            ];
+
+            let results = [];
+            let allWorking = true;
+
+            for (const endpoint of endpoints) {
+                try {
+                    const response = await fetch(`${API_BASE}${endpoint}`, { method: 'OPTIONS' });
+                    if (response.status === 200) {
+                        results.push(`✅ ${endpoint}: Available`);
+                    } else {
+                        results.push(`❌ ${endpoint}: Status ${response.status}`);
+                        allWorking = false;
+                    }
+                } catch (error) {
+                    results.push(`❌ ${endpoint}: ${error.message}`);
+                    allWorking = false;
+                }
+            }
+
+            showResult('endpoints-result', results.join('\n'), allWorking ? 'success' : 'error');
+            updateStatus(allWorking ? 'All endpoints working!' : 'Some endpoints have issues', allWorking ? 'success' : 'error');
+        }
+
+        async function testPosting() {
+            const message = document.getElementById('post-message').value;
+            if (!message.trim()) {
+                showResult('post-result', '❌ Please enter a test message', 'error');
+                return;
+            }
+
+            updateStatus('Testing Facebook posting...');
+            const result = await makeRequest('/api/integrations/facebook/post/', 'POST', {
+                content: message,
+                platforms: ['facebook']
+            });
+
+            if (result.ok) {
+                showResult('post-result', `✅ Post successful! ${JSON.stringify(result.data, null, 2)}`, 'success');
+                updateStatus('Facebook posting test successful!', 'success');
+            } else {
+                showResult('post-result', `❌ Error: ${JSON.stringify(result.data, null, 2)}`, 'error');
+                updateStatus('Facebook posting test failed', 'error');
+            }
+        }
+
+        async function testDisconnect() {
+            updateStatus('Testing Facebook disconnect...');
+            const result = await makeRequest('/api/integrations/facebook/disconnect/', 'DELETE');
+
+            if (result.ok) {
+                showResult('disconnect-result', `✅ Disconnect successful! ${JSON.stringify(result.data, null, 2)}`, 'success');
+                updateStatus('Facebook disconnect test successful!', 'success');
+            } else {
+                showResult('disconnect-result', `❌ Error: ${JSON.stringify(result.data, null, 2)}`, 'error');
+                updateStatus('Facebook disconnect test failed', 'error');
+            }
+        }
+
+        // Token management functions
+        function setToken() {
+            const tokenInput = document.getElementById('token-input');
+            const token = tokenInput.value.trim();
+            
+            if (!token) {
+                showResult('token-status', '❌ Please enter a valid token', 'error');
+                return;
+            }
+            
+            USER_TOKEN = token;
+            localStorage.setItem('test_token', token);
+            tokenInput.value = '';
+            showResult('token-status', '✅ Authentication token set successfully!', 'success');
+            updateStatus('Ready to test with authentication token', 'success');
+        }
+
+        function clearToken() {
+            USER_TOKEN = '';
+            localStorage.removeItem('test_token');
+            document.getElementById('token-input').value = '';
+            showResult('token-status', '🗑️ Authentication token cleared', 'info');
+            updateStatus('Authentication token cleared - will prompt when needed', 'info');
+        }
+
+        // Check server status on load
+        window.addEventListener('load', async () => {
+            // Check if we have a stored token
+            const storedToken = localStorage.getItem('test_token');
+            if (storedToken) {
+                USER_TOKEN = storedToken;
+                showResult('token-status', '✅ Using stored authentication token', 'success');
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/integrations/facebook/authorize/`, { method: 'OPTIONS' });
+                if (response.status === 200) {
+                    updateStatus('✅ Server is running and Facebook endpoints are accessible!', 'success');
+                } else {
+                    updateStatus('⚠️ Server is running but endpoints may have issues', 'error');
+                }
+            } catch (error) {
+                updateStatus(`❌ Server is not running or not accessible: ${error.message}`, 'error');
+            }
+        });
+    </script>
+</body>
+</html>
