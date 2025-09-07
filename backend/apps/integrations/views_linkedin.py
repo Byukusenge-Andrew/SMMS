@@ -4,6 +4,7 @@ LinkedIn Integration Views
 import logging
 from django.conf import settings
 from django.shortcuts import redirect
+from django.http import HttpResponse
 from rest_framework import permissions, status
 from rest_framework.authentication import TokenAuthentication
 from rest_framework.decorators import api_view, authentication_classes, permission_classes
@@ -48,6 +49,7 @@ def linkedin_authorize(request):
             'redirect_uri': callback_url,
             'redirect': redirect_flag,
             'next': next_path,
+            'user_id': request.user.id,  # Store user ID for callback
         }
         request.session.modified = True
 
@@ -86,16 +88,28 @@ def linkedin_authorize(request):
 @api_view(['GET'])
 @permission_classes([permissions.AllowAny])
 def linkedin_callback(request):
-    """Handle LinkedIn OAuth 2.0 callback"""
+    """Handle LinkedIn OAuth 2.0 callback.
+
+    Modes:
+      1. Redirect Mode (default when session oauth['redirect'] == True):
+         Redirect the browser to the SPA frontend route.
+      2. Headless/Test Harness Mode (oauth['redirect'] == False):
+         Complete token exchange; if not JSON Accept header, return a tiny HTML page that posts
+         the payload to window.opener then closes (for static harness usage).
+    """
     try:
         code = request.GET.get('code')
         state = request.GET.get('state')
         error = request.GET.get('error')
         accept = request.META.get('HTTP_ACCEPT', '') or ''
 
-        # If this is a browser redirect from LinkedIn (not an API call expecting JSON),
-        # bounce to the frontend route so the SPA page can handle token binding.
-        if 'application/json' not in accept:
+        # Session values decide behavior
+        sess = request.session.get('linkedin_oauth') or {}
+        # If session missing, default to headless (False) so we can still try to exchange and postMessage
+        redirect_pref = bool(sess.get('redirect')) if 'redirect' in sess else False
+
+        # If browser navigation and redirect preference is True, bounce to frontend
+        if 'application/json' not in accept and redirect_pref:
             from urllib.parse import quote
             target = f"{settings.FRONTEND_URL}/dashboard/integrations/linkedin/callback"
             sep = '?' if ('?' not in target) else '&'
@@ -104,12 +118,8 @@ def linkedin_callback(request):
             if code:
                 return redirect(f"{target}{sep}code={code}&state={state or ''}")
             return redirect(f"{settings.FRONTEND_URL}/dashboard/integrations")
-
-        # JSON mode from here on
-        sess = request.session.get('linkedin_oauth') or {}
-
+        # Error from provider
         if error:
-            # If the flow requested redirect, send user back to frontend with error
             if sess.get('redirect'):
                 target = sess.get('next') or "/dashboard/integrations"
                 url = f"{settings.FRONTEND_URL}{target}"
@@ -120,28 +130,20 @@ def linkedin_callback(request):
                 except Exception:
                     pass
                 return redirect(url)
-            return Response({
-                'success': False,
-                'error': f'LinkedIn OAuth error: {error}'
-            }, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'success': False, 'error': f'LinkedIn OAuth error: {error}'}, status=status.HTTP_400_BAD_REQUEST)
 
         if not code:
-            return Response({
-                'success': False,
-                'error': 'Missing authorization code'
-            }, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'success': False, 'error': 'Missing authorization code'}, status=status.HTTP_400_BAD_REQUEST)
 
         linkedin_integrator = LinkedInIntegrator()
         expected_state = sess.get('state')
-        code_verifier = sess.get('code_verifier')  # Will be None since we're not using PKCE now
+        code_verifier = sess.get('code_verifier')  # Will be None for now
         callback_url = sess.get('redirect_uri') or linkedin_integrator.redirect_uri
 
-        # Debug logging for session data
         logger.info(f"LinkedIn callback session data: state_expected={expected_state}, state_received={state}")
         logger.info(f"LinkedIn callback session data: code_verifier={'None (PKCE disabled)' if not code_verifier else code_verifier[:10] + '...'}")
         logger.info(f"LinkedIn callback session data: callback_url={callback_url}")
 
-        # Validate state to prevent CSRF
         if expected_state and state and expected_state != state:
             logger.error("LinkedIn state mismatch during callback")
             if sess.get('redirect'):
@@ -154,10 +156,7 @@ def linkedin_callback(request):
                 except Exception:
                     pass
                 return redirect(url)
-            return Response({
-                'success': False,
-                'error': 'Invalid OAuth state. Please try connecting again.'
-            }, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'success': False, 'error': 'Invalid OAuth state. Please try connecting again.'}, status=status.HTTP_400_BAD_REQUEST)
 
         # Exchange code for tokens
         logger.info(f"Attempting token exchange for LinkedIn with code: {code[:10]}...")
@@ -178,16 +177,10 @@ def linkedin_callback(request):
                 except Exception:
                     pass
                 return redirect(url)
-            return Response({
-                'success': False,
-                'error': error_msg
-            }, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'success': False, 'error': error_msg}, status=status.HTTP_400_BAD_REQUEST)
 
         access_token = token_result.get('access_token')
-
-        # Get user profile
         profile_result = linkedin_integrator.get_profile(access_token)
-
         if not profile_result.get('success'):
             if sess.get('redirect'):
                 target = sess.get('next') or "/dashboard/integrations"
@@ -200,14 +193,120 @@ def linkedin_callback(request):
                 except Exception:
                     pass
                 return redirect(url)
-            return Response({
-                'success': False,
-                'error': profile_result.get('error', 'Failed to get user profile')
-            }, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'success': False, 'error': profile_result.get('error', 'Failed to get user profile')}, status=status.HTTP_400_BAD_REQUEST)
 
         profile = profile_result.get('profile', {})
 
-        # Success: if redirect was requested, send user to frontend UI
+        # Save tokens directly to database if we have user context
+        user_id = sess.get('user_id')
+        current_user = None
+        
+        # Try to get user from session first
+        if user_id:
+            try:
+                from django.contrib.auth import get_user_model
+                User = get_user_model()
+                current_user = User.objects.get(id=user_id)
+                logger.info(f"LinkedIn callback: Found user from session: {current_user.username} (ID: {user_id})")
+            except Exception as e:
+                logger.error(f"LinkedIn callback: Could not get user from session user_id {user_id}: {e}")
+        
+        # Fallback: try to get authenticated user from request
+        if not current_user and hasattr(request, 'user') and request.user.is_authenticated:
+            current_user = request.user
+            logger.info(f"LinkedIn callback: Using authenticated user from request: {current_user.username} (ID: {current_user.id})")
+        
+        # Additional fallback: check if there's a user with the LinkedIn email
+        if not current_user and profile.get('email'):
+            try:
+                from django.contrib.auth import get_user_model
+                User = get_user_model()
+                current_user = User.objects.get(email=profile.get('email'))
+                logger.info(f"LinkedIn callback: Found user by email: {current_user.username}")
+            except Exception as e:
+                logger.info(f"LinkedIn callback: No user found with email {profile.get('email')}: {e}")
+        
+        if not current_user:
+            logger.warning("LinkedIn callback: No user context found - tokens cannot be saved")
+        
+        integration_saved = False
+        if current_user:
+            try:
+                from .models import SocialMediaAccount as IntegratedAccount, SocialMediaPlatform
+                from apps.authentication.models import SocialMediaAccount
+                
+                platform_user_id = profile.get('id')
+                first_name = profile.get('first_name', '')
+                last_name = profile.get('last_name', '')
+                email = profile.get('email', '')
+                profile_image_url = profile.get('profile_picture', '')
+                
+                access_token = token_result.get('access_token', '')
+                refresh_token = token_result.get('refresh_token', '')
+                expires_in = token_result.get('expires_in')
+                
+                if platform_user_id and access_token:
+                    # Create display name and username
+                    display_name = f"{first_name} {last_name}".strip()
+                    if not display_name:
+                        display_name = f"LinkedIn User {platform_user_id}"
+                    # Use email as username if available, otherwise use platform_user_id
+                    username = email if email else f"linkedin_{platform_user_id}"
+                    
+                    # Store in IntegratedAccount
+                    account, created = IntegratedAccount.objects.update_or_create(
+                        user=current_user,
+                        platform=SocialMediaPlatform.LINKEDIN,
+                        platform_user_id=platform_user_id,
+                        defaults={
+                            'username': username,
+                            'display_name': display_name,
+                            'profile_image_url': profile_image_url,
+                            'is_active': True,
+                            'access_token': access_token,
+                            'refresh_token': refresh_token,
+                        }
+                    )
+                    
+                    if expires_in:
+                        try:
+                            from django.utils import timezone
+                            account.token_expires_at = timezone.now() + timezone.timedelta(seconds=int(expires_in))
+                            account.save(update_fields=['token_expires_at'])
+                        except Exception:
+                            pass
+                    
+                    # Mirror into auth app's SocialMediaAccount
+                    try:
+                        auth_defaults = {
+                            'access_token': access_token,
+                            'refresh_token': refresh_token,
+                            'is_active': True,
+                            'platform_user_id': platform_user_id,
+                        }
+                        
+                        if expires_in:
+                            try:
+                                from django.utils import timezone as _tz
+                                auth_defaults['token_expires_at'] = _tz.now() + _tz.timedelta(seconds=int(expires_in))
+                            except Exception:
+                                pass
+                        
+                        SocialMediaAccount.objects.update_or_create(
+                            user=current_user,
+                            platform='linkedin',
+                            username=username,
+                            defaults=auth_defaults,
+                        )
+                    except Exception as e:
+                        logger.error(f"Failed to sync auth SocialMediaAccount for LinkedIn: {e}")
+                    
+                    integration_saved = True
+                    logger.info(f"LinkedIn tokens saved successfully for user {current_user.username}, account_id: {account.id}")
+                    
+            except Exception as e:
+                logger.error(f"Error saving LinkedIn integration: {e}")
+
         if sess.get('redirect'):
             target = sess.get('next') or "/dashboard/integrations"
             url = f"{settings.FRONTEND_URL}{target}"
@@ -219,7 +318,6 @@ def linkedin_callback(request):
                 pass
             return redirect(url)
 
-        # Default: return JSON payload for SPA to bind tokens
         resp = {
             'success': True,
             'account': {
@@ -241,14 +339,30 @@ def linkedin_callback(request):
             del request.session['linkedin_oauth']
         except Exception:
             pass
-        return Response(resp)
 
+        if 'application/json' in accept:
+            return Response(resp)
+
+        html = f"""<!DOCTYPE html><html><head><title>LinkedIn Connected</title></head>
+<body style='font-family:system-ui; padding:20px;'>
+<h3>LinkedIn Authorization Successful</h3>
+<p>You can close this window.</p>
+<script>
+(function() {{
+  try {{
+    var payload = {resp};
+    if (window.opener && window.opener.postMessage) {{
+      window.opener.postMessage({{ source: 'linkedin-oauth', data: JSON.stringify(payload) }}, '*');
+      setTimeout(function() {{ window.close(); }}, 400);
+    }}
+  }} catch(e) {{ console.error('postMessage failed', e); }}
+}})();
+</script>
+</body></html>"""
+        return HttpResponse(html)
     except Exception as e:
         logger.error(f"LinkedIn callback error: {e}")
-        return Response({
-            'success': False,
-            'error': str(e)
-        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return Response({'success': False, 'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @extend_schema(
@@ -266,8 +380,10 @@ def linkedin_callback(request):
 @permission_classes([permissions.IsAuthenticated])
 def linkedin_bind_tokens(request):
     """Bind LinkedIn tokens and profile to authenticated user"""
+    logger.info(f"LinkedIn bind tokens called for user: {request.user}")
     try:
         data = request.data or {}
+        logger.info(f"LinkedIn bind tokens data: {data}")
         account_data = data.get('account') or {}
         tokens = data.get('tokens') or {}
         
@@ -344,6 +460,7 @@ def linkedin_bind_tokens(request):
         except Exception as e:
             logger.error(f"Failed to sync auth SocialMediaAccount for LinkedIn: {e}")
         
+        logger.info(f"LinkedIn tokens bound successfully for user {request.user}, account_id: {account.id}")
         return Response({'success': True, 'account_id': str(account.id)})
         
     except Exception as e:

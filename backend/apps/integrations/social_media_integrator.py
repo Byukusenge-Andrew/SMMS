@@ -536,6 +536,82 @@ class LinkedInIntegrator(SocialMediaIntegrator):
 
 
 # Integration Factory
+class FacebookIntegrator(SocialMediaIntegrator):
+    """Facebook integration using OAuth 2.0"""
+
+    def __init__(self):
+        super().__init__("facebook")
+        self.client_id = settings.SOCIAL_MEDIA_CONFIGS.get("FACEBOOK", {}).get("CLIENT_ID")
+        self.client_secret = settings.SOCIAL_MEDIA_CONFIGS.get("FACEBOOK", {}).get("CLIENT_SECRET")
+
+    def verify_account(self, credentials):
+        """Verify Facebook account credentials"""
+        try:
+            access_token = credentials.get("access_token")
+            if not access_token:
+                return {"verified": False, "error": "Access token is required"}
+
+            # Verify token with Facebook API
+            response = requests.get(
+                "https://graph.facebook.com/v18.0/me",
+                params={"access_token": access_token, "fields": "id,name,email,picture"},
+                timeout=30
+            )
+
+            if response.status_code == 200:
+                user_data = response.json()
+                return {
+                    "verified": True,
+                    "platform": "facebook",
+                    "username": user_data.get("name", ""),
+                    "user_id": user_data.get("id", ""),
+                    "email": user_data.get("email", ""),
+                    "profile_image": user_data.get("picture", {}).get("data", {}).get("url", ""),
+                    "message": "Facebook account verified successfully"
+                }
+            else:
+                return {"verified": False, "error": f"Facebook API error: {response.text}"}
+
+        except Exception as e:
+            return {"verified": False, "error": str(e)}
+
+    def get_account_info(self, credentials):
+        """Get Facebook account information"""
+        return self.verify_account(credentials)
+
+    def publish_post(self, content, media_urls=None, credentials=None):
+        """Publish content to Facebook"""
+        try:
+            access_token = credentials.get("access_token") if credentials else None
+            if not access_token:
+                return {"success": False, "error": "Access token is required"}
+
+            # Post to Facebook Pages API (simplified for user posts)
+            payload = {"message": content}
+            
+            response = requests.post(
+                "https://graph.facebook.com/v18.0/me/feed",
+                data=payload,
+                params={"access_token": access_token},
+                timeout=30
+            )
+
+            if response.status_code == 200:
+                post_data = response.json()
+                post_id = post_data.get("id", "")
+                return {
+                    "success": True,
+                    "post_id": post_id,
+                    "url": f"https://www.facebook.com/{post_id}",
+                    "message": "Post published successfully on Facebook"
+                }
+            else:
+                return {"success": False, "error": f"Facebook API error: {response.text}"}
+
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+
 class IntegrationFactory:
     """Factory for creating social media integrators"""
 
@@ -547,6 +623,7 @@ class IntegrationFactory:
             "reddit": RedditIntegrator,
             "slack": SlackIntegrator,
             "linkedin": LinkedInIntegrator,
+            "facebook": FacebookIntegrator,
         }
 
         integrator_class = integrators.get(platform.lower())

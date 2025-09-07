@@ -41,6 +41,14 @@ from .views_linkedin import (
     post_linkedin_share,
     linkedin_disconnect,
 )
+from .views_facebook import (
+    facebook_authorize,
+    facebook_callback,
+    verify_facebook_credentials,
+    post_facebook_share,
+    facebook_disconnect,
+)
+from .test_views import facebook_test_page
 from .tiktok_views import (
     tiktok_auth_url,
     tiktok_oauth_callback,
@@ -112,6 +120,15 @@ urlpatterns = [
     path("linkedin/verify/", verify_linkedin_credentials, name="linkedin-verify-credentials"),
     path("linkedin/post/", post_linkedin_share, name="linkedin-post-share"),
 
+    # Facebook OAuth connect endpoints
+    path("facebook/authorize/", facebook_authorize, name="facebook-authorize"),
+    path("facebook/callback/", facebook_callback, name="facebook-callback"),
+    path("facebook/disconnect/", facebook_disconnect, name="facebook-disconnect"),
+
+    # Facebook API endpoints
+    path("facebook/verify/", verify_facebook_credentials, name="facebook-verify-credentials"),
+    path("facebook/post/", post_facebook_share, name="facebook-post-share"),
+
     # TikTok OAuth connect endpoints
     path("tiktok/auth-url/", tiktok_auth_url, name="tiktok-auth-url"),
     path("tiktok/callback/", tiktok_oauth_callback, name="tiktok-oauth-callback"),
@@ -125,4 +142,7 @@ urlpatterns = [
     path("tiktok/posts/<str:post_id>/", tiktok_post_detail, name="tiktok-post-detail"),
     path("tiktok/posts/<str:post_id>/delete/", tiktok_delete_post, name="tiktok-delete-post"),
     path("tiktok/analytics/", tiktok_video_analytics, name="tiktok-video-analytics"),
+
+    # Test pages
+    path("facebook/test/", facebook_test_page, name="facebook-test"),
 ]

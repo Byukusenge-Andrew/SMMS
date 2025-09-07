@@ -446,9 +446,9 @@ def remove_social_media_account(request, account_id):
         platform = account.platform
         username = account.username
         
-        # Also remove the corresponding IntegratedAccount if it exists
+        # Also remove the corresponding SocialMediaAccount if it exists
         try:
-            from apps.integrations.models import IntegratedAccount, SocialMediaPlatform
+            from apps.integrations.models import SocialMediaAccount, SocialMediaPlatform
             
             # Map platform names to the enum
             platform_mapping = {
@@ -464,7 +464,7 @@ def remove_social_media_account(request, account_id):
             
             platform_enum = platform_mapping.get(platform.lower())
             if platform_enum:
-                integrated_accounts = IntegratedAccount.objects.filter(
+                integrated_accounts = SocialMediaAccount.objects.filter(
                     user=request.user, 
                     platform=platform_enum,
                     username=username
@@ -472,7 +472,7 @@ def remove_social_media_account(request, account_id):
                 deleted_count = integrated_accounts.count()
                 integrated_accounts.delete()
                 if deleted_count > 0:
-                    logger.info(f"Also removed {deleted_count} IntegratedAccount(s) for {platform} user {username}")
+                    logger.info(f"Also removed {deleted_count} SocialMediaAccount(s) for {platform} user {username}")
         except Exception as e:
             # Don't fail the whole operation if IntegratedAccount cleanup fails
             logger.warning(f"Failed to cleanup IntegratedAccount for {platform} user {username}: {e}")

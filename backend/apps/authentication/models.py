@@ -153,7 +153,7 @@ class SocialMediaAccount(models.Model):
     platform = models.CharField(max_length=20, choices=PLATFORM_CHOICES)
     username = models.CharField(max_length=255)
     access_token = models.TextField()
-    refresh_token = models.TextField(blank=True)
+    refresh_token = models.TextField(blank=True, null=True)
     token_expires_at = models.DateTimeField(blank=True, null=True)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)

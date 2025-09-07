@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Stripe Subscription Advanced Test Harness</title>
+  <style>
+    :root { --brand:#0069ff; --bg:#f4f6f9; --danger:#c62828; --ok:#1b5e20; --warn:#ff8f00; }
+    * { box-sizing:border-box; }
+    body { font-family: system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial,sans-serif; background:var(--bg); margin:0; padding:30px; color:#222; }
+    h1 { margin-top:0; }
+    a { color:var(--brand); }
+    .grid { display:grid; gap:22px; grid-template-columns:repeat(auto-fill,minmax(340px,1fr)); }
+    .panel { background:#fff; border-radius:14px; padding:20px 22px 26px; border:1px solid #dde3ea; position:relative; overflow:hidden; }
+    .panel h2 { margin:0 0 14px; font-size:18px; letter-spacing:.5px; text-transform:uppercase; font-weight:600; color:#333; }
+    .small { font-size:12px; opacity:.75; }
+    button { cursor:pointer; border:none; background:var(--brand); color:#fff; padding:10px 18px; border-radius:7px; font-size:14px; font-weight:600; display:inline-flex; align-items:center; gap:6px; box-shadow:0 2px 4px rgba(0,0,0,.08); transition:.18s; }
+    button[disabled] { filter:grayscale(.8); opacity:.5; cursor:not-allowed; }
+    button:hover:not([disabled]) { background:#0254d6; }
+    button.danger { background:var(--danger); }
+    button.danger:hover { background:#8e1d1d; }
+    button.outline { background:#fff; color:var(--brand); border:1px solid var(--brand); }
+    button.outline:hover { background:#f0f6ff; }
+    input, select { padding:9px 11px; border-radius:8px; border:1px solid #cbd5e1; width:100%; font-size:14px; font-family:inherit; background:#fff; }
+    input:focus, select:focus { outline:2px solid var(--brand); outline-offset:1px; }
+    label { font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:.5px; display:block; margin:14px 0 6px; }
+    .row { display:flex; gap:12px; }
+    .row > * { flex:1; }
+    .badge { display:inline-block; padding:3px 8px 4px; background:#eef3ff; border-radius:20px; font-size:11px; font-weight:600; letter-spacing:.5px; color:#265dbe; margin:0 6px 6px 0; }
+    .tiers { display:flex; flex-direction:column; gap:10px; max-height:280px; overflow:auto; }
+    .tier { border:2px solid #e2e8f0; border-radius:12px; padding:14px 16px 16px; background:#fff; cursor:pointer; position:relative; transition:.18s; }
+    .tier:hover { border-color:var(--brand); }
+    .tier.selected { border-color:var(--brand); box-shadow:0 0 0 3px #0069ff33; }
+    .tier h3 { margin:0 0 4px; font-size:17px; }
+    .price-line { font-weight:600; color:var(--brand); margin-bottom:6px; }
+    .muted { opacity:.7; font-size:12px; }
+    pre { background:#0e1116; color:#e3e8ef; padding:14px 16px; border-radius:10px; font-size:12px; max-height:240px; overflow:auto; margin:0; line-height:1.45; }
+    .log-entry { border-left:4px solid var(--brand); background:#fff; padding:10px 12px; margin:0 0 10px; border-radius:6px; font-family:ui-monospace,monospace; font-size:12px; white-space:pre-wrap; word-break:break-word; }
+    .log-entry.error { border-color:var(--danger); background:#fff5f5; }
+    .log-entry.warn { border-color:var(--warn); background:#fffaf2; }
+    .flex { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+    .status-pill { padding:4px 10px 5px; font-size:11px; border-radius:20px; background:#edf2ff; color:#2d4ea3; font-weight:600; letter-spacing:.5px; }
+    .status-pill.active { background:#e6f6ed; color:#1b5e20; }
+    .status-pill.canceled { background:#ffeeee; color:#b3261e; }
+    .inline { display:inline; }
+    details summary { cursor:pointer; font-weight:600; }
+    .card-note { background:#fffbe6; padding:12px 14px; border:1px solid #ffe58f; font-size:13px; line-height:1.45; border-radius:10px; }
+    .divider { height:1px; background:linear-gradient(90deg,#dbe2ea,#f8fafc); margin:18px -22px; }
+    footer { margin-top:40px; font-size:12px; text-align:center; opacity:.65; }
+  </style>
+</head>
+<body>
+  <h1>🧪 Stripe Subscription Advanced Test Harness</h1>
+  <p class="small">Use this page locally to exercise end‑to‑end flows: login → list tiers → create checkout → redirect via Stripe.js → verify subscription status → manage portal/cancel → inspect invoices & payments.<br><strong>Authorization scheme is Token</strong> (DRF TokenAuthentication).</p>
+
+  <div class="grid">
+    <!-- Authentication -->
+    <section class="panel" id="panel-auth">
+      <h2>1. Authenticate</h2>
+      <label>Email / Username</label>
+      <input id="auth-username" value="test@example.com" />
+      <label>Password</label>
+      <input id="auth-password" type="password" value="testpass123" />
+      <div class="flex">
+        <button id="btn-login">Login</button>
+        <button id="btn-reset" class="outline" disabled>Reset State</button>
+      </div>
+      <p class="small" id="auth-status">Not authenticated</p>
+      <div class="card-note" style="margin-top:14px">
+        <strong>Test Card</strong><br>4242 4242 4242 4242 • any future date • any CVC • any ZIP.
+      </div>
+    </section>
+
+    <!-- Subscription Tiers -->
+    <section class="panel" id="panel-tiers">
+      <h2>2. Choose Tier</h2>
+      <div class="flex" style="margin-bottom:10px">
+        <button id="btn-load-tiers" class="outline">Reload Tiers</button>
+        <select 
+        title="Billing period (monthly/yearly)"
+        id="billing-period">
+          <option value="monthly">Monthly</option>
+          <option value="yearly">Yearly</option>
+        </select>
+      </div>
+      <div class="tiers" id="tiers-list"><div class="muted">Load tiers to display options…</div></div>
+      <div class="small" style="margin-top:10px">Only paid tiers will be selectable (free requires no checkout).</div>
+    </section>
+
+    <!-- Checkout -->
+    <section class="panel" id="panel-checkout">
+      <h2>3. Checkout Session</h2>
+      <label>Optional Success URL</label>
+      <input id="success-url" placeholder="Leave blank to use default configured" />
+      <label>Optional Cancel URL</label>
+      <input id="cancel-url" placeholder="Leave blank to use default configured" />
+      <div class="flex" style="margin-top:12px">
+        <button id="btn-create-checkout" disabled>Create Checkout & Redirect</button>
+        <button id="btn-portal" disabled class="outline">Open Customer Portal</button>
+      </div>
+      <p class="small" id="checkout-hint">Select a paid tier first.</p>
+      <details style="margin-top:14px"><summary>Why Stripe.js redirect?</summary><div class="small">It prevents reuse / caching issues & ensures PCI-compliant flow. We fetch the publishable key then call <code>redirectToCheckout</code> with the session id.</div></details>
+    </section>
+
+    <!-- Current Subscription -->
+    <section class="panel" id="panel-status">
+      <h2>4. Subscription Status</h2>
+      <div class="flex" style="margin-bottom:10px">
+        <button id="btn-refresh-status" class="outline" disabled>Refresh</button>
+        <button id="btn-auto-poll" class="outline" disabled>Start Auto-Poll</button>
+        <button id="btn-cancel-sub" class="danger" disabled>Cancel at Period End</button>
+      </div>
+      <div id="status-view" class="muted">Login first to view status.</div>
+      <div class="small" style="margin-top:8px" id="poll-indicator"></div>
+    </section>
+
+    <!-- Financial Records -->
+    <section class="panel" id="panel-records">
+      <h2>5. Invoices & Payments</h2>
+      <div class="flex" style="margin-bottom:10px">
+        <button id="btn-load-payments" class="outline" disabled>Payments</button>
+        <button id="btn-load-invoices" class="outline" disabled>Invoices</button>
+      </div>
+      <pre id="records-output" style="min-height:160px">No data loaded yet…</pre>
+    </section>
+
+    <!-- Log / Diagnostics -->
+    <section class="panel" id="panel-log" style="grid-column:1/-1">
+      <h2>Diagnostics Log</h2>
+      <div id="log"></div>
+      <div class="divider"></div>
+      <details open>
+        <summary>Endpoint Map</summary>
+        <pre id="endpoint-map"></pre>
+      </details>
+    </section>
+  </div>
+
+  <footer>Local test harness. Do NOT deploy publicly. Webhook-driven status changes may take a few seconds. Use Stripe CLI to forward events locally.</footer>
+
+  <script>
+    // ---------- Configuration ----------
+    const API_BASE = 'http://127.0.0.1:8000'; // Adjust if backend runs elsewhere
+    const ENDPOINTS = {
+      login: '/api/auth/login/',
+      tiers: '/api/billing/api/subscription-tiers/',
+      status: '/api/billing/api/subscription-status/',
+      checkout: '/api/billing/stripe/checkout/',
+      portal: '/api/billing/stripe/customer-portal/',
+      pubKey: '/api/billing/stripe/public-key/',
+      cancel: '/api/billing/subscription/cancel/',
+      payments: '/api/billing/payments/',
+      invoices: '/api/billing/invoices/'
+    };
+
+    // ---------- State ----------
+    let authToken = null;
+    let selectedTier = null;
+    let autoPollTimer = null;
+
+    // ---------- Helpers ----------
+    const $ = sel => document.querySelector(sel);
+    function enable(id, on=true){ const el=$(id); if(el) el.disabled=!on; }
+    function log(obj, level='info') {
+      const wrap = document.createElement('div');
+      wrap.className = 'log-entry' + (level==='error'?' error': level==='warn'?' warn':'');
+      if (typeof obj === 'object') {
+        wrap.textContent = '['+ new Date().toLocaleTimeString()+']\n' + JSON.stringify(obj, null, 2);
+      } else {
+        wrap.textContent = '['+ new Date().toLocaleTimeString()+'] ' + obj;
+      }
+      $('#log').prepend(wrap);
+    }
+    function headers(auth=true){
+      const h = { 'Content-Type':'application/json' };
+      if(auth && authToken) h['Authorization'] = 'Token ' + authToken; // DRF TokenAuthentication
+      return h;
+    }
+    function setStatusAuth(text, ok=false){ $('#auth-status').textContent = text; $('#auth-status').style.color = ok? 'var(--ok)':'inherit'; }
+    function tierHtml(t){
+      return `<div class="tier" data-id="${t.id}">
+        <h3>${t.display_name}</h3>
+        <div class="price-line">$${t.price_monthly}/mo • $${t.price_yearly}/yr</div>
+        <div class="muted">${t.description || 'No description'}</div>
+      </div>`;
+    }
+    function statusBadge(status){
+      const cls = status === 'active' ? 'active' : status === 'canceled' ? 'canceled' : '';
+      return `<span class="status-pill ${cls}">${status || 'n/a'}</span>`;
+    }
+
+    // ---------- UI Rendering ----------
+    function renderEndpointMap(){ $('#endpoint-map').textContent = Object.entries(ENDPOINTS).map(([k,v])=>k.padEnd(10)+' => '+v).join('\n'); }
+
+    function renderTiers(list){
+      const host = $('#tiers-list');
+      if(!list.length){ host.innerHTML = '<div class="muted">No tiers returned.</div>'; return; }
+      host.innerHTML = list.filter(t => t.price_monthly>0).map(tierHtml).join('');
+      host.querySelectorAll('.tier').forEach(el=>{
+        el.addEventListener('click', e => {
+          host.querySelectorAll('.tier').forEach(n=>n.classList.remove('selected'));
+          el.classList.add('selected');
+          selectedTier = list.find(t=>t.id===el.dataset.id);
+          enable('#btn-create-checkout');
+          log({message:'Tier selected', tier:selectedTier.display_name, id:selectedTier.id});
+        });
+      });
+    }
+
+    function renderStatus(data){
+      if(!data || !data.subscription){
+        $('#status-view').innerHTML = '<span class="muted">No active subscription.</span>';
+        enable('#btn-cancel-sub', false);
+        return;
+      }
+      const s = data.subscription;
+      $('#status-view').innerHTML = `
+        <div><strong>Tier:</strong> ${s.tier.display_name || s.tier.name}</div>
+        <div><strong>Status:</strong> ${statusBadge(s.status)}</div>
+        <div><strong>Billing:</strong> ${s.billing_period}</div>
+        <div><strong>Current Period:</strong><br><span class="small">${s.current_period_start || 'n/a'} → ${s.current_period_end || 'n/a'}</span></div>
+        <div><strong>Stripe Status:</strong> ${statusBadge(s.stripe_status)}</div>
+      `;
+      enable('#btn-cancel-sub', s.status === 'active');
+    }
+
+    // ---------- Actions ----------
+    async function login(){
+      const username = $('#auth-username').value.trim();
+      const password = $('#auth-password').value;
+      enable('#btn-login', false);
+      setStatusAuth('Authenticating…');
+      try {
+        const res = await fetch(API_BASE + ENDPOINTS.login, { method:'POST', headers: headers(false), body: JSON.stringify({ username, password }) });
+        const data = await res.json().catch(()=>({}));
+        if(res.ok && data.token){
+          authToken = data.token;
+          setStatusAuth('Authenticated ✔ Token: ' + authToken.slice(0,10) + '…', true);
+          log({login:'success', token_preview: authToken.slice(0,10)+'…'});
+          enable('#btn-reset');
+          enable('#btn-load-tiers');
+          enable('#btn-refresh-status');
+          enable('#btn-auto-poll');
+          enable('#btn-portal');
+          enable('#btn-load-payments');
+          enable('#btn-load-invoices');
+          refreshStatus();
+        } else {
+          setStatusAuth('Login failed');
+          log({login:'failed', response:data}, 'error');
+        }
+      } catch (e){
+        log({login:'error', error:e.message}, 'error');
+        setStatusAuth('Login error');
+      } finally { enable('#btn-login'); }
+    }
+
+    async function loadTiers(){
+      if(!authToken){ log('Login first', 'warn'); return; }
+      log('Loading tiers…');
+      try {
+        const res = await fetch(API_BASE + ENDPOINTS.tiers);
+        const data = await res.json();
+        if(data.success){ renderTiers(data.tiers); log({tiers_loaded:data.tiers.length}); }
+        else log({error:'Failed to load tiers', data}, 'error');
+      } catch(e){ log({error:'Tiers fetch failed', detail:e.message}, 'error'); }
+    }
+
+    async function createCheckout(){
+      if(!selectedTier){ log('Select a tier first', 'warn'); return; }
+      const billing = $('#billing-period').value;
+      const payload = { tier_id: selectedTier.id, billing_period: billing };
+      const successUrl = $('#success-url').value.trim();
+      const cancelUrl = $('#cancel-url').value.trim();
+      if(successUrl) payload.success_url = successUrl;
+      if(cancelUrl) payload.cancel_url = cancelUrl;
+      enable('#btn-create-checkout', false);
+      log({action:'create_checkout_session', payload});
+      try {
+        const res = await fetch(API_BASE + ENDPOINTS.checkout, { method:'POST', headers: headers(), body: JSON.stringify(payload) });
+        const data = await res.json();
+        if(res.ok && data.session_id){
+          log({checkout_session_created:true, session_id:data.session_id});
+          await redirectWithStripe(data.session_id);
+        } else {
+            log({checkout_error:data}, 'error');
+        }
+      } catch(e){ log({error:'Checkout creation failed', detail:e.message}, 'error'); }
+      finally { enable('#btn-create-checkout'); }
+    }
+
+    async function redirectWithStripe(sessionId){
+      log({redirect:'initializing_stripe_js'});
+      try {
+        const keyRes = await fetch(API_BASE + ENDPOINTS.pubKey);
+        const keyJson = await keyRes.json();
+        if(!keyRes.ok || !keyJson.publicKey){ log({error:'Failed to get publishable key', keyJson}, 'error'); return; }
+        await loadStripeJs();
+        const stripe = Stripe(keyJson.publicKey);
+        const { error } = await stripe.redirectToCheckout({ sessionId });
+        if(error){ log({redirect_error:error.message}, 'error'); }
+      } catch(e){ log({error:'Stripe redirect failure', detail:e.message}, 'error'); }
+    }
+
+    function loadStripeJs(){
+      return new Promise((resolve,reject)=>{
+        if(window.Stripe){ return resolve(); }
+        const s=document.createElement('script'); s.src='https://js.stripe.com/v3/'; s.onload=()=>resolve(); s.onerror=()=>reject(new Error('Failed to load Stripe.js')); document.head.appendChild(s);
+      });
+    }
+
+    async function openPortal(){
+      log('Creating customer portal session…');
+      try {
+        const res = await fetch(API_BASE + ENDPOINTS.portal, { method:'POST', headers: headers() });
+        const data = await res.json();
+        if(res.ok && data.portal_url){
+          log({portal_url:data.portal_url});
+          window.open(data.portal_url, '_blank');
+        } else log({portal_error:data}, 'error');
+      } catch(e){ log({error:'Portal creation failed', detail:e.message}, 'error'); }
+    }
+
+    async function refreshStatus(){
+      if(!authToken) return;
+      try {
+        const res = await fetch(API_BASE + ENDPOINTS.status, { headers: headers() });
+        const data = await res.json();
+        if(res.ok){ renderStatus(data); log({status:data.subscription ? data.subscription.status : null}); }
+        else log({status_error:data}, 'error');
+      } catch(e){ log({error:'Status fetch failed', detail:e.message}, 'error'); }
+    }
+
+    function toggleAutoPoll(){
+      if(autoPollTimer){
+        clearInterval(autoPollTimer); autoPollTimer=null; $('#btn-auto-poll').textContent='Start Auto-Poll'; $('#poll-indicator').textContent='';
+      } else {
+        refreshStatus();
+        autoPollTimer = setInterval(refreshStatus, 6000);
+        $('#btn-auto-poll').textContent='Stop Auto-Poll';
+        $('#poll-indicator').textContent='Auto-polling every 6s…';
+      }
+    }
+
+    async function cancelSub(){
+      if(!confirm('Cancel current subscription at period end?')) return;
+      try {
+        const res = await fetch(API_BASE + ENDPOINTS.cancel, { method:'POST', headers: headers() });
+        const data = await res.json();
+        if(res.ok){ log({cancel_result:data}); refreshStatus(); }
+        else log({cancel_error:data}, 'error');
+      } catch(e){ log({error:'Cancel failed', detail:e.message}, 'error'); }
+    }
+
+    async function loadPayments(){
+      try {
+        const res = await fetch(API_BASE + ENDPOINTS.payments, { headers: headers() });
+        const data = await res.json();
+        if(res.ok){ $('#records-output').textContent = JSON.stringify(data, null, 2); log({payments_loaded:data.length}); }
+        else log({payments_error:data}, 'error');
+      } catch(e){ log({error:'Payments fetch failed', detail:e.message}, 'error'); }
+    }
+
+    async function loadInvoices(){
+      try {
+        const res = await fetch(API_BASE + ENDPOINTS.invoices, { headers: headers() });
+        const data = await res.json();
+        if(res.ok){ $('#records-output').textContent = JSON.stringify(data, null, 2); log({invoices_loaded:data.length}); }
+        else log({invoices_error:data}, 'error');
+      } catch(e){ log({error:'Invoices fetch failed', detail:e.message}, 'error'); }
+    }
+
+    function resetState(){
+      authToken=null; selectedTier=null; clearInterval(autoPollTimer); autoPollTimer=null;
+      document.querySelectorAll('.tier').forEach(t=>t.classList.remove('selected'));
+      $('#status-view').textContent='Reset. Login again.';
+      $('#records-output').textContent='No data loaded yet…';
+      setStatusAuth('Not authenticated');
+      [ '#btn-reset', '#btn-load-tiers', '#btn-create-checkout', '#btn-refresh-status', '#btn-auto-poll', '#btn-portal', '#btn-load-payments', '#btn-load-invoices', '#btn-cancel-sub' ].forEach(id=>enable(id,false));
+      log('State reset');
+    }
+
+    // ---------- Event Wiring ----------
+    document.addEventListener('DOMContentLoaded', () => {
+      renderEndpointMap();
+      $('#btn-login').addEventListener('click', login);
+      $('#btn-load-tiers').addEventListener('click', loadTiers);
+      $('#btn-create-checkout').addEventListener('click', createCheckout);
+      $('#btn-portal').addEventListener('click', openPortal);
+      $('#btn-refresh-status').addEventListener('click', refreshStatus);
+      $('#btn-auto-poll').addEventListener('click', toggleAutoPoll);
+      $('#btn-cancel-sub').addEventListener('click', cancelSub);
+      $('#btn-load-payments').addEventListener('click', loadPayments);
+      $('#btn-load-invoices').addEventListener('click', loadInvoices);
+      $('#btn-reset').addEventListener('click', resetState);
+      log('Harness loaded. Authenticate to begin.');
+    });
+  </script>
+</body>
+</html>
