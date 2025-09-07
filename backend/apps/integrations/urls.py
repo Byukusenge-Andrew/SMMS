@@ -48,6 +48,13 @@ from .views_facebook import (
     post_facebook_share,
     facebook_disconnect,
 )
+from .views_facebook_management import (
+    facebook_account_details,
+    update_facebook_account,
+    refresh_facebook_token,
+    facebook_posting_analytics,
+    test_facebook_connection,
+)
 from .test_views import facebook_test_page
 from .tiktok_views import (
     tiktok_auth_url,
@@ -128,6 +135,13 @@ urlpatterns = [
     # Facebook API endpoints
     path("facebook/verify/", verify_facebook_credentials, name="facebook-verify-credentials"),
     path("facebook/post/", post_facebook_share, name="facebook-post-share"),
+    
+    # Facebook Account Management endpoints
+    path("facebook/account/", facebook_account_details, name="facebook-account-details"),
+    path("facebook/account/update/", update_facebook_account, name="facebook-update-account"),
+    path("facebook/account/refresh-token/", refresh_facebook_token, name="facebook-refresh-token"),
+    path("facebook/account/analytics/", facebook_posting_analytics, name="facebook-posting-analytics"),
+    path("facebook/account/test-connection/", test_facebook_connection, name="facebook-test-connection"),
 
     # TikTok OAuth connect endpoints
     path("tiktok/auth-url/", tiktok_auth_url, name="tiktok-auth-url"),

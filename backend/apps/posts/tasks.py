@@ -9,7 +9,7 @@ from celery import shared_task
 
 from .models import Post
 from apps.integrations.services.twitter_service import TwitterService
-from apps.integrations.social_media_integrator import LinkedInIntegrator
+from apps.integrations.social_media_integrator import LinkedInIntegrator, FacebookIntegrator
 from apps.authentication.models import SocialMediaAccount as AuthSocialMediaAccount
 from apps.integrations.models import SocialMediaAccount as IntegratedAccount, SocialMediaPlatform
 
@@ -94,6 +94,41 @@ def publish_to_linkedin_accounts(post, accounts, errors):
     return success_count
 
 
+def publish_to_facebook_accounts(post, accounts, errors):
+    """Helper function to publish to Facebook accounts"""
+    success_count = 0
+    
+    for account in accounts:
+        try:
+            facebook_integrator = FacebookIntegrator()
+            
+            # Prepare credentials for Facebook
+            credentials = {
+                'access_token': account.access_token
+            }
+            
+            # Post to Facebook
+            result = facebook_integrator.publish_post(
+                content=post.content,
+                credentials=credentials
+            )
+            
+            if result.get('success'):
+                success_count += 1
+                logger.info(f"Successfully posted to Facebook account {account.id}: {result.get('post_id')}")
+            else:
+                error_msg = result.get('error', 'Unknown error')
+                errors.append(f"Facebook Account {account.id}: {error_msg}")
+                logger.error(f"Failed to post to Facebook account {account.id}: {error_msg}")
+                
+        except Exception as e:
+            error_msg = f"Facebook Account {account.id}: {str(e)}"
+            errors.append(error_msg)
+            logger.error(f"Error posting to Facebook account {account.id}: {str(e)}")
+    
+    return success_count
+
+
 @shared_task
 def publish_scheduled_post(post_id):
     """Publish a scheduled post to social media platforms"""
@@ -151,6 +186,19 @@ def publish_scheduled_post(post_id):
             
             # Post to LinkedIn accounts
             success_count += publish_to_linkedin_accounts(post, integrated_linkedin_accounts, errors)
+            
+        elif platform_lower == 'facebook':
+            # Handle Facebook posting
+            integrated_facebook_accounts = IntegratedAccount.objects.filter(
+                user=post.user,
+                platform=SocialMediaPlatform.FACEBOOK,
+                is_active=True
+            )
+            
+            logger.info(f"Found {integrated_facebook_accounts.count()} Facebook accounts in integrations app")
+            
+            # Post to Facebook accounts
+            success_count += publish_to_facebook_accounts(post, integrated_facebook_accounts, errors)
             
         else:
             error_msg = f"Unsupported platform: {post.platform}"

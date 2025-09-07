@@ -12,6 +12,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.authentication import TokenAuthentication
 from rest_framework.response import Response
 from rest_framework import status
+from django.views.decorators.csrf import csrf_exempt
 import requests
 from apps.authentication.models import SocialMediaAccount as AuthSocialMediaAccount
 from apps.integrations.models import SocialMediaAccount, SocialMediaPlatform
@@ -19,20 +20,33 @@ from apps.integrations.models import SocialMediaAccount, SocialMediaPlatform
 logger = logging.getLogger(__name__)
 User = get_user_model()
 
+class IsAuthenticatedOrOptions(IsAuthenticated):
+    """
+    Custom permission class that allows OPTIONS requests without authentication
+    """
+    def has_permission(self, request, view):
+        if request.method == 'OPTIONS':
+            return True
+        return super().has_permission(request, view)
+
 # Facebook Graph API endpoints
 FACEBOOK_AUTH_URL = "https://www.facebook.com/v18.0/dialog/oauth"
 FACEBOOK_TOKEN_URL = "https://graph.facebook.com/v18.0/oauth/access_token"
 FACEBOOK_USER_URL = "https://graph.facebook.com/v18.0/me"
 FACEBOOK_PAGES_URL = "https://graph.facebook.com/v18.0/me/accounts"
 
-@api_view(['GET'])
+@api_view(['GET', 'OPTIONS'])
 @authentication_classes([TokenAuthentication])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsAuthenticatedOrOptions])
 def facebook_authorize(request):
     """
     Generate Facebook authorization URL
     """
     try:
+        # Handle OPTIONS request for CORS
+        if request.method == 'OPTIONS':
+            return JsonResponse({'message': 'CORS preflight'})
+            
         app_id = settings.SOCIAL_MEDIA_CONFIGS['FACEBOOK']['APP_ID']
         redirect_uri = settings.SOCIAL_MEDIA_CONFIGS['FACEBOOK']['REDIRECT_URI']
         
@@ -49,7 +63,7 @@ def facebook_authorize(request):
         request.session['facebook_user_id'] = request.user.id
         
         # Facebook permissions for basic profile and pages
-        scope = 'email,public_profile,pages_show_list,pages_read_engagement,publish_to_groups'
+        scope = 'email,public_profile,pages_show_list,pages_read_engagement,pages_manage_posts,publish_to_groups'
         
         auth_url = (
             f"{FACEBOOK_AUTH_URL}?"
@@ -275,7 +289,7 @@ def facebook_callback(request):
 
 @api_view(['GET'])
 @authentication_classes([TokenAuthentication])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsAuthenticatedOrOptions])
 def verify_facebook_credentials(request):
     """
     Verify if user has valid Facebook credentials

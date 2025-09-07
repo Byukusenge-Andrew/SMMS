@@ -586,7 +586,48 @@ class FacebookIntegrator(SocialMediaIntegrator):
             if not access_token:
                 return {"success": False, "error": "Access token is required"}
 
-            # Post to Facebook Pages API (simplified for user posts)
+            # First, try to get user's pages
+            pages_response = requests.get(
+                "https://graph.facebook.com/v18.0/me/accounts",
+                params={"access_token": access_token},
+                timeout=30
+            )
+
+            if pages_response.status_code == 200:
+                pages_data = pages_response.json()
+                pages = pages_data.get("data", [])
+                
+                if pages:
+                    # Use the first page for posting
+                    page = pages[0]
+                    page_access_token = page.get("access_token")
+                    page_id = page.get("id")
+                    
+                    if page_access_token:
+                        # Post to Facebook Page
+                        payload = {"message": content}
+                        
+                        response = requests.post(
+                            f"https://graph.facebook.com/v18.0/{page_id}/feed",
+                            data=payload,
+                            params={"access_token": page_access_token},
+                            timeout=30
+                        )
+
+                        if response.status_code == 200:
+                            post_data = response.json()
+                            post_id = post_data.get("id", "")
+                            return {
+                                "success": True,
+                                "post_id": post_id,
+                                "url": f"https://www.facebook.com/{post_id}",
+                                "message": f"Post published successfully on Facebook page: {page.get('name', 'Unknown')}"
+                            }
+                        else:
+                            error_data = response.json() if response.content else {"error": "Unknown error"}
+                            return {"success": False, "error": f"Facebook Page API error: {error_data}"}
+            
+            # If no pages or page posting failed, try user feed (legacy - may not work)
             payload = {"message": content}
             
             response = requests.post(

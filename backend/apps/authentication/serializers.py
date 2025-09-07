@@ -243,8 +243,8 @@ class TeamMemberSerializer(serializers.ModelSerializer):
 class UserRegistrationSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, validators=[validate_password])
     password_confirm = serializers.CharField(write_only=True)
-    company_name = serializers.CharField(write_only=True, required=False, allow_blank=True)
     role = serializers.CharField(write_only=True, required=False, allow_blank=True)
+    subscription_tier_id = serializers.UUIDField(write_only=True, required=False, allow_null=True)
 
     class Meta:
         model = User
@@ -255,21 +255,30 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
             "password_confirm",
             "first_name",
             "last_name",
-            "company_name",
             "role",
+            "subscription_tier_id",
         )
         extra_kwargs = {
             "email": {"required": True},
             "first_name": {"required": False},
             "last_name": {"required": False},
             # Explicitly mark optional extras (already declared write_only above)
-            "company_name": {"required": False},
             "role": {"required": False},
+            "subscription_tier_id": {"required": False},
         }
 
     def validate(self, attrs):
         if attrs["password"] != attrs["password_confirm"]:
             raise serializers.ValidationError({"password": "Password fields didn't match."})
+        
+        # Validate subscription tier ID if provided
+        subscription_tier_id = attrs.get("subscription_tier_id")
+        if subscription_tier_id:
+            try:
+                SubscriptionTier.objects.get(id=subscription_tier_id, is_active=True)
+            except SubscriptionTier.DoesNotExist:
+                raise serializers.ValidationError({"subscription_tier_id": "Invalid subscription tier ID provided."})
+        
         return attrs
 
     def validate_email(self, value):
@@ -284,17 +293,38 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         validated_data.pop("password_confirm", None)
-        company_name = validated_data.pop("company_name", None)
         role = validated_data.pop("role", None)
+        subscription_tier_id = validated_data.pop("subscription_tier_id", None)
+        
         user = User.objects.create_user(**validated_data)
 
-        # Create UserProfile
-        profile, created = UserProfile.objects.get_or_create(user=user)
-        if company_name:
-            profile.company_name = company_name
-        if role:
-            profile.role = role
-        profile.save()
+        # Get the subscription tier
+        subscription_tier = None
+        if subscription_tier_id:
+            try:
+                subscription_tier = SubscriptionTier.objects.get(id=subscription_tier_id, is_active=True)
+            except SubscriptionTier.DoesNotExist:
+                # Fallback to free tier if provided ID is invalid
+                subscription_tier = SubscriptionTier.objects.filter(name="free", is_active=True).first()
+        else:
+            # Default to free tier if no tier specified
+            subscription_tier = SubscriptionTier.objects.filter(name="free", is_active=True).first()
+
+        # Create UserProfile with subscription tier
+        profile, created = UserProfile.objects.get_or_create(
+            user=user,
+            defaults={
+                "role": role,
+                "subscription_tier": subscription_tier
+            }
+        )
+        
+        if not created:
+            if role:
+                profile.role = role
+            if subscription_tier:
+                profile.subscription_tier = subscription_tier
+            profile.save()
 
         return user
 

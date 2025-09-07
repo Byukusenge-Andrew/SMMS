@@ -294,6 +294,33 @@ CELERY_REDIS_SOCKET_KEEPALIVE_OPTIONS = {
     'TCP_KEEPCNT': 5,
 }
 
+# Additional Redis connection options for stability
+CELERY_BROKER_TRANSPORT_OPTIONS = {
+    'visibility_timeout': 3600,
+    'fanout_prefix': True,
+    'fanout_patterns': True,
+    'socket_keepalive': True,
+    'socket_keepalive_options': {
+        'TCP_KEEPIDLE': 1,
+        'TCP_KEEPINTVL': 3,
+        'TCP_KEEPCNT': 5,
+    },
+    'retry_on_timeout': True,
+    'max_connections': 20,
+}
+
+# Celery result backend options
+CELERY_RESULT_BACKEND_TRANSPORT_OPTIONS = {
+    'socket_keepalive': True,
+    'socket_keepalive_options': {
+        'TCP_KEEPIDLE': 1,
+        'TCP_KEEPINTVL': 3,
+        'TCP_KEEPCNT': 5,
+    },
+    'retry_on_timeout': True,
+    'max_connections': 20,
+}
+
 # Celery Beat Schedule
 CELERY_BEAT_SCHEDULE = {
     "check-scheduled-posts": {
