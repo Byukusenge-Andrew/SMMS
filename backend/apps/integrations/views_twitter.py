@@ -1,9 +1,11 @@
 """
 Twitter/X API Views
 """
+import json
 import logging
 from datetime import datetime, timedelta
 from django.conf import settings
+from django.http import HttpResponse
 from django.utils import timezone
 from django.shortcuts import redirect
 from urllib.parse import urlencode
@@ -39,6 +41,8 @@ def twitter_authorize(request):
     request.session['twitter_oauth'] = {
         'state': state_val,
         'redirect_uri': redirect_uri,
+        'popup_mode': True,  # Mark this as popup mode in session
+        'user_id': request.user.id,  # Store user ID for callback
     }
     request.session.modified = True
 
@@ -66,28 +70,60 @@ def twitter_callback(request):
     if not code:
         return Response({'success': False, 'error': 'Missing code'}, status=status.HTTP_400_BAD_REQUEST)
 
-    # If this looks like a browser navigation (no explicit JSON accept header), redirect the user
-    # to the SPA callback route so the frontend can finish binding (similar to linkedin_callback).
-    # This avoids attempting to bind here (we have no authenticated user context: AllowAny).
-    accept = (request.META.get('HTTP_ACCEPT') or '')
+    # Check if this is a popup mode request (from session data)
     session_data = request.session.get('twitter_oauth') or {}
+    popup_mode = session_data.get('popup_mode', False)
+    
+    # If this looks like a browser navigation (no explicit JSON accept header), handle popup vs redirect
+    accept = (request.META.get('HTTP_ACCEPT') or '')
     expected_state = session_data.get('state')
     # Validate state (if we have one). If mismatch, surface error early.
     state_ok = (not expected_state) or (expected_state == state)
+    
     if 'application/json' not in accept:
-        try:
-            from urllib.parse import quote
-            frontend_url = getattr(settings, 'FRONTEND_URL', '').rstrip('/') or ''
-            if frontend_url:
-                target = f"{frontend_url}/dashboard/integrations/twitter/callback"
-                sep = '?' if ('?' not in target) else '&'
+        if popup_mode:
+            # Handle popup mode - return HTML that posts message to parent
+            try:
                 if not state_ok:
-                    return redirect(f"{target}{sep}error=state_mismatch")
-                # Preserve code & state for the SPA page to call JSON mode
-                return redirect(f"{target}{sep}code={quote(code)}&state={quote(state or '')}")
-        except Exception:
-            # Fall through to JSON mode if redirect prep fails
-            pass
+                    error_data = {'success': False, 'error': 'Invalid OAuth state. Please retry connection.'}
+                    return HttpResponse(f"""
+                    <script>
+                        window.opener.postMessage({{
+                            source: 'twitter-oauth',
+                            data: '{json.dumps(error_data)}'
+                        }}, '*');
+                        window.close();
+                    </script>
+                    """, content_type='text/html')
+                
+                # Proceed with token exchange for popup mode
+                # (rest of token exchange logic will be added below)
+            except Exception as e:
+                error_data = {'success': False, 'error': str(e)}
+                return HttpResponse(f"""
+                <script>
+                    window.opener.postMessage({{
+                        source: 'twitter-oauth',
+                        data: '{json.dumps(error_data)}'
+                    }}, '*');
+                    window.close();
+                </script>
+                """, content_type='text/html')
+        else:
+            # Handle redirect mode
+            try:
+                from urllib.parse import quote
+                frontend_url = getattr(settings, 'FRONTEND_URL', '').rstrip('/') or ''
+                if frontend_url:
+                    target = f"{frontend_url}/dashboard/integrations/twitter/callback"
+                    sep = '?' if ('?' not in target) else '&'
+                    if not state_ok:
+                        return redirect(f"{target}{sep}error=state_mismatch")
+                    # Preserve code & state for the SPA page to call JSON mode
+                    return redirect(f"{target}{sep}code={quote(code)}&state={quote(state or '')}")
+            except Exception:
+                # Fall through to JSON mode if redirect prep fails
+                pass
 
     if not state_ok:
         # JSON mode state failure
@@ -140,18 +176,75 @@ def twitter_callback(request):
         me_json = me.json().get('data', {})
     except Exception as e:
         logger.error(f"Twitter /users/me failed: {e}")
+        if popup_mode:
+            error_data = {'success': False, 'error': 'Failed to fetch user profile'}
+            return HttpResponse(f"""
+            <script>
+                window.opener.postMessage({{
+                    source: 'twitter-oauth',
+                    data: '{json.dumps(error_data)}'
+                }}, '*');
+                window.close();
+            </script>
+            """, content_type='text/html')
         return Response({'success': False, 'error': 'Failed to fetch user profile'}, status=status.HTTP_502_BAD_GATEWAY)
 
-    # Associate with the most recent authenticated user session via token auth is not available here (AllowAny).
-    # In SPA, you can call this endpoint from frontend without auth and then call a separate endpoint to bind tokens.
-    # For simplicity here, we return tokens and profile so the frontend can POST them to a bind endpoint (not implemented here).
-    # Clear used state
-    try:
-        del request.session['twitter_oauth']
-    except Exception:
-        pass
+    # Bind tokens to the user's account
+    user_id = session_data.get('user_id')
+    if user_id:
+        try:
+            from django.contrib.auth.models import User
+            user = User.objects.get(id=user_id)
+            
+            platform_user_id = me_json.get('id')
+            
+            # Create/update IntegratedAccount
+            integrated_account, created = IntegratedAccount.objects.update_or_create(
+                user=user,
+                platform='twitter',
+                platform_user_id=platform_user_id,
+                defaults={
+                    'username': me_json.get('username', ''),
+                    'display_name': me_json.get('name', ''),
+                    'email': '',  # Twitter doesn't provide email in basic scope
+                    'profile_image_url': me_json.get('profile_image_url', ''),
+                    'followers_count': (me_json.get('public_metrics') or {}).get('followers_count', 0),
+                    'following_count': (me_json.get('public_metrics') or {}).get('following_count', 0),
+                    'posts_count': (me_json.get('public_metrics') or {}).get('tweet_count', 0),
+                    'is_verified': me_json.get('verified', False),
+                    'access_token': access_token,
+                    'refresh_token': refresh_token,
+                    'token_expires_at': timezone.now() + timezone.timedelta(seconds=expires_in) if expires_in else None,
+                    'is_active': True,
+                }
+            )
+            
+            # Mirror to apps.analytics.models.SocialMediaAccount if needed
+            try:
+                from apps.analytics.models import SocialMediaAccount
+                platform_obj, _ = SocialMediaPlatform.objects.get_or_create(name='twitter')
+                analytics_account, created = SocialMediaAccount.objects.update_or_create(
+                    user=user,
+                    platform=platform_obj,
+                    platform_user_id=platform_user_id,
+                    defaults={
+                        'username': me_json.get('username', ''),
+                        'access_token': access_token,
+                        'refresh_token': refresh_token,
+                        'is_active': True,
+                    }
+                )
+                logger.info(f"Twitter tokens bound successfully for user {user.id}, platform_user_id: {platform_user_id}")
+            except Exception as e:
+                logger.error(f"Failed to create analytics SocialMediaAccount for Twitter: {e}")
+                
+        except User.DoesNotExist:
+            logger.error(f"User {user_id} not found during Twitter token binding")
+        except Exception as e:
+            logger.error(f"Failed to bind Twitter tokens for user {user_id}: {e}")
 
-    return Response({
+    # Prepare response data
+    response_data = {
         'success': True,
         'account': {
             'platform': 'twitter',
@@ -169,7 +262,28 @@ def twitter_callback(request):
             'refresh_token': refresh_token,
             'expires_in': expires_in
         }
-    })
+    }
+
+    # Clear used state
+    try:
+        del request.session['twitter_oauth']
+    except Exception:
+        pass
+
+    # Handle popup mode
+    if popup_mode:
+        return HttpResponse(f"""
+        <script>
+            window.opener.postMessage({{
+                source: 'twitter-oauth',
+                data: {json.dumps(response_data)}
+            }}, '*');
+            window.close();
+        </script>
+        """, content_type='text/html')
+
+    # Return JSON response for non-popup mode
+    return Response(response_data)
 
 
 @extend_schema(
@@ -650,43 +764,49 @@ def get_twitter_rate_limit(request):
 @authentication_classes([TokenAuthentication])
 @permission_classes([permissions.IsAuthenticated])
 def twitter_bind_tokens(request):
-    """Persist tokens and profile info to the authenticated user's SocialMediaAccount."""
+    """Bind Twitter tokens and profile to authenticated user"""
+    logger.info(f"Twitter bind tokens called for user: {request.user}")
     try:
         data = request.data or {}
+        logger.info(f"Twitter bind tokens data: {data}")
         account_data = data.get('account') or {}
         tokens = data.get('tokens') or {}
+        
         platform_user_id = account_data.get('platform_user_id')
-        username = account_data.get('username')
-        display_name = account_data.get('display_name')
+        username = account_data.get('username', '')
+        display_name = account_data.get('display_name', '')
         profile_image_url = account_data.get('profile_image_url', '')
-        followers_count = account_data.get('followers_count', 0)
-        following_count = account_data.get('following_count', 0)
-        posts_count = account_data.get('posts_count', 0)
-        is_verified = account_data.get('is_verified', False)
+        
         access_token = tokens.get('access_token', '')
         refresh_token = tokens.get('refresh_token', '')
         expires_in = tokens.get('expires_in')
         
-        if not platform_user_id or not username or not access_token:
-            return Response({'success': False, 'error': 'Missing required account/token fields'}, status=status.HTTP_400_BAD_REQUEST)
+        if not platform_user_id or not access_token:
+            return Response({
+                'success': False,
+                'error': 'Missing required account/token fields'
+            }, status=status.HTTP_400_BAD_REQUEST)
         
-        account, _ = IntegratedAccount.objects.update_or_create(
+        if not display_name:
+            display_name = f"Twitter User {platform_user_id}"
+        if not username:
+            username = f"twitter_{platform_user_id}"
+        
+        # Store in IntegratedAccount
+        account, created = IntegratedAccount.objects.update_or_create(
             user=request.user,
             platform=SocialMediaPlatform.TWITTER,
             platform_user_id=platform_user_id,
             defaults={
                 'username': username,
-                'display_name': display_name or username,
+                'display_name': display_name,
                 'profile_image_url': profile_image_url,
-                'followers_count': followers_count,
-                'following_count': following_count,
-                'posts_count': posts_count,
-                'is_verified': is_verified,
                 'is_active': True,
                 'access_token': access_token,
                 'refresh_token': refresh_token,
             }
         )
+        
         if expires_in:
             try:
                 from django.utils import timezone
@@ -694,38 +814,41 @@ def twitter_bind_tokens(request):
                 account.save(update_fields=['token_expires_at'])
             except Exception:
                 pass
-
-        # Mirror into auth app's SocialMediaAccount so the composer can list it
+        
+        # Mirror into auth app's SocialMediaAccount
         try:
-            from django.utils import timezone as _tz
             auth_defaults = {
                 'access_token': access_token,
                 'refresh_token': refresh_token,
                 'is_active': True,
                 'platform_user_id': platform_user_id,
-                'follower_count': followers_count or 0,
-                'following_count': following_count or 0,
             }
+            
             if expires_in:
                 try:
+                    from django.utils import timezone as _tz
                     auth_defaults['token_expires_at'] = _tz.now() + _tz.timedelta(seconds=int(expires_in))
                 except Exception:
                     pass
-
-            # Lookup uses (user, platform, username) to respect unique_together in auth model
+            
             SocialMediaAccount.objects.update_or_create(
                 user=request.user,
                 platform='twitter',
                 username=username,
                 defaults=auth_defaults,
             )
-        except Exception as _e:
-            logger.error(f"Failed to sync auth SocialMediaAccount for Twitter: {_e}")
+        except Exception as e:
+            logger.error(f"Failed to sync auth SocialMediaAccount for Twitter: {e}")
         
+        logger.info(f"Twitter tokens bound successfully for user {request.user}, account_id: {account.id}")
         return Response({'success': True, 'account_id': str(account.id)})
+        
     except Exception as e:
         logger.error(f"Error binding Twitter tokens: {e}")
-        return Response({'success': False, 'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return Response({
+            'success': False,
+            'error': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @api_view(['POST'])

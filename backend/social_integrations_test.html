@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Social Media Integrations Test Harness</title>
+<style>
+  body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:#f5f7fa;margin:0;padding:32px;color:#1e293b;}
+  h1{margin-top:0;font-size:28px;}
+  h2{margin:0 0 12px;font-size:18px;text-transform:uppercase;letter-spacing:.5px;color:#334155;}
+  a{color:#0366d6;text-decoration:none;}a:hover{text-decoration:underline;}
+  .grid{display:grid;gap:22px;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));}
+  .panel{background:#fff;border:1px solid #dbe1e8;border-radius:14px;padding:20px 22px 26px;position:relative;box-shadow:0 2px 4px rgba(0,0,0,.04);} 
+  .panel small{opacity:.7;font-size:12px;}
+  label{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;display:block;margin:14px 0 6px;}
+  input,select,textarea{width:100%;padding:10px 12px;border-radius:8px;border:1px solid #cbd5e1;font-size:14px;font-family:inherit;background:#fff;}
+  textarea{min-height:120px;resize:vertical;}
+  button{cursor:pointer;border:none;background:#0366d6;color:#fff;padding:10px 18px;border-radius:8px;font-size:14px;font-weight:600;display:inline-flex;align-items:center;gap:6px;box-shadow:0 2px 4px rgba(0,0,0,.08);transition:.18s;margin:4px 6px 4px 0;}
+  button:hover:not([disabled]){background:#024d9f;}button[disabled]{opacity:.55;cursor:not-allowed;}
+  button.outline{background:#fff;color:#0366d6;border:1px solid #0366d6;}button.outline:hover{background:#e9f3ff;}
+  button.danger{background:#b91c1c;}button.danger:hover{background:#831313;}
+  .status-pill{display:inline-block;padding:4px 10px 5px;font-size:11px;border-radius:20px;background:#eef2ff;color:#3749a3;font-weight:600;letter-spacing:.5px;margin:0 6px 6px 0;}
+  .status-pill.connected{background:#e6f6ed;color:#166534;} .status-pill.error{background:#fee2e2;color:#991b1b;} .status-pill.inactive{background:#f1f5f9;color:#475569;}
+  .log{max-height:260px;overflow:auto;background:#0f172a;color:#e2e8f0;font-size:12px;padding:14px 16px;border-radius:10px;font-family:ui-monospace,monospace;line-height:1.45;}
+  .log-entry{margin:0 0 10px;white-space:pre-wrap;word-break:break-word;}
+  .flex{display:flex;gap:10px;flex-wrap:wrap;align-items:center;}
+  .muted{opacity:.65;font-size:12px;}
+  details summary{cursor:pointer;font-weight:600;}
+  .divider{height:1px;background:linear-gradient(90deg,#dbe2ea,#f8fafc);margin:18px -22px;}
+  footer{margin-top:40px;font-size:12px;text-align:center;opacity:.6;}
+  .two-col{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  @media (max-width:880px){.two-col{grid-template-columns:1fr;}}
+</style>
+</head>
+<body>
+<h1>🧪 Social Media Integrations Test Harness</h1>
+<p class="muted">Local developer page to exercise OAuth + posting + verification flows (initial focus: LinkedIn). Uses DRF Token auth (<code>Authorization: Token &lt;token&gt;</code>). DO NOT deploy publicly.</p>
+
+<div class="grid">
+  <section class="panel" id="panel-auth">
+    <h2>1. Authenticate</h2>
+    <label>Username / Email</label>
+    <input id="auth-username" value="test@example.com" />
+    <label>Password</label>
+    <input id="auth-password" type="password" value="testpass123" />
+    <div class="flex">
+      <button id="btn-login">Login</button>
+      <button id="btn-reset" class="outline" disabled>Reset</button>
+    </div>
+    <small id="auth-status">Not authenticated</small>
+  </section>
+
+  <section class="panel" id="panel-linkedin-connect">
+    <h2>2. LinkedIn OAuth</h2>
+    <small>Flow: Get authorize URL → user consent → callback → (optional) tokens bound → verify.</small>
+    <div class="flex" style="margin-top:10px">
+      <button id="btn-li-auth-url" disabled>Get Auth URL</button>
+      <button id="btn-li-verify" class="outline" disabled>Verify Account</button>
+      <button id="btn-li-disconnect" class="danger" disabled>Disconnect</button>
+    </div>
+    <div style="margin-top:10px" id="li-status" class="muted">LinkedIn not checked yet.</div>
+    <details style="margin-top:14px"><summary>How to use</summary><div class="muted">1) Login.<br>2) Click "Get Auth URL" (opens LinkedIn in new tab).<br>3) After consent, callback hits backend. Inspect logs here / server.<br>4) Use Verify to confirm stored tokens & profile.<br>5) Use Post section to publish a test share.</div></details>
+  </section>
+
+  <section class="panel" id="panel-actions">
+    <h2>3. LinkedIn Actions</h2>
+    <label>Test Post Text</label>
+    <textarea id="li-post-text">Hello LinkedIn 👋 – integration test at {{TIMESTAMP}}</textarea>
+    <div class="two-col">
+      <div>
+        <label>(Optional) Link Title</label>
+        <input id="li-link-title" placeholder="Article / Link title" />
+      </div>
+      <div>
+        <label>(Optional) Link URL</label>
+        <input id="li-link-url" placeholder="https://example.com" />
+      </div>
+    </div>
+    <div class="flex" style="margin-top:12px">
+      <button id="btn-li-post" disabled>Publish Test Post</button>
+      <button id="btn-li-refresh" class="outline" disabled>Refresh Verify</button>
+    </div>
+    <small id="li-post-result" class="muted">Waiting for connection...</small>
+  </section>
+
+  <section class="panel" id="panel-diagnostics">
+    <h2>4. Diagnostics & Logs</h2>
+    <div class="flex" style="margin-bottom:8px">
+      <button id="btn-clear-log" class="outline">Clear Log</button>
+      <button id="btn-endpoints" class="outline">Show Endpoints</button>
+    </div>
+    <div class="log" id="log"></div>
+    <div class="divider"></div>
+    <details><summary>Endpoint Map</summary><pre id="endpoint-map" style="background:#0f172a;color:#94a3b8;padding:12px 14px;border-radius:8px;overflow:auto;font-size:12px;line-height:1.4"></pre></details>
+  </section>
+</div>
+
+<footer>Local harness. Use Stripe CLI separately for payment webhooks. This page focuses on LinkedIn integration flows. Extend similarly for Twitter/X, TikTok, etc.</footer>
+<script>
+// ---------------- Config ----------------
+const API_BASE = 'http://127.0.0.1:8000';
+const EP = {
+  login: '/api/auth/login/',
+  linkedin: {
+    authorize: '/api/integrations/linkedin/authorize/',
+    callback: '/api/integrations/linkedin/callback/', // server handled
+    bind: '/api/integrations/linkedin/bind-tokens/',
+    verify: '/api/integrations/linkedin/verify/',
+    post: '/api/integrations/linkedin/post/',
+    disconnect: '/api/integrations/linkedin/disconnect/'
+  }
+};
+
+// ---------------- State ----------------
+let authToken = null;
+let lastVerify = null;
+
+// ---------------- Helpers ----------------
+const $ = sel => document.querySelector(sel);
+function headers(auth=true){ const h={'Content-Type':'application/json'}; if(auth && authToken) h['Authorization']='Token '+authToken; return h; }
+function log(msg,obj){ const wrap=document.createElement('div'); wrap.className='log-entry'; const time=new Date().toLocaleTimeString(); if(obj!==undefined){ wrap.textContent='['+time+'] '+msg+'\n'+JSON.stringify(obj,null,2); } else { wrap.textContent='['+time+'] '+(typeof msg==='string'?msg:JSON.stringify(msg)); } $('#log').prepend(wrap); }
+function setStatus(id, html){ $(id).innerHTML=html; }
+function enable(id,on=true){ const el=$(id); if(el) el.disabled=!on; }
+function endpointMap(){ return Object.entries(EP.linkedin).map(kv=>'linkedin.'+kv[0].padEnd(12)+' => '+kv[1]).join('\n'); }
+
+// ---------------- Auth ----------------
+async function login(){
+  enable('#btn-login',false); setStatus('#auth-status','Authenticating…');
+  try{ const res=await fetch(API_BASE+EP.login,{method:'POST',headers:headers(false),body:JSON.stringify({username:$('#auth-username').value.trim(),password:$('#auth-password').value})});
+    const data=await res.json().catch(()=>({}));
+    if(res.ok && data.token){ authToken=data.token; setStatus('#auth-status','Authenticated ✔ Token '+authToken.slice(0,10)+'…'); log('Login success',{token_preview:authToken.slice(0,10)+'…'}); postLoginEnable(); verifyLinkedIn(true); }
+    else { setStatus('#auth-status','Login failed'); log('Login failed',data); }
+  }catch(e){ setStatus('#auth-status','Login error'); log('Login error '+e.message); }
+  enable('#btn-login',true);
+}
+function postLoginEnable(){ ['#btn-reset','#btn-li-auth-url','#btn-li-verify','#btn-li-post','#btn-li-refresh','#btn-li-disconnect'].forEach(id=>enable(id,true)); }
+function resetAll(){ authToken=null; lastVerify=null; $('#log').innerHTML=''; setStatus('#auth-status','Not authenticated'); setStatus('#li-status','LinkedIn not checked yet.'); setStatus('#li-post-result','Waiting for connection...'); ['#btn-reset','#btn-li-auth-url','#btn-li-verify','#btn-li-post','#btn-li-refresh','#btn-li-disconnect'].forEach(id=>enable(id,false)); }
+
+// ---------------- LinkedIn Flow ----------------
+async function getLinkedInAuthUrl(){
+  if(!authToken) return;
+  log('Requesting LinkedIn authorization URL…');
+  try {
+    const res = await fetch(API_BASE + EP.linkedin.authorize, { headers: headers() });
+    const data = await res.json();
+    // Backend returns 'authorize_url' (not 'authorization_url')
+    const url = data.authorize_url || data.authorization_url; // allow either just in case
+    if(res.ok && url){
+      log('Auth URL acquired', { url });
+      window.open(url, '_blank');
+      setStatus('#li-status','Opened LinkedIn consent window. Complete it then click Verify.');
+    } else {
+      log('Failed to get auth URL', data);
+      setStatus('#li-status','Failed to get auth URL');
+    }
+  } catch(e){
+    log('Auth URL error '+e.message);
+  }
+}
+
+// Auto-bind tokens from popup via postMessage
+window.addEventListener('message', async (evt)=>{
+  try{
+    if(!evt.data) return;
+    if(evt.data.source==='linkedin-oauth'){
+      log('Received LinkedIn OAuth payload via postMessage');
+      const payload = JSON.parse(evt.data.data||'{}');
+      if(payload.success){
+        await bindLinkedInTokens(payload);
+      } else {
+        log('OAuth payload indicates failure', payload);
+      }
+    }
+  }catch(e){ log('postMessage handler error '+e.message); }
+});
+
+async function bindLinkedInTokens(oauthPayload){
+  if(!authToken) return;
+  if(!oauthPayload || !oauthPayload.account || !oauthPayload.tokens){
+    log('Invalid OAuth payload, cannot bind');
+    return;
+  }
+  log('Binding LinkedIn tokens…');
+  try{
+    const res = await fetch(API_BASE+EP.linkedin.bind,{
+      method:'POST',
+      headers:headers(),
+      body:JSON.stringify(oauthPayload)
+    });
+    const data= await res.json();
+    if(res.ok && data.success){
+      log('Bind successful', data);
+      setStatus('#li-status','<span class="status-pill connected">connected</span> Tokens bound. Verifying…');
+      await verifyLinkedIn(false);
+    } else {
+      log('Bind failed', data);
+      setStatus('#li-status','<span class="status-pill error">error</span> Bind failed: '+(data.error||'Unknown'));
+    }
+  }catch(e){ log('Bind error '+e.message); }
+}
+
+async function verifyLinkedIn(initial=false){
+  if(!authToken) return;
+  if(initial) log('Verifying LinkedIn connection…');
+  try {
+    const res = await fetch(API_BASE + EP.linkedin.verify, { headers: headers() });
+    const data = await res.json();
+    lastVerify = data;
+    if(res.ok && data.success){
+      // Successful verification
+      const st = data.is_connected ? 'connected' : 'inactive';
+      const pill = `<span class="status-pill ${data.is_connected?'connected':'inactive'}">${st}</span>`;
+      setStatus('#li-status', pill + ' ' + (data.account ? (data.account.display_name || data.account.username || 'LinkedIn user') : 'No account details'));
+      if(data.account){
+        setStatus('#li-post-result','Ready to post.');
+        enable('#btn-li-post', true);
+        enable('#btn-li-disconnect', true);
+      }
+      log('Verify result', data);
+    } else {
+      // Distinguish between not connected and real error
+      const notConnected = /No connected LinkedIn account/i.test(data.error || '');
+      if(notConnected){
+        const pill = '<span class="status-pill inactive">inactive</span>';
+        setStatus('#li-status', pill + ' Not connected yet. Use Get Auth URL.');
+      } else {
+        const pill = '<span class="status-pill error">error</span>';
+        setStatus('#li-status', pill + ' ' + (data.error || 'Verification failed'));
+      }
+      log('Verify failed', data);
+    }
+  } catch(e){
+    log('Verify error '+e.message);
+  }
+}
+
+async function postLinkedIn(){ if(!authToken) return; const textRaw=$('#li-post-text').value; const text=textRaw.replace('{{TIMESTAMP}}',new Date().toISOString()); const body={text:text}; const linkT=$('#li-link-title').value.trim(); const linkU=$('#li-link-url').value.trim(); if(linkT && linkU) body.link={ title: linkT, url: linkU }; log('Posting to LinkedIn…', body); enable('#btn-li-post',false); try{ const res=await fetch(API_BASE+EP.linkedin.post,{method:'POST',headers:headers(),body:JSON.stringify(body)}); const data=await res.json(); if(res.ok && data.success){ setStatus('#li-post-result','Posted ✅ <a target="_blank" href="'+data.url+'">View</a>'); log('Post success',data); } else { setStatus('#li-post-result','Post failed'); log('Post failed',data); } } catch(e){ setStatus('#li-post-result','Post error'); log('Post exception '+e.message); } enable('#btn-li-post',true); }
+
+async function disconnectLinkedIn(){ if(!authToken) return; if(!confirm('Disconnect LinkedIn and clear tokens?')) return; log('Disconnecting LinkedIn…'); try{ const res=await fetch(API_BASE+EP.linkedin.disconnect,{method:'POST',headers:headers()}); const data=await res.json(); if(res.ok){ log('Disconnected',data); setStatus('#li-status','Disconnected.'); setStatus('#li-post-result','Reconnect required.'); } else { log('Disconnect failed',data); } } catch(e){ log('Disconnect error '+e.message); }
+}
+
+// ---------------- Misc ----------------
+function showEndpoints(){ $('#endpoint-map').textContent = 'login        => '+EP.login+'\n'+endpointMap(); }
+function clearLog(){ $('#log').innerHTML=''; }
+
+// ---------------- Events ----------------
+window.addEventListener('DOMContentLoaded',()=>{
+  $('#btn-login').addEventListener('click',login);
+  $('#btn-reset').addEventListener('click',resetAll);
+  $('#btn-li-auth-url').addEventListener('click',getLinkedInAuthUrl);
+  $('#btn-li-verify').addEventListener('click',()=>verifyLinkedIn(false));
+  $('#btn-li-refresh').addEventListener('click',()=>verifyLinkedIn(false));
+  $('#btn-li-post').addEventListener('click',postLinkedIn);
+  $('#btn-li-disconnect').addEventListener('click',disconnectLinkedIn);
+  $('#btn-endpoints').addEventListener('click',showEndpoints);
+  $('#btn-clear-log').addEventListener('click',clearLog);
+  log('Harness loaded. Login to begin.');
+});
+</script>
+</body>
+</html>
