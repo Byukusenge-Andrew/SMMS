@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Test Register User</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 600px; margin: 40px auto; background: #f8f9fa; }
+        form { background: #fff; padding: 24px; border-radius: 8px; box-shadow: 0 2px 8px #0001; }
+        label { display: block; margin-top: 12px; }
+        input, select { width: 100%; padding: 8px; margin-top: 4px; }
+        button { margin-top: 18px; padding: 10px 20px; background: #007bff; color: #fff; border: none; border-radius: 4px; cursor: pointer; margin-right: 10px; }
+        #result, #subscriptionResult { margin-top: 20px; padding: 12px; border-radius: 6px; white-space: pre-line; }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+    </style>
+</head>
+<body>
+    <h2>Register New User (Test)</h2>
+    <form id="registerForm">
+        <label>Username <input name="username" required></label>
+        <label>Password <input name="password" type="password" required></label>
+        <label>Confirm Password <input name="password_confirm" type="password" required></label>
+        <label>Email <input name="email" type="email" required></label>
+        <label>First Name <input name="first_name"></label>
+        <label>Last Name <input name="last_name"></label>
+        <label>Company Name <input name="company_name"></label>
+        <label>Subscription Tier ID 
+            <select name="subscription_tier_id" id="subscription_tier_id">
+                <option value="">Select a subscription tier...</option>
+            </select>
+        </label>
+        <button type="button" onclick="fetchSubscriptions()">Load Subscription Tiers</button>
+        <button type="submit">Register</button>
+    </form>
+    <div id="subscriptionResult"></div>
+    <div id="result"></div>
+    <script>
+    // Function to fetch subscription tiers
+    async function fetchSubscriptions() {
+        document.getElementById('subscriptionResult').textContent = 'Loading subscription tiers...';
+        try {
+            const res = await fetch('http://127.0.0.1:8000/api/billing/api/subscription-tiers/');
+            const json = await res.json();
+            
+            if (res.ok && json.success) {
+                const select = document.getElementById('subscription_tier_id');
+                select.innerHTML = '<option value="">Select a subscription tier...</option>';
+                
+                json.tiers.forEach(tier => {
+                    const option = document.createElement('option');
+                    option.value = tier.id;
+                    option.textContent = `${tier.display_name} - $${tier.price_monthly}/month`;
+                    select.appendChild(option);
+                });
+                
+                // Display subscription details
+                let displayText = `Found ${json.tiers.length} subscription tiers:\n`;
+                json.tiers.forEach(tier => {
+                    displayText += `\n• ${tier.display_name} (${tier.name})\n`;
+                    displayText += `  Price: $${tier.price_monthly}/month, $${tier.price_yearly}/year\n`;
+                    displayText += `  Description: ${tier.description}\n`;
+                    displayText += `  Features: ${tier.features.max_social_accounts} accounts, ${tier.features.max_scheduled_posts} posts\n`;
+                    displayText += `  ID: ${tier.id}\n`;
+                });
+                
+                document.getElementById('subscriptionResult').textContent = displayText;
+                document.getElementById('subscriptionResult').className = 'success';
+            } else {
+                document.getElementById('subscriptionResult').textContent = 'Error: ' + JSON.stringify(json);
+                document.getElementById('subscriptionResult').className = 'error';
+            }
+        } catch (err) {
+            document.getElementById('subscriptionResult').textContent = 'Error: ' + err;
+            document.getElementById('subscriptionResult').className = 'error';
+        }
+    }
+
+    // Function to handle registration
+    document.getElementById('registerForm').onsubmit = async function(e) {
+        e.preventDefault();
+        const form = e.target;
+        const data = Object.fromEntries(new FormData(form).entries());
+        document.getElementById('result').textContent = 'Registering...';
+        try {
+            const res = await fetch('http://127.0.0.1:8000/api/auth/register/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            const json = await res.json();
+            if (res.ok) {
+                document.getElementById('result').textContent = 'Success! ' + JSON.stringify(json);
+                document.getElementById('result').className = 'success';
+            } else {
+                document.getElementById('result').textContent = 'Error: ' + JSON.stringify(json);
+                document.getElementById('result').className = 'error';
+            }
+        } catch (err) {
+            document.getElementById('result').textContent = 'Error: ' + err;
+            document.getElementById('result').className = 'error';
+        }
+    };
+    </script>
+</body>
+</html>

@@ -13,6 +13,7 @@ class AuthTests(APITestCase):
             "email": "testuser@example.com",
             "password": "TestPassword123",
             "password_confirm": "TestPassword123",
+            "subscription_tier_id":"",
         }
         response = self.client.post(url, data, format="json")
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)

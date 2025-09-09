@@ -9,6 +9,7 @@ from django.shortcuts import redirect
 from django.conf import settings
 from django.core.files.storage import default_storage
 from django.utils import timezone
+from django.http import HttpResponse
 from rest_framework import status, permissions
 from rest_framework.decorators import api_view, permission_classes, parser_classes
 from rest_framework.parsers import MultiPartParser, FormParser
@@ -132,14 +133,89 @@ def tiktok_oauth_callback_get(request: Request):
     """Browser redirect style callback that forwards code to frontend for SPA binding (if ever needed)."""
     code = request.GET.get('code')
     state = request.GET.get('state')
-    frontend = getattr(settings, 'FRONTEND_URL', '').rstrip('/')
-    if not frontend:
-        return Response({'error': 'FRONTEND_URL not configured'}, status=500)
-    from urllib.parse import quote
-    target = f"{frontend}/dashboard/integrations"  # Could create a dedicated callback page later
-    if not code:
-        return redirect(f"{target}?tiktok=error")
-    return redirect(f"{target}?tiktok=code&code={quote(code)}&state={quote(state or '')}")
+    error = request.GET.get('error')
+    error_description = request.GET.get('error_description')
+    
+    # Simple HTML response for testing
+    if error:
+        html_content = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>TikTok OAuth - Error</title>
+            <style>
+                body {{ font-family: Arial, sans-serif; max-width: 600px; margin: 50px auto; padding: 20px; }}
+                .error {{ color: #d32f2f; background: #ffebee; padding: 15px; border-radius: 5px; }}
+            </style>
+        </head>
+        <body>
+            <h1>TikTok OAuth Error</h1>
+            <div class="error">
+                <strong>Error:</strong> {error}<br>
+                <strong>Description:</strong> {error_description or 'No description provided'}
+            </div>
+            <p><a href="javascript:window.close()">Close this window</a></p>
+        </body>
+        </html>
+        """
+        return HttpResponse(html_content)
+    
+    if code:
+        html_content = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>TikTok OAuth - Success</title>
+            <style>
+                body {{ font-family: Arial, sans-serif; max-width: 600px; margin: 50px auto; padding: 20px; }}
+                .success {{ color: #2e7d32; background: #e8f5e8; padding: 15px; border-radius: 5px; }}
+                .code {{ background: #f5f5f5; padding: 10px; border-radius: 3px; font-family: monospace; word-break: break-all; }}
+            </style>
+        </head>
+        <body>
+            <h1>TikTok OAuth Success!</h1>
+            <div class="success">
+                <strong>Authorization successful!</strong><br>
+                Authorization code received from TikTok.
+            </div>
+            <h3>Authorization Code:</h3>
+            <div class="code">{code}</div>
+            {f'<p><strong>State:</strong> {state}</p>' if state else ''}
+            <p>You can now close this window and return to your application.</p>
+            <p><a href="javascript:window.close()">Close this window</a></p>
+            
+            <script>
+                // Auto-close after 5 seconds
+                setTimeout(function() {{
+                    window.close();
+                }}, 5000);
+            </script>
+        </body>
+        </html>
+        """
+        return HttpResponse(html_content)
+    
+    # No code or error - something went wrong
+    html_content = """
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>TikTok OAuth - Invalid Request</title>
+        <style>
+            body { font-family: Arial, sans-serif; max-width: 600px; margin: 50px auto; padding: 20px; }
+            .error { color: #d32f2f; background: #ffebee; padding: 15px; border-radius: 5px; }
+        </style>
+    </head>
+    <body>
+        <h1>TikTok OAuth Error</h1>
+        <div class="error">
+            <strong>Invalid request:</strong> No authorization code or error received from TikTok.
+        </div>
+        <p><a href="javascript:window.close()">Close this window</a></p>
+    </body>
+    </html>
+    """
+    return HttpResponse(html_content)
 
 
 @api_view(['GET'])

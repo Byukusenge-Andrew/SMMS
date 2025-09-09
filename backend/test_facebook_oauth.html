@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Facebook OAuth Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f8f9fa;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #1877f2;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .section {
+            margin: 20px 0;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background-color: #f9f9f9;
+        }
+        .section h3 {
+            color: #333;
+            margin-top: 0;
+        }
+        button {
+            background-color: #1877f2;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #166fe5;
+        }
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        .success {
+            color: #28a745;
+            font-weight: bold;
+        }
+        .error {
+            color: #dc3545;
+            font-weight: bold;
+        }
+        .info {
+            background-color: #e7f3ff;
+            border: 1px solid #b3d9ff;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .user-info, .pages-info {
+            background-color: #f0f8ff;
+            border: 1px solid #b3d9ff;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .page-item {
+            border: 1px solid #ddd;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            background-color: white;
+        }
+        input, textarea, select {
+            width: 100%;
+            padding: 8px;
+            margin: 5px 0;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+            box-sizing: border-box;
+        }
+        textarea {
+            height: 100px;
+            resize: vertical;
+        }
+        #output {
+            background-color: #f8f9fa;
+            border: 1px solid #ddd;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            white-space: pre-wrap;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Facebook OAuth Test</h1>
+
+        <!-- Authentication Section -->
+        <div class="section">
+            <h3>1. Authentication</h3>
+            <div class="info">
+                <strong>Note:</strong> You need to be logged in to the Django backend to test this functionality.
+            </div>
+            
+            <button onclick="login()">Login to Backend</button>
+            <button onclick="register()">Register New User</button>
+            <button onclick="logout()">Logout</button>
+            
+            <div id="authStatus"></div>
+        </div>
+
+        <!-- Facebook OAuth Section -->
+        <div class="section">
+            <h3>2. Facebook OAuth Flow</h3>
+            <div class="info">
+                <strong>Facebook OAuth Flow:</strong><br>
+                1. Click "Connect to Facebook" to start OAuth flow<br>
+                2. Authorize the app on Facebook<br>
+                3. Get redirected back with user info and pages<br>
+                4. Test posting to a page
+            </div>
+            
+            <button onclick="connectFacebook()">Connect to Facebook</button>
+            <button onclick="checkFacebookStatus()">Check Facebook Status</button>
+            <button onclick="getFacebookProfile()">Get Facebook Profile</button>
+            <button onclick="disconnectFacebook()">Disconnect Facebook</button>
+            
+            <div id="facebookStatus"></div>
+        </div>
+
+        <!-- User Info Section -->
+        <div class="section">
+            <h3>3. Facebook User Information</h3>
+            <div id="userInfo" class="user-info" style="display: none;">
+                <!-- User info will be displayed here -->
+            </div>
+        </div>
+
+        <!-- Pages Section -->
+        <div class="section">
+            <h3>4. Facebook Pages</h3>
+            <div id="pagesInfo" class="pages-info" style="display: none;">
+                <!-- Pages info will be displayed here -->
+            </div>
+        </div>
+
+        <!-- Post Creation Section -->
+        <div class="section">
+            <h3>5. Create Facebook Post</h3>
+            <div class="info">
+                <strong>Note:</strong> You must connect to Facebook and have page access to create posts.
+            </div>
+            
+            <label for="pageSelect">Select Page:</label>
+            <select id="pageSelect">
+                <option value="">Select a page...</option>
+            </select>
+            
+            <label for="postMessage">Post Message:</label>
+            <textarea id="postMessage" placeholder="Enter your post message here..."></textarea>
+            
+            <label for="postLink">Link (optional):</label>
+            <input type="url" id="postLink" placeholder="https://example.com">
+            
+            <button onclick="createPost()">Create Post</button>
+            
+            <div id="postResult"></div>
+        </div>
+
+        <!-- Output Section -->
+        <div class="section">
+            <h3>6. Output / Debug Information</h3>
+            <button onclick="clearOutput()">Clear Output</button>
+            <div id="output"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://127.0.0.1:8000/api';
+        
+        function log(message) {
+            const output = document.getElementById('output');
+            const timestamp = new Date().toLocaleTimeString();
+            output.textContent += `[${timestamp}] ${message}\n`;
+            output.scrollTop = output.scrollHeight;
+        }
+
+        function clearOutput() {
+            document.getElementById('output').textContent = '';
+        }
+
+        function showError(elementId, message) {
+            document.getElementById(elementId).innerHTML = `<div class="error">Error: ${message}</div>`;
+        }
+
+        function showSuccess(elementId, message) {
+            document.getElementById(elementId).innerHTML = `<div class="success">Success: ${message}</div>`;
+        }
+
+        // Authentication functions
+        async function login() {
+            try {
+                const response = await fetch(`${API_BASE}/auth/login/`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                        username: 'newuser2024',
+                        password: 'SecurePass!456'
+                    })
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    log('Login successful');
+                    showSuccess('authStatus', 'Logged in successfully');
+                } else {
+                    const error = await response.json();
+                    log(`Login failed: ${JSON.stringify(error)}`);
+                    showError('authStatus', 'Login failed');
+                }
+            } catch (error) {
+                log(`Login error: ${error.message}`);
+                showError('authStatus', `Login error: ${error.message}`);
+            }
+        }
+
+        async function register() {
+            try {
+                const response = await fetch(`${API_BASE}/auth/register/`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                        username: 'newuser2024',
+                        password: 'SecurePass!456',
+                        password_confirm: 'SecurePass!456',
+                        email: 'newuser@example.com'
+                    })
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    log('Registration successful');
+                    showSuccess('authStatus', 'Registered and logged in successfully');
+                } else {
+                    const error = await response.json();
+                    log(`Registration failed: ${JSON.stringify(error)}`);
+                    showError('authStatus', 'Registration failed');
+                }
+            } catch (error) {
+                log(`Registration error: ${error.message}`);
+                showError('authStatus', `Registration error: ${error.message}`);
+            }
+        }
+
+        async function logout() {
+            try {
+                const response = await fetch(`${API_BASE}/auth/logout/`, {
+                    method: 'POST',
+                    credentials: 'include'
+                });
+
+                if (response.ok) {
+                    log('Logout successful');
+                    showSuccess('authStatus', 'Logged out successfully');
+                } else {
+                    log('Logout failed');
+                    showError('authStatus', 'Logout failed');
+                }
+            } catch (error) {
+                log(`Logout error: ${error.message}`);
+                showError('authStatus', `Logout error: ${error.message}`);
+            }
+        }
+
+        // Facebook OAuth functions
+        function connectFacebook() {
+            log('Initiating Facebook OAuth...');
+            // Redirect to Facebook OAuth endpoint
+            window.location.href = `${API_BASE}/integrations/facebook/login/`;
+        }
+
+        // Rate limiting for status checks
+        let lastStatusCheck = 0;
+        const STATUS_CHECK_COOLDOWN = 2000; // 2 seconds
+
+        async function checkFacebookStatus() {
+            // Implement client-side rate limiting
+            const now = Date.now();
+            if (now - lastStatusCheck < STATUS_CHECK_COOLDOWN) {
+                log('Status check skipped due to rate limiting');
+                return;
+            }
+            lastStatusCheck = now;
+
+            try {
+                log('Checking Facebook status...');
+                const response = await fetch(`${API_BASE}/integrations/facebook/status/`, {
+                    credentials: 'include'
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    log(`Facebook status: ${JSON.stringify(data, null, 2)}`);
+                    
+                    if (data.connected) {
+                        showSuccess('facebookStatus', `Connected as ${data.user_name} (${data.pages_count} pages)`);
+                    } else {
+                        document.getElementById('facebookStatus').innerHTML = '<div>Not connected to Facebook</div>';
+                    }
+                } else {
+                    const error = await response.json();
+                    log(`Status check failed: ${JSON.stringify(error)}`);
+                    showError('facebookStatus', 'Failed to check status');
+                }
+            } catch (error) {
+                log(`Status check error: ${error.message}`);
+                showError('facebookStatus', `Status check error: ${error.message}`);
+            }
+        }
+
+        async function getFacebookProfile() {
+            try {
+                log('Getting Facebook profile...');
+                const response = await fetch(`${API_BASE}/integrations/facebook/profile/`, {
+                    credentials: 'include'
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    log(`Facebook profile: ${JSON.stringify(data, null, 2)}`);
+                    
+                    // Display user info
+                    const userInfo = data.user_info;
+                    document.getElementById('userInfo').innerHTML = `
+                        <h4>User Information</h4>
+                        <p><strong>Name:</strong> ${userInfo.name || 'N/A'}</p>
+                        <p><strong>ID:</strong> ${userInfo.id || 'N/A'}</p>
+                        <p><strong>Email:</strong> ${userInfo.email || 'N/A'}</p>
+                    `;
+                    document.getElementById('userInfo').style.display = 'block';
+                    
+                    // Display pages
+                    const pages = data.pages;
+                    if (pages && pages.length > 0) {
+                        let pagesHtml = '<h4>Facebook Pages</h4>';
+                        pages.forEach(page => {
+                            pagesHtml += `
+                                <div class="page-item">
+                                    <strong>${page.name}</strong><br>
+                                    ID: ${page.id}<br>
+                                    Category: ${page.category || 'N/A'}<br>
+                                    Tasks: ${page.tasks ? page.tasks.join(', ') : 'N/A'}
+                                </div>
+                            `;
+                        });
+                        document.getElementById('pagesInfo').innerHTML = pagesHtml;
+                        document.getElementById('pagesInfo').style.display = 'block';
+                        
+                        // Populate page selector
+                        const pageSelect = document.getElementById('pageSelect');
+                        pageSelect.innerHTML = '<option value="">Select a page...</option>';
+                        pages.forEach(page => {
+                            pageSelect.innerHTML += `<option value="${page.id}">${page.name}</option>`;
+                        });
+                    } else {
+                        document.getElementById('pagesInfo').innerHTML = '<p>No pages found or insufficient permissions.</p>';
+                        document.getElementById('pagesInfo').style.display = 'block';
+                    }
+                    
+                } else {
+                    const error = await response.json();
+                    log(`Profile fetch failed: ${JSON.stringify(error)}`);
+                    showError('facebookStatus', 'Failed to get profile');
+                }
+            } catch (error) {
+                log(`Profile fetch error: ${error.message}`);
+                showError('facebookStatus', `Profile fetch error: ${error.message}`);
+            }
+        }
+
+        async function disconnectFacebook() {
+            try {
+                log('Disconnecting Facebook...');
+                const response = await fetch(`${API_BASE}/integrations/facebook/oauth/disconnect/`, {
+                    credentials: 'include'
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    log('Facebook disconnected successfully');
+                    showSuccess('facebookStatus', 'Disconnected from Facebook');
+                    
+                    // Clear displays
+                    document.getElementById('userInfo').style.display = 'none';
+                    document.getElementById('pagesInfo').style.display = 'none';
+                    document.getElementById('pageSelect').innerHTML = '<option value="">Select a page...</option>';
+                    
+                } else {
+                    const error = await response.json();
+                    log(`Disconnect failed: ${JSON.stringify(error)}`);
+                    showError('facebookStatus', 'Failed to disconnect');
+                }
+            } catch (error) {
+                log(`Disconnect error: ${error.message}`);
+                showError('facebookStatus', `Disconnect error: ${error.message}`);
+            }
+        }
+
+        async function createPost() {
+            try {
+                const pageId = document.getElementById('pageSelect').value;
+                const message = document.getElementById('postMessage').value;
+                const link = document.getElementById('postLink').value;
+
+                if (!pageId) {
+                    showError('postResult', 'Please select a page');
+                    return;
+                }
+
+                if (!message && !link) {
+                    showError('postResult', 'Please enter a message or link');
+                    return;
+                }
+
+                log('Creating Facebook post...');
+                const response = await fetch(`${API_BASE}/integrations/facebook/oauth/post/`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                        page_id: pageId,
+                        message: message,
+                        link: link || undefined
+                    })
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    log(`Post created: ${JSON.stringify(data, null, 2)}`);
+                    showSuccess('postResult', `Post created successfully! Post ID: ${data.post_id}`);
+                    
+                    // Clear form
+                    document.getElementById('postMessage').value = '';
+                    document.getElementById('postLink').value = '';
+                    
+                } else {
+                    const error = await response.json();
+                    log(`Post creation failed: ${JSON.stringify(error)}`);
+                    showError('postResult', error.error || 'Failed to create post');
+                }
+            } catch (error) {
+                log(`Post creation error: ${error.message}`);
+                showError('postResult', `Post creation error: ${error.message}`);
+            }
+        }
+
+        // Initialize page
+        document.addEventListener('DOMContentLoaded', function() {
+            log('Facebook OAuth Test Page loaded');
+            
+            // Prevent rapid repeated status checks on page reload
+            if (!window.oauthRefreshed) {
+                checkFacebookStatus();
+            } else {
+                log('Skipping initial status check due to recent OAuth refresh');
+                window.oauthRefreshed = false; // Reset flag
+            }
+        });
+    </script>
+</body>
+</html>

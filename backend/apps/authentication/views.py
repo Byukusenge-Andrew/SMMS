@@ -695,26 +695,43 @@ def register(request):
         try:
             profile = user.profile
             profile_uuid = str(profile.id)
+            
+            # Get subscription information
+            subscription_info = {}
+            if hasattr(user, 'subscription') and user.subscription:
+                subscription_info = {
+                    'subscription_id': str(user.subscription.id),
+                    'tier_name': user.subscription.tier.display_name,
+                    'status': user.subscription.status,
+                    'is_trial': user.subscription.status == 'trialing',
+                    'trial_end_date': user.subscription.trial_end_date.isoformat() if user.subscription.trial_end_date else None,
+                }
+            
         except Exception as e:
             print(f"Profile access error during registration: {e}")
             logger.warning(f"Profile access error during registration: {e}")
             # Create profile if it doesn't exist
             profile, created = UserProfile.objects.get_or_create(user=user)
             profile_uuid = str(profile.id)
+            subscription_info = {}
             print(f"Profile {'created' if created else 'retrieved'} during registration: {profile}")
             logger.info(f"Profile {'created' if created else 'retrieved'} during registration: {profile}")
         
         print("Registration successful, returning response")
         logger.info("Registration successful, returning response")
-        return Response(
-            {
-                "message": "Registration successful. Please check your email to verify your account.",
-                "user_id": user.id,
-                "username": user.username,
-                "profile_uuid": profile_uuid,
-            },
-            status=status.HTTP_201_CREATED,
-        )
+        
+        response_data = {
+            "message": "Registration successful. Please check your email to verify your account.",
+            "user_id": user.id,
+            "username": user.username,
+            "profile_uuid": profile_uuid,
+        }
+        
+        # Add subscription info if available
+        if subscription_info:
+            response_data["subscription"] = subscription_info
+        
+        return Response(response_data, status=status.HTTP_201_CREATED)
     
     print(f"Serializer validation failed: {serializer.errors}")
     print(f"Detailed errors: {dict(serializer.errors)}")

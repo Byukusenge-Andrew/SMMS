@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TikTok OAuth Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .btn {
+            display: inline-block;
+            padding: 12px 24px;
+            margin: 10px 5px;
+            background-color: #007bff;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        .btn:hover {
+            background-color: #0056b3;
+        }
+        .btn-tiktok {
+            background-color: #ff0050;
+        }
+        .btn-tiktok:hover {
+            background-color: #cc0040;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+            border-left: 4px solid #007bff;
+        }
+        .error {
+            border-left-color: #dc3545;
+            background-color: #f8d7da;
+        }
+        .success {
+            border-left-color: #28a745;
+            background-color: #d4edda;
+        }
+        .code {
+            background-color: #f1f1f1;
+            padding: 10px;
+            border-radius: 3px;
+            font-family: monospace;
+            margin: 10px 0;
+        }
+        .section {
+            margin: 30px 0;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>TikTok OAuth Integration Test</h1>
+        
+        <div class="section">
+            <h2>0. Authentication</h2>
+            <p>Login to test authenticated endpoints:</p>
+            <div style="margin: 10px 0;">
+                <input type="text" id="username" placeholder="Username" style="padding: 8px; margin: 5px;" value="testuser">
+                <input type="password" id="password" placeholder="Password" style="padding: 8px; margin: 5px;" value="TestPassword123!">
+                <button class="btn" onclick="loginUser()">Login</button>
+                <button class="btn" onclick="createTestUser()">Create Test User</button>
+            </div>
+            <div id="auth-result"></div>
+        </div>
+
+        <div class="section">
+            <h2>1. Test Backend Health</h2>
+            <p>First, verify that the Django backend is running:</p>
+            <button class="btn" onclick="testBackendHealth()">Test Backend Health</button>
+            <div id="health-result"></div>
+        </div>
+
+        <div class="section">
+            <h2>2. Get TikTok Auth URL</h2>
+            <p>Get the authorization URL for TikTok OAuth:</p>
+            <button class="btn btn-tiktok" onclick="getTikTokAuthUrl()">Get TikTok Auth URL</button>
+            <div id="auth-url-result"></div>
+        </div>
+
+        <div class="section">
+            <h2>3. TikTok OAuth Flow</h2>
+            <p>Complete the OAuth flow by clicking the link below (will be generated after step 2):</p>
+            <div id="oauth-link"></div>
+        </div>
+
+        <div class="section">
+            <h2>4. Test User Integration Status</h2>
+            <p>Check if user has connected TikTok account:</p>
+            <button class="btn" onclick="checkIntegrationStatus()">Check Integration Status</button>
+            <div id="status-result"></div>
+        </div>
+
+        <div class="section">
+            <h2>5. Debug Information</h2>
+            <div class="code">
+                <strong>Backend URL:</strong> http://127.0.0.1:8000<br>
+                <strong>TikTok Client Key:</strong> sbaw9sxz7m9iw1wvh5<br>
+                <strong>Expected Redirect URI:</strong> http://127.0.0.1:8000/api/integrations/tiktok/callback/
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const BASE_URL = 'http://127.0.0.1:8000';
+        let authToken = null;
+        
+        function showResult(elementId, content, type = 'result') {
+            const element = document.getElementById(elementId);
+            element.innerHTML = `<div class="result ${type}">${content}</div>`;
+        }
+
+        function showError(elementId, error) {
+            showResult(elementId, `<strong>Error:</strong> ${error}`, 'error');
+        }
+
+        function showSuccess(elementId, content) {
+            showResult(elementId, content, 'success');
+        }
+
+        async function createTestUser() {
+            try {
+                showResult('auth-result', 'Creating test user...', 'result');
+                
+                const username = document.getElementById('username').value;
+                const password = document.getElementById('password').value;
+                
+                const response = await fetch(`${BASE_URL}/api/auth/register/`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        username: username,
+                        password: password,
+                        password_confirm: password,  // Add password confirmation
+                        email: `${username}@test.com`,
+                        first_name: 'Test',
+                        last_name: 'User'
+                    })
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    showSuccess('auth-result', `✅ Test user created! Now try logging in.`);
+                } else {
+                    const errorData = await response.text();
+                    showError('auth-result', `Failed to create user (${response.status}): ${errorData}`);
+                }
+            } catch (error) {
+                showError('auth-result', `Request failed: ${error.message}`);
+            }
+        }
+
+        async function loginUser() {
+            try {
+                showResult('auth-result', 'Logging in...', 'result');
+                
+                const username = document.getElementById('username').value;
+                const password = document.getElementById('password').value;
+                
+                const response = await fetch(`${BASE_URL}/api/auth/login/`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        username: username,
+                        password: password
+                    })
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.token) {
+                        authToken = data.token;
+                        showSuccess('auth-result', `✅ Logged in successfully!<br><div class="code">Token: ${authToken.substring(0, 20)}...</div>`);
+                    } else {
+                        showSuccess('auth-result', `✅ Logged in successfully! (Session-based auth)`);
+                    }
+                } else {
+                    const errorData = await response.text();
+                    showError('auth-result', `Failed to login (${response.status}): ${errorData}`);
+                }
+            } catch (error) {
+                showError('auth-result', `Request failed: ${error.message}`);
+            }
+        }
+
+        async function testBackendHealth() {
+            try {
+                showResult('health-result', 'Testing backend connection...', 'result');
+                
+                const response = await fetch(`${BASE_URL}/api/auth/health/`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    showSuccess('health-result', `✅ Backend is running!<br><div class="code">${JSON.stringify(data, null, 2)}</div>`);
+                } else {
+                    showError('health-result', `Backend responded with status ${response.status}`);
+                }
+            } catch (error) {
+                showError('health-result', `Failed to connect to backend: ${error.message}`);
+            }
+        }
+
+        async function getTikTokAuthUrl() {
+            try {
+                showResult('auth-url-result', 'Getting TikTok authorization URL...', 'result');
+                
+                const headers = {
+                    'Content-Type': 'application/json',
+                };
+                
+                if (authToken) {
+                    headers['Authorization'] = `Token ${authToken}`;
+                }
+                
+                const response = await fetch(`${BASE_URL}/api/integrations/tiktok/auth-url/`, {
+                    method: 'GET',
+                    headers: headers,
+                    credentials: 'include'  // Include session cookies
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    const authUrl = data.authorization_url;  // Fixed: use authorization_url from backend
+                    
+                    showSuccess('auth-url-result', `✅ Got authorization URL!<br><div class="code">${authUrl}</div>`);
+                    
+                    // Add clickable link for OAuth flow
+                    document.getElementById('oauth-link').innerHTML = `
+                        <a href="${authUrl}" target="_blank" class="btn btn-tiktok">
+                            🎵 Connect to TikTok
+                        </a>
+                        <p><small>This will open TikTok authorization in a new tab. After authorization, you'll be redirected back to the callback URL.</small></p>
+                    `;
+                } else {
+                    const errorData = await response.text();
+                    showError('auth-url-result', `Failed to get auth URL (${response.status}): ${errorData}`);
+                }
+            } catch (error) {
+                showError('auth-url-result', `Request failed: ${error.message}`);
+            }
+        }
+
+        async function checkIntegrationStatus() {
+            try {
+                showResult('status-result', 'Checking integration status...', 'result');
+                
+                const headers = {
+                    'Content-Type': 'application/json',
+                };
+                
+                if (authToken) {
+                    headers['Authorization'] = `Token ${authToken}`;
+                }
+                
+                const response = await fetch(`${BASE_URL}/api/integrations/`, {
+                    method: 'GET',
+                    headers: headers,
+                    credentials: 'include'  // Include session cookies
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    const tiktokIntegration = data.find(integration => integration.platform === 'tiktok');
+                    
+                    if (tiktokIntegration) {
+                        showSuccess('status-result', `✅ TikTok integration found!<br><div class="code">${JSON.stringify(tiktokIntegration, null, 2)}</div>`);
+                    } else {
+                        showResult('status-result', '⚠️ No TikTok integration found for user', 'result');
+                    }
+                } else {
+                    const errorData = await response.text();
+                    showError('status-result', `Failed to get integrations (${response.status}): ${errorData}`);
+                }
+            } catch (error) {
+                showError('status-result', `Request failed: ${error.message}`);
+            }
+        }
+
+        // Auto-test backend health on page load
+        window.onload = function() {
+            setTimeout(testBackendHealth, 1000);
+        };
+    </script>
+</body>
+</html>

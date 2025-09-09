@@ -2,14 +2,18 @@
 TikTok API Integration Service
 
 TikTok Business API Integration for content management and posting.
-Supports TikTok's OAuth 2.0 flow and video posting capabilities.
+Supports TikTok's OAuth 2.0 flow with PKCE and video posting capabilities.
 """
 import os
 import logging
 import requests
 import json
+import secrets
+import hashlib
+import base64
 from typing import Dict, List, Optional, Any, Tuple
 from django.conf import settings
+from decouple import config
 from datetime import datetime, timedelta
 from urllib.parse import urlencode, parse_qs, urlparse
 
@@ -19,14 +23,14 @@ logger = logging.getLogger(__name__)
 class TikTokService:
     """Service class for TikTok Business API integration"""
     
-    # TikTok API URLs
-    BASE_URL = "https://business-api.tiktok.com"
-    AUTH_URL = "https://business-api.tiktok.com/open_api/v1.3/oauth2/authorize/"
-    TOKEN_URL = "https://business-api.tiktok.com/open_api/v1.3/oauth2/access_token/"
+    # TikTok OAuth URLs (Standard TikTok Login Kit, not Business API)
+    BASE_URL = "https://www.tiktok.com"
+    AUTH_URL = "https://www.tiktok.com/v2/auth/authorize/"
+    TOKEN_URL = "https://open.tiktokapis.com/v2/oauth/token/"
     
-    # Content creation endpoints
-    CONTENT_UPLOAD_URL = "https://open-api.tiktok.com/share/video/upload/"
-    CONTENT_PUBLISH_URL = "https://open-api.tiktok.com/share/video/publish/"
+    # Content creation endpoints (TikTok API v2)
+    CONTENT_UPLOAD_URL = "https://open.tiktokapis.com/v2/post/publish/inbox/video/init/"
+    CONTENT_PUBLISH_URL = "https://open.tiktokapis.com/v2/post/publish/video/init/"
     
     def __init__(self):
         """Initialize TikTok API service"""
@@ -34,32 +38,62 @@ class TikTokService:
         self.client_secret = None
         self.redirect_uri = None
         self._initialized = False
+        self.code_verifier = None
+        self.code_challenge = None
+
+    def _generate_pkce_pair(self) -> Tuple[str, str]:
+        """
+        Generate PKCE code_verifier and code_challenge pair
+        
+        Returns:
+            Tuple of (code_verifier, code_challenge)
+        """
+        # Generate code_verifier (43-128 characters, URL-safe)
+        code_verifier = base64.urlsafe_b64encode(secrets.token_bytes(32)).decode('utf-8').rstrip('=')
+        
+        # Generate code_challenge using SHA256
+        code_challenge = base64.urlsafe_b64encode(
+            hashlib.sha256(code_verifier.encode('utf-8')).digest()
+        ).decode('utf-8').rstrip('=')
+        
+        return code_verifier, code_challenge
     
     def _lazy_init(self):
         """Lazy initialization of TikTok API credentials"""
         if self._initialized:
             return True
         
-        # Read credentials from Django settings
+        # Read credentials from Django settings first, then from environment
         social_auth = getattr(settings, 'SOCIAL_AUTH_CONFIG', {})
         tiktok_config = social_auth.get('TIKTOK', {})
         
-        self.client_key = tiktok_config.get('CLIENT_KEY') or os.getenv('TIKTOK_CLIENT_KEY')
-        self.client_secret = tiktok_config.get('CLIENT_SECRET') or os.getenv('TIKTOK_CLIENT_SECRET')
-        self.redirect_uri = tiktok_config.get('REDIRECT_URI') or f"{settings.FRONTEND_URL}/integrations/tiktok/callback"
+        # Use decouple.config() to properly read from .env file
+        self.client_key = (
+            tiktok_config.get('CLIENT_KEY') or 
+            config('TIKTOK_CLIENT_KEY', default=None)
+        )
+        self.client_secret = (
+            tiktok_config.get('CLIENT_SECRET') or 
+            config('TIKTOK_CLIENT_SECRET', default=None)
+        )
+        self.redirect_uri = (
+            tiktok_config.get('REDIRECT_URI') or 
+            config('TIKTOK_REDIRECT_URI', default=None) or 
+            f"{getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')}/integrations/tiktok/callback"
+        )
         
         # Validate required credentials
         if not all([self.client_key, self.client_secret]):
-            logger.error("Missing TikTok API credentials")
+            logger.error(f"Missing TikTok API credentials - client_key: {bool(self.client_key)}, client_secret: {bool(self.client_secret)}")
             return False
         
         self._initialized = True
-        logger.info("TikTok API service initialized successfully")
+        logger.info(f"TikTok API service initialized successfully with client_key: {self.client_key[:10]}...")
         return True
     
     def get_authorization_url(self, state: str = None) -> str:
         """
-        Generate TikTok OAuth authorization URL
+        Generate TikTok OAuth authorization URL with PKCE
         
         Args:
             state: State parameter for OAuth flow
@@ -70,11 +104,17 @@ class TikTokService:
         if not self._lazy_init():
             raise Exception("TikTok service not properly initialized")
         
+        # Generate PKCE parameters
+        self.code_verifier, self.code_challenge = self._generate_pkce_pair()
+        
+        # TikTok Login Kit v2 parameters with PKCE
         params = {
-            'client_key': self.client_key,
-            'scope': 'user.info.basic,video.list,video.upload,video.publish',
+            'client_key': self.client_key,  # TikTok uses client_key per official docs
+            'scope': 'user.info.basic,video.upload,video.list,user.info.profile,user.info.stats',
             'response_type': 'code',
             'redirect_uri': self.redirect_uri,
+            'code_challenge': self.code_challenge,
+            'code_challenge_method': 'S256',
         }
         
         if state:
@@ -95,24 +135,36 @@ class TikTokService:
         if not self._lazy_init():
             raise Exception("TikTok service not properly initialized")
         
+        if not self.code_verifier:
+            raise Exception("Code verifier not found. Must call get_authorization_url first.")
+        
         payload = {
-            'client_key': self.client_key,
+            'client_key': self.client_key,  # TikTok uses client_key per official docs
             'client_secret': self.client_secret,
             'code': authorization_code,
             'grant_type': 'authorization_code',
             'redirect_uri': self.redirect_uri,
+            'code_verifier': self.code_verifier,
+        }
+        
+        # Use form data for TikTok API v2
+        headers = {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Cache-Control': 'no-cache'
         }
         
         try:
-            response = requests.post(self.TOKEN_URL, json=payload)
+            response = requests.post(self.TOKEN_URL, data=payload, headers=headers)
             response.raise_for_status()
             
             data = response.json()
-            if data.get('code') != 0:
-                logger.error(f"TikTok token exchange failed: {data.get('message')}")
-                raise Exception(f"Token exchange failed: {data.get('message')}")
             
-            return data.get('data', {})
+            # TikTok API v2 response format
+            if 'error' in data:
+                logger.error(f"TikTok token exchange failed: {data.get('error_description', data.get('error'))}")
+                raise Exception(f"Token exchange failed: {data.get('error_description', data.get('error'))}")
+            
+            return data
             
         except requests.RequestException as e:
             logger.error(f"TikTok token exchange request failed: {e}")
@@ -132,7 +184,7 @@ class TikTokService:
             raise Exception("TikTok service not properly initialized")
         
         payload = {
-            'client_key': self.client_key,
+            'client_key': self.client_key,  # TikTok uses client_key per official docs
             'client_secret': self.client_secret,
             'refresh_token': refresh_token,
             'grant_type': 'refresh_token',
@@ -455,7 +507,7 @@ class TikTokService:
         }
         
         payload = {
-            'client_key': self.client_key,
+            'client_key': self.client_key,  # TikTok uses client_key per official docs
             'client_secret': self.client_secret,
         }
         

@@ -244,6 +244,7 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, validators=[validate_password])
     password_confirm = serializers.CharField(write_only=True)
     role = serializers.CharField(write_only=True, required=False, allow_blank=True)
+    company_name = serializers.CharField(write_only=True, required=False, allow_blank=True)
     subscription_tier_id = serializers.UUIDField(write_only=True, required=False, allow_null=True)
 
     class Meta:
@@ -256,6 +257,7 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
             "first_name",
             "last_name",
             "role",
+            "company_name",
             "subscription_tier_id",
         )
         extra_kwargs = {
@@ -264,6 +266,7 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
             "last_name": {"required": False},
             # Explicitly mark optional extras (already declared write_only above)
             "role": {"required": False},
+            "company_name": {"required": False},
             "subscription_tier_id": {"required": False},
         }
 
@@ -292,8 +295,13 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         return value
 
     def create(self, validated_data):
+        from datetime import timedelta
+        from django.utils import timezone
+        from apps.core.models.payment_models import UserSubscription
+        
         validated_data.pop("password_confirm", None)
         role = validated_data.pop("role", None)
+        company_name = validated_data.pop("company_name", None)
         subscription_tier_id = validated_data.pop("subscription_tier_id", None)
         
         user = User.objects.create_user(**validated_data)
@@ -315,6 +323,7 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
             user=user,
             defaults={
                 "role": role,
+                "company_name": company_name,
                 "subscription_tier": subscription_tier
             }
         )
@@ -322,9 +331,42 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         if not created:
             if role:
                 profile.role = role
+            if company_name:
+                profile.company_name = company_name
             if subscription_tier:
                 profile.subscription_tier = subscription_tier
             profile.save()
+
+        # Create UserSubscription record
+        if subscription_tier:
+            now = timezone.now()
+            is_paid_tier = subscription_tier.price_monthly > 0
+            
+            # Set up trial for paid tiers, active status for free tier
+            if is_paid_tier:
+                status = 'trialing'
+                trial_end = now + timedelta(days=14)  # 14-day trial
+                start_trial = True
+            else:
+                status = 'active'
+                trial_end = None
+                start_trial = False
+            
+            user_subscription = UserSubscription.objects.create(
+                user=user,
+                tier=subscription_tier,
+                status=status,
+                billing_period='monthly',
+                start_date=now,
+                trial_end_date=trial_end,
+            )
+            
+            # Update profile with trial information for paid tiers
+            if start_trial:
+                profile.trial_start_date = now
+                profile.trial_end_date = trial_end
+                profile.is_trial_active = True
+                profile.save()
 
         return user
 

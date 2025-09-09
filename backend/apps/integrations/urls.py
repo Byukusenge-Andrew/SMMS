@@ -55,6 +55,34 @@ from .views_facebook_management import (
     facebook_posting_analytics,
     test_facebook_connection,
 )
+# New Facebook OAuth views
+from .facebook_views import (
+    facebook_login,
+    facebook_callback as facebook_oauth_callback,
+    facebook_profile,
+    facebook_post,
+    facebook_disconnect as facebook_oauth_disconnect,
+    facebook_status,
+)
+from .test_views import facebook_test_page
+from .tiktok_views import (
+    tiktok_auth_url,
+    tiktok_oauth_callback,
+    tiktok_oauth_callback_get,
+    tiktok_accounts,
+    tiktok_disconnect,
+    tiktok_create_post,
+    tiktok_posts,
+    tiktok_post_detail,
+    tiktok_delete_post,
+    tiktok_video_analytics,
+)
+from .views_canva import (
+    canva_authorize,
+    canva_callback,
+    canva_bind_tokens,
+    canva_disconnect,
+)
 from .test_views import facebook_test_page
 from .tiktok_views import (
     tiktok_auth_url,
@@ -131,6 +159,14 @@ urlpatterns = [
     path("facebook/authorize/", facebook_authorize, name="facebook-authorize"),
     path("facebook/callback/", facebook_callback, name="facebook-callback"),
     path("facebook/disconnect/", facebook_disconnect, name="facebook-disconnect"),
+
+    # New Facebook OAuth 2.0 endpoints (Graph API)
+    path("facebook/login/", facebook_login, name="facebook-login"),
+    path("facebook/oauth/callback/", facebook_oauth_callback, name="facebook-oauth-callback"),
+    path("facebook/profile/", facebook_profile, name="facebook-profile"),
+    path("facebook/oauth/post/", facebook_post, name="facebook-oauth-post"),
+    path("facebook/oauth/disconnect/", facebook_oauth_disconnect, name="facebook-oauth-disconnect"),
+    path("facebook/status/", facebook_status, name="facebook-status"),
 
     # Facebook API endpoints
     path("facebook/verify/", verify_facebook_credentials, name="facebook-verify-credentials"),
