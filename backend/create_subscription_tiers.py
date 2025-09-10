@@ -47,8 +47,8 @@ def create_subscription_tiers():
             'is_active': True,
         },
         {
-            'name': 'pro',
-            'display_name': 'Pro',
+            'name': 'professional',
+            'display_name': 'Professional',
             'description': 'Ideal for growing businesses and social media managers',
             'price_monthly': Decimal('14.99'),
             'price_yearly': Decimal('149.99'),  # 10 months price for yearly
