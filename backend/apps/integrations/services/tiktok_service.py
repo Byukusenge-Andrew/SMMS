@@ -75,6 +75,7 @@ class TikTokService:
         self.client_secret = (
             tiktok_config.get('CLIENT_SECRET') or 
             config('TIKTOK_CLIENT_SECRET', default=None)
+ 
         )
         self.redirect_uri = (
             tiktok_config.get('REDIRECT_URI') or 

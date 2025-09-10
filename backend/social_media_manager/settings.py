@@ -290,12 +290,9 @@ CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
 CELERY_BROKER_CONNECTION_RETRY = True
 CELERY_BROKER_CONNECTION_MAX_RETRIES = 10
 CELERY_REDIS_MAX_CONNECTIONS = 20
-CELERY_REDIS_SOCKET_KEEPALIVE = True
-CELERY_REDIS_SOCKET_KEEPALIVE_OPTIONS = {
-    'TCP_KEEPIDLE': 1,
-    'TCP_KEEPINTVL': 3,
-    'TCP_KEEPCNT': 5,
-}
+
+# Import socket constants for keepalive options
+import socket
 
 # Additional Redis connection options for stability
 CELERY_BROKER_TRANSPORT_OPTIONS = {
@@ -304,9 +301,9 @@ CELERY_BROKER_TRANSPORT_OPTIONS = {
     'fanout_patterns': True,
     'socket_keepalive': True,
     'socket_keepalive_options': {
-        'TCP_KEEPIDLE': 1,
-        'TCP_KEEPINTVL': 3,
-        'TCP_KEEPCNT': 5,
+        socket.TCP_KEEPIDLE: 1,
+        socket.TCP_KEEPINTVL: 3,
+        socket.TCP_KEEPCNT: 5,
     },
     'retry_on_timeout': True,
     'max_connections': 20,
@@ -316,9 +313,9 @@ CELERY_BROKER_TRANSPORT_OPTIONS = {
 CELERY_RESULT_BACKEND_TRANSPORT_OPTIONS = {
     'socket_keepalive': True,
     'socket_keepalive_options': {
-        'TCP_KEEPIDLE': 1,
-        'TCP_KEEPINTVL': 3,
-        'TCP_KEEPCNT': 5,
+        socket.TCP_KEEPIDLE: 1,
+        socket.TCP_KEEPINTVL: 3,
+        socket.TCP_KEEPCNT: 5,
     },
     'retry_on_timeout': True,
     'max_connections': 20,

@@ -118,9 +118,19 @@ class RegisterSerializer(serializers.ModelSerializer):
         return attrs
 
     def create(self, validated_data):
+        print("🔧 UserRegistrationSerializer.create() CALLED")
+        print(f"🔧 validated_data keys: {list(validated_data.keys())}")
+        
+        from datetime import timedelta
+        from django.utils import timezone
+        from apps.core.models.payment_models import UserSubscription
+        
         validated_data.pop("password_confirm")
         company_name = validated_data.pop("company_name", "")
         subscription_tier_id = validated_data.pop("subscription_tier_id", None)
+        
+        print(f"🔧 subscription_tier_id: {subscription_tier_id}")
+        print(f"🔧 company_name: {company_name}")
 
         password = validated_data.pop("password")
         user = User.objects.create_user(
@@ -130,39 +140,85 @@ class RegisterSerializer(serializers.ModelSerializer):
             last_name=validated_data.get("last_name", ""),
             password=password,
         )
+        print(f"🔧 User created: {user.username}")
 
         # Get the subscription tier
         subscription_tier = None
         if subscription_tier_id:
             try:
                 subscription_tier = SubscriptionTier.objects.get(id=subscription_tier_id, is_active=True)
+                print(f"🔧 Found subscription tier: {subscription_tier.name} (ID: {subscription_tier.id})")
             except SubscriptionTier.DoesNotExist:
+                print(f"🔧 ERROR: Invalid subscription tier ID: {subscription_tier_id}")
                 # Fallback to free tier if provided ID is invalid
                 subscription_tier = SubscriptionTier.objects.filter(name="free", is_active=True).first()
+                print(f"🔧 Fallback to free tier: {subscription_tier}")
         else:
             # Default to free tier if no tier specified
             subscription_tier = SubscriptionTier.objects.filter(name="free", is_active=True).first()
+            print(f"🔧 Default to free tier: {subscription_tier}")
 
-        # Create or get profile with subscription tier
+        # Create or get profile WITHOUT subscription tier initially
         profile, created = UserProfile.objects.get_or_create(
             user=user, 
             defaults={
                 "company_name": company_name,
-                "subscription_tier": subscription_tier
+                # Don't set subscription_tier here
             }
         )
+        print(f"🔧 Profile {'created' if created else 'retrieved'}: {profile.id}")
 
         if not created:
             if company_name:
                 profile.company_name = company_name
-            if subscription_tier:
-                profile.subscription_tier = subscription_tier
+
+        # Create UserSubscription record first
+        if subscription_tier:
+            print(f"🔧 Creating UserSubscription for tier: {subscription_tier.name}")
+            now = timezone.now()
+            is_paid_tier = subscription_tier.price_monthly > 0
+            
+            # Set up trial for paid tiers, active status for free tier
+            if is_paid_tier:
+                status = 'trialing'
+                trial_end = now + timedelta(days=14)  # 14-day trial
+                start_trial = True
+            else:
+                status = 'active'
+                trial_end = None
+                start_trial = False
+            
+            user_subscription = UserSubscription.objects.create(
+                user=user,
+                tier=subscription_tier,
+                status=status,
+                billing_period='monthly',
+                start_date=now,
+                trial_end_date=trial_end,
+            )
+            print(f"🔧 UserSubscription created: {user_subscription.id}")
+            
+            # NOW update profile with subscription tier and trial information
+            print(f"🔧 BEFORE profile update - subscription_tier: {profile.subscription_tier}")
+            profile.subscription_tier = subscription_tier
+            print(f"🔧 AFTER assignment - subscription_tier: {profile.subscription_tier}")
+            
+            if start_trial:
+                profile.trial_start_date = now
+                profile.trial_end_date = trial_end
+                profile.is_trial_active = True
+                print(f"🔧 Trial setup - start: {now}, end: {trial_end}")
+            
             profile.save()
+            print(f"🔧 Profile saved with subscription_tier: {profile.subscription_tier}")
+            
+            # Verify the save worked
+            profile.refresh_from_db()
+            print(f"🔧 Profile after refresh_from_db: subscription_tier={profile.subscription_tier}")
+        else:
+            print("🔧 No subscription tier provided")
 
-        # Start trial if it's a paid tier
-        if subscription_tier and subscription_tier.price_monthly > 0:
-            profile.start_trial(trial_days=14)
-
+        print(f"🔧 UserRegistrationSerializer.create() COMPLETED for user: {user.username}")
         return user
 
 
@@ -295,80 +351,118 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         return value
 
     def create(self, validated_data):
+        print("🔧 UserRegistrationSerializer.create() CALLED (SECOND ONE)")
+        print(f"🔧 validated_data keys: {list(validated_data.keys())}")
+        
         from datetime import timedelta
         from django.utils import timezone
+        from django.db import transaction
         from apps.core.models.payment_models import UserSubscription
         
-        validated_data.pop("password_confirm", None)
-        role = validated_data.pop("role", None)
-        company_name = validated_data.pop("company_name", None)
-        subscription_tier_id = validated_data.pop("subscription_tier_id", None)
-        
-        user = User.objects.create_user(**validated_data)
+        # Use transaction to prevent signal interference
+        with transaction.atomic():
+            validated_data.pop("password_confirm", None)
+            role = validated_data.pop("role", None)
+            company_name = validated_data.pop("company_name", None)
+            subscription_tier_id = validated_data.pop("subscription_tier_id", None)
+            
+            print(f"🔧 subscription_tier_id: {subscription_tier_id}")
+            print(f"🔧 company_name: {company_name}")
+            print(f"🔧 role: {role}")
+            
+            user = User.objects.create_user(**validated_data)
+            print(f"🔧 User created: {user.username}")
+            
+            # IMPORTANT: Force save user to trigger all signals first
+            user.save()
+            print(f"🔧 User saved to trigger signals")
 
-        # Get the subscription tier
-        subscription_tier = None
-        if subscription_tier_id:
-            try:
-                subscription_tier = SubscriptionTier.objects.get(id=subscription_tier_id, is_active=True)
-            except SubscriptionTier.DoesNotExist:
-                # Fallback to free tier if provided ID is invalid
+            # Get the subscription tier
+            subscription_tier = None
+            if subscription_tier_id:
+                try:
+                    subscription_tier = SubscriptionTier.objects.get(id=subscription_tier_id, is_active=True)
+                    print(f"🔧 Found subscription tier: {subscription_tier.name} (ID: {subscription_tier.id})")
+                except SubscriptionTier.DoesNotExist:
+                    print(f"🔧 ERROR: Invalid subscription tier ID: {subscription_tier_id}")
+                    # Fallback to free tier if provided ID is invalid
+                    subscription_tier = SubscriptionTier.objects.filter(name="free", is_active=True).first()
+                    print(f"🔧 Fallback to free tier: {subscription_tier}")
+            else:
+                # Default to free tier if no tier specified
                 subscription_tier = SubscriptionTier.objects.filter(name="free", is_active=True).first()
-        else:
-            # Default to free tier if no tier specified
-            subscription_tier = SubscriptionTier.objects.filter(name="free", is_active=True).first()
+                print(f"🔧 Default to free tier: {subscription_tier}")
 
-        # Create UserProfile with subscription tier
-        profile, created = UserProfile.objects.get_or_create(
-            user=user,
-            defaults={
-                "role": role,
-                "company_name": company_name,
-                "subscription_tier": subscription_tier
-            }
-        )
-        
-        if not created:
+            # Create UserProfile WITHOUT subscription tier initially
+            # Note: post_save signal may have already created a blank profile
+            profile, created = UserProfile.objects.get_or_create(
+                user=user,
+                defaults={
+                    "role": role,
+                    "company_name": company_name,
+                    # Don't set subscription_tier here - will be set from UserSubscription
+                }
+            )
+            print(f"🔧 Profile {'created' if created else 'retrieved'}: {profile.id}")
+            
+            # Always update profile fields in case signal created a blank one
             if role:
                 profile.role = role
             if company_name:
                 profile.company_name = company_name
+            # Don't update subscription_tier here yet - save once at the end
+
+            # Create UserSubscription record first
             if subscription_tier:
+                print(f"🔧 Creating UserSubscription for tier: {subscription_tier.name}")
+                now = timezone.now()
+                is_paid_tier = subscription_tier.price_monthly > 0
+                
+                # Set up trial for paid tiers, active status for free tier
+                if is_paid_tier:
+                    status = 'trialing'
+                    trial_end = now + timedelta(days=14)  # 14-day trial
+                    start_trial = True
+                else:
+                    status = 'active'
+                    trial_end = None
+                    start_trial = False
+                
+                user_subscription = UserSubscription.objects.create(
+                    user=user,
+                    tier=subscription_tier,
+                    status=status,
+                    billing_period='monthly',
+                    start_date=now,
+                    trial_end_date=trial_end,
+                )
+                print(f"🔧 UserSubscription created: {user_subscription.id}")
+                
+                # NOW update profile with subscription tier and trial information
+                print(f"🔧 BEFORE profile update - subscription_tier: {profile.subscription_tier}")
                 profile.subscription_tier = subscription_tier
-            profile.save()
-
-        # Create UserSubscription record
-        if subscription_tier:
-            now = timezone.now()
-            is_paid_tier = subscription_tier.price_monthly > 0
-            
-            # Set up trial for paid tiers, active status for free tier
-            if is_paid_tier:
-                status = 'trialing'
-                trial_end = now + timedelta(days=14)  # 14-day trial
-                start_trial = True
+                print(f"🔧 AFTER assignment - subscription_tier: {profile.subscription_tier}")
+                
+                if start_trial:
+                    profile.trial_start_date = now
+                    profile.trial_end_date = trial_end
+                    profile.is_trial_active = True
+                    print(f"🔧 Trial setup - start: {now}, end: {trial_end}")
+                
+                # CRITICAL: Save with update_fields to prevent signal interference
+                profile.save(update_fields=['subscription_tier', 'role', 'company_name', 'trial_start_date', 'trial_end_date', 'is_trial_active'])
+                print(f"🔧 Profile saved with update_fields: subscription_tier={profile.subscription_tier}")
+                
+                # Verify the save worked
+                profile.refresh_from_db()
+                print(f"🔧 Profile after refresh_from_db: subscription_tier={profile.subscription_tier}")
             else:
-                status = 'active'
-                trial_end = None
-                start_trial = False
-            
-            user_subscription = UserSubscription.objects.create(
-                user=user,
-                tier=subscription_tier,
-                status=status,
-                billing_period='monthly',
-                start_date=now,
-                trial_end_date=trial_end,
-            )
-            
-            # Update profile with trial information for paid tiers
-            if start_trial:
-                profile.trial_start_date = now
-                profile.trial_end_date = trial_end
-                profile.is_trial_active = True
-                profile.save()
+                print("🔧 No subscription tier provided")
+                # Still save the profile to ensure role and company_name are saved
+                profile.save(update_fields=['role', 'company_name'])
 
-        return user
+            print(f"🔧 UserRegistrationSerializer.create() COMPLETED for user: {user.username}")
+            return user
 
 
 class UserLoginSerializer(serializers.Serializer):

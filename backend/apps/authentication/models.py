@@ -129,9 +129,21 @@ def create_user_profile(sender, instance, created, **kwargs):
 
 @receiver(post_save, sender=User)
 def save_user_profile(sender, instance, **kwargs):
+    """
+    Save user profile, but don't overwrite existing data.
+    This signal ensures a profile exists but preserves any existing data.
+    """
     try:
-        instance.profile.save()
+        # Just ensure the profile exists, don't save if it already has data
+        profile = instance.profile
+        # Only save if the profile seems empty/default
+        # Don't auto-save if it has subscription data or other important info
+        print(f"🔔 SIGNAL: save_user_profile called for user {instance.username}")
+        print(f"🔔 Profile has subscription_tier: {profile.subscription_tier}")
+        print(f"🔔 Skipping auto-save to preserve subscription data")
+        # Don't call profile.save() here as it overwrites our data
     except UserProfile.DoesNotExist:
+        print(f"🔔 SIGNAL: Creating missing profile for user {instance.username}")
         UserProfile.objects.create(user=instance)
 
 

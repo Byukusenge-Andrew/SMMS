@@ -677,6 +677,8 @@ def register(request):
         logger.info(f"Role: {request.data.get('role')}")
     
     serializer = UserRegistrationSerializer(data=request.data)
+    print(f"🎯 VIEWS.PY: Using serializer class: {type(serializer).__name__}")
+    print(f"🎯 VIEWS.PY: Serializer module: {type(serializer).__module__}")
     print(f"Serializer created with data: {serializer.initial_data}")
     logger.info(f"Serializer created with data: {serializer.initial_data}")
     

@@ -123,6 +123,14 @@
                 <strong>TikTok Client Key:</strong> sbaw9sxz7m9iw1wvh5<br>
                 <strong>Expected Redirect URI:</strong> http://127.0.0.1:8000/api/integrations/tiktok/callback/
             </div>
+            
+            <h3>🔧 Configuration Required in TikTok Developer Console:</h3>
+            <div class="code">
+                <strong>1. Web/Desktop URL should be:</strong> http://127.0.0.1:8000<br>
+                <strong>2. Add Login Kit product and configure redirect URI:</strong> http://127.0.0.1:8000/api/integrations/tiktok/callback/<br>
+                <strong>3. Required scopes:</strong> user.info.profile, user.info.stats, video.list<br>
+                <strong>4. Current issue:</strong> redirect_uri error means TikTok app config needs fixing
+            </div>
         </div>
     </div>
 

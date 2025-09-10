@@ -1,0 +1,130 @@
+services:
+  # PostgreSQL Database (Isolated for SMMS)
+  postgres:
+    image: postgres:15-alpine
+    container_name: smms_postgres_dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: social-media-db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/pgdata
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d
+    ports:
+      - "5432:5432"
+    networks:
+      - smms_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d social-media-db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # Redis for Celery (Isolated for SMMS)
+  redis:
+    image: redis:7-alpine
+    container_name: smms_redis_dev
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    networks:
+      - smms_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # Django Backend
+  backend:
+    build: .
+    container_name: smms_backend_dev
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+      - media_files:/app/media
+      - static_files:/app/static
+    environment:
+      - DEBUG=True
+      - DATABASE_URL=postgres://postgres:postgres@postgres:5432/social-media-db
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - ALLOWED_HOSTS=localhost,127.0.0.1,backend,0.0.0.0
+    networks:
+      - smms_network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: >
+      sh -c "
+        echo 'Waiting for database...' &&
+        python manage.py migrate &&
+        python manage.py collectstatic --noinput &&
+        echo 'Starting Django development server...' &&
+        python manage.py runserver 0.0.0.0:8000
+      "
+
+  # Celery Worker
+  celery-worker:
+    build: .
+    container_name: smms_celery_worker_dev
+    restart: unless-stopped
+    volumes:
+      - .:/app
+      - media_files:/app/media
+    environment:
+      - DEBUG=True
+      - DATABASE_URL=postgres://postgres:postgres@postgres:5432/social-media-db
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    networks:
+      - smms_network
+    depends_on:
+      - postgres
+      - redis
+      - backend
+    command: celery -A social_media_manager worker --loglevel=info --pool=solo
+
+  # Celery Beat (Scheduler)
+  celery-beat:
+    build: .
+    container_name: smms_celery_beat_dev
+    restart: unless-stopped
+    volumes:
+      - .:/app
+      - media_files:/app/media
+    environment:
+      - DEBUG=True
+      - DATABASE_URL=postgres://postgres:postgres@postgres:5432/social-media-db
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    networks:
+      - smms_network
+    depends_on:
+      - postgres
+      - redis
+      - backend
+    command: celery -A social_media_manager beat --loglevel=info
+
+networks:
+  smms_network:
+    driver: bridge
+    name: smms_network
+
+volumes:
+  postgres_data:
+  redis_data:
+  media_files:
+  static_files:
