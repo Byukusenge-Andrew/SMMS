@@ -815,7 +815,7 @@ def verify_email(request, token):
             status=status.HTTP_400_BAD_REQUEST
         )
 
-
+@csrf_exempt
 @api_view(["POST"])
 @permission_classes([permissions.AllowAny])
 def resend_verification_email(request):

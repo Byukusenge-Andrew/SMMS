@@ -9,7 +9,7 @@ import django
 # Setup Django
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'social_media_manager.settings')
 django.setup()
-
+ 
 from django.contrib.auth.models import User
 from django.test import RequestFactory
 from rest_framework.authtoken.models import Token
