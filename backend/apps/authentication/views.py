@@ -23,10 +23,12 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import EmailVerificationToken, SocialMediaAccount, Team, TeamMember, UserProfile
+from .models import EmailVerificationToken, PasswordResetToken, SocialMediaAccount, Team, TeamMember, UserProfile
 from .serializers import (
+    ForgotPasswordSerializer,
     LoginSerializer,
     RegisterSerializer,
+    ResetPasswordSerializer,
     SocialMediaAccountSerializer,
     SubscriptionTierSerializer,
     TeamMemberSerializer,
@@ -1333,3 +1335,191 @@ def complete_setup(request):
             {"error": "Failed to complete setup"}, 
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
+
+
+# Password Reset Views
+@extend_schema(
+    request=ForgotPasswordSerializer,
+    responses={
+        200: OpenApiResponse(description="Password reset email sent if account exists"),
+        400: OpenApiResponse(description="Invalid email format"),
+    },
+    summary="Request password reset email",
+    description="Send a password reset email to the provided email address if the account exists"
+)
+@api_view(["POST"])
+@permission_classes([permissions.AllowAny])
+def forgot_password(request):
+    """Request password reset email"""
+    serializer = ForgotPasswordSerializer(data=request.data)
+    
+    if serializer.is_valid():
+        email = serializer.validated_data['email']
+        
+        try:
+            user = User.objects.get(email=email)
+            
+            # Only send reset email if user is active
+            if user.is_active:
+                # Delete any existing unused password reset tokens for this user
+                PasswordResetToken.objects.filter(user=user, is_used=False).delete()
+                
+                # Create new password reset token
+                reset_token = PasswordResetToken.objects.create(user=user)
+                
+                # Send password reset email
+                send_password_reset_email(user, reset_token.token)
+                
+                logger.info(f"Password reset email sent to {email}")
+            else:
+                logger.warning(f"Password reset requested for inactive user: {email}")
+        
+        except User.DoesNotExist:
+            # Log but don't reveal that user doesn't exist
+            logger.warning(f"Password reset requested for non-existent email: {email}")
+        
+        # Always return success to prevent email enumeration
+        return Response({
+            "message": "If an account with this email exists, you will receive a password reset email shortly."
+        })
+    
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@extend_schema(
+    request=ResetPasswordSerializer,
+    responses={
+        200: OpenApiResponse(description="Password reset successful"),
+        400: OpenApiResponse(description="Invalid token or validation error"),
+    },
+    summary="Reset password with token",
+    description="Reset password using the token received via email"
+)
+@api_view(["POST"])
+@permission_classes([permissions.AllowAny])
+def reset_password(request):
+    """Reset password with token"""
+    serializer = ResetPasswordSerializer(data=request.data)
+    
+    if serializer.is_valid():
+        token = serializer.validated_data['token']
+        new_password = serializer.validated_data['new_password']
+        
+        try:
+            reset_token = PasswordResetToken.objects.get(token=token)
+            
+            if reset_token.is_used:
+                return Response(
+                    {"error": "This password reset link has already been used"}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            if reset_token.is_expired():
+                return Response(
+                    {"error": "This password reset link has expired"}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Reset the password
+            user = reset_token.user
+            user.set_password(new_password)
+            user.save()
+            
+            # Mark token as used
+            reset_token.is_used = True
+            reset_token.save()
+            
+            logger.info(f"Password reset successful for user: {user.username}")
+            
+            return Response({
+                "message": "Password has been reset successfully. You can now log in with your new password."
+            })
+        
+        except PasswordResetToken.DoesNotExist:
+            return Response(
+                {"error": "Invalid password reset token"}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+    
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@extend_schema(
+    responses={
+        200: OpenApiResponse(description="Token is valid"),
+        400: OpenApiResponse(description="Token is invalid or expired"),
+    },
+    summary="Validate password reset token",
+    description="Check if a password reset token is valid and not expired"
+)
+@api_view(["GET"])
+@permission_classes([permissions.AllowAny])
+def validate_reset_token(request, token):
+    """Validate password reset token"""
+    try:
+        reset_token = PasswordResetToken.objects.get(token=token)
+        
+        if reset_token.is_used:
+            return Response(
+                {"error": "This password reset link has already been used"}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        if reset_token.is_expired():
+            return Response(
+                {"error": "This password reset link has expired"}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        return Response({
+            "message": "Token is valid",
+            "email": reset_token.user.email,
+            "username": reset_token.user.username
+        })
+    
+    except PasswordResetToken.DoesNotExist:
+        return Response(
+            {"error": "Invalid password reset token"}, 
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+
+def send_password_reset_email(user, token):
+    """Send password reset email"""
+    subject = "Reset your password - Social Media Manager"
+    reset_url = f"{settings.FRONTEND_URL}/reset-password/{token}"
+    
+    context = {
+        "user": user,
+        "reset_url": reset_url,
+        "user_name": user.get_full_name() or user.username,
+    }
+    
+    try:
+        html_message = render_to_string("emails/password_reset.html", context)
+    except:
+        html_message = None
+    
+    plain_message = f"""
+Hi {context['user_name']},
+
+You requested to reset your password for your Social Media Manager account.
+
+Click the link below to reset your password:
+{reset_url}
+
+This link will expire in 1 hour.
+
+If you didn't request this password reset, please ignore this email.
+
+Best regards,
+The Social Media Manager Team
+    """.strip()
+    
+    send_mail(
+        subject,
+        plain_message,
+        settings.EMAIL_HOST_USER,
+        [user.email],
+        html_message=html_message,
+    )

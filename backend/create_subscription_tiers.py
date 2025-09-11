@@ -99,34 +99,7 @@ def create_subscription_tiers():
             'phone_support': True,
             'dedicated_account_manager': True,
             'is_active': True,
-        },
-        {
-            'name': 'enterprise',
-            'display_name': 'Enterprise',
-            'description': 'For large organizations with advanced needs',
-            'price_monthly': Decimal('19.99'),
-            'price_yearly': Decimal('19.99'),  # 2 months free
-            'max_social_accounts': -1,  # Unlimited
-            'max_scheduled_posts': -1,  # Unlimited
-            'max_team_members': -1,  # Unlimited
-            'analytics_retention_days': -1,  # Unlimited
-            'api_rate_limit': 20000,
-            'gohighlevel_integration': True,
-            'advanced_analytics': True,
-            'priority_support': True,
-            'white_label': True,
-            'custom_branding': True,
-            'bulk_upload_scheduling': True,
-            'hashtag_suggestions': True,
-            'best_time_insights': True,
-            'approval_workflows': True,
-            'sso_support': True,
-            'two_factor_auth': True,
-            'custom_integrations': True,
-            'phone_support': True,
-            'dedicated_account_manager': True,
-            'is_active': True,
-        },
+        }
     ]
     
     created_count = 0

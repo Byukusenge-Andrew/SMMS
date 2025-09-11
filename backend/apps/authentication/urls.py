@@ -11,6 +11,7 @@ from .views import oauth_callback  # Add this import
 from .views import subscription_tiers_view  # Add this import
 from .views import trial_status_view, start_trial_view  # Add trial endpoints
 from .views import change_password, get_user_stats, update_notification_settings, get_account_overview, plan_selection_tiers, complete_setup  # Add new endpoints
+from .views import forgot_password, reset_password, validate_reset_token  # Add password reset endpoints
 from .views import (
     LogoutView,
     SocialMediaAccountListView,
@@ -46,6 +47,10 @@ urlpatterns = [
     path("health/", health_check, name="health"),
     path("verify-email/<str:token>/", verify_email, name="verify_email"),
     path("resend-verification/", resend_verification_email, name="resend_verification"),
+    # Password reset endpoints
+    path("forgot-password/", forgot_password, name="forgot_password"),
+    path("reset-password/", reset_password, name="reset_password"),
+    path("validate-reset-token/<str:token>/", validate_reset_token, name="validate_reset_token"),
     # Settings endpoints
     path("settings/time-format/", user_time_format_setting, name="time-format-setting"),
     path("settings/password/", change_password, name="change-password"),

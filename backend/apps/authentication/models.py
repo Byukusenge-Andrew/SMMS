@@ -267,10 +267,23 @@ class EmailVerificationToken(models.Model):
 
     def __str__(self):
         return f"Email verification for {self.user.username}"
+
+
+class PasswordResetToken(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    token = models.UUIDField(default=uuid.uuid4, unique=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    is_used = models.BooleanField(default=False)
+
+    def save(self, *args, **kwargs):
+        if not self.expires_at:
+            self.expires_at = timezone.now() + timezone.timedelta(hours=1)  # 1 hour expiry for password reset
         super().save(*args, **kwargs)
 
     def is_expired(self):
         return timezone.now() > self.expires_at
 
     def __str__(self):
-        return f"Email verification for {self.user.username}"
+        return f"Password reset for {self.user.username}"

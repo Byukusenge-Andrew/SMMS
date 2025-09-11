@@ -469,11 +469,62 @@ class UserLoginSerializer(serializers.Serializer):
     username = serializers.CharField()
     password = serializers.CharField(write_only=True)
 
-    def validate(self, attrs):
-        username = attrs.get("username")
-        password = attrs.get("password")
 
-        if username and password:
-            return attrs
-        else:
-            raise serializers.ValidationError('Must include "username" and "password".')
+class ForgotPasswordSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    
+    def validate_email(self, value):
+        try:
+            User.objects.get(email=value)
+        except User.DoesNotExist:
+            # Don't reveal if email exists or not for security
+            pass
+        return value
+
+
+class ResetPasswordSerializer(serializers.Serializer):
+    token = serializers.UUIDField()
+    password = serializers.CharField(write_only=True, validators=[validate_password])
+    password_confirm = serializers.CharField(write_only=True)
+    
+    def validate(self, attrs):
+        token = attrs.get('token')
+        password = attrs.get('password')
+        password_confirm = attrs.get('password_confirm')
+
+        # Check if passwords match
+        if password != password_confirm:
+            raise serializers.ValidationError({"password_confirm": "Passwords don't match"})
+
+        # Validate the token
+        try:
+            from .models import PasswordResetToken
+            reset_token = PasswordResetToken.objects.get(token=token)
+        except PasswordResetToken.DoesNotExist:
+            raise serializers.ValidationError({"token": "Invalid or expired token"})
+
+        # Check if token is expired
+        if reset_token.is_expired():
+            raise serializers.ValidationError({"token": "Token has expired"})
+
+        # Check if token has been used
+        if reset_token.is_used:
+            raise serializers.ValidationError({"token": "Token has already been used"})
+
+        attrs['reset_token'] = reset_token
+        return attrs
+
+    def save(self):
+        reset_token = self.validated_data['reset_token']
+        password = self.validated_data['password']
+        
+        # Reset the user's password
+        user = reset_token.user
+        user.set_password(password)
+        user.save()
+        
+        # Mark token as used
+        reset_token.is_used = True
+        reset_token.save()
+        
+        return user
