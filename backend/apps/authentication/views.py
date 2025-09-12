@@ -396,19 +396,55 @@ class ProfileView(RetrieveUpdateAPIView):
 
     def put(self, request, *args, **kwargs):
         """Override put method for updates"""
-        logger.info(f"ProfileView.put called for user: {request.user}")
+        logger.info(f"🔄 ProfileView.put called for user: {request.user}")
+        logger.info(f"📁 Request FILES: {request.FILES}")
+        logger.info(f"📋 Request DATA: {request.data}")
+        logger.info(f"🌐 Content-Type: {request.content_type}")
+        logger.info(f"🔑 Auth header: {request.META.get('HTTP_AUTHORIZATION', 'Not provided')}")
+        
         try:
             profile = self.get_object()
+            logger.info(f"👤 Got profile: {profile}")
+            
             serializer = self.get_serializer(profile, data=request.data, partial=True)
             if serializer.is_valid():
+                logger.info(f"✅ Serializer valid, saving...")
                 serializer.save()
-                logger.info(f"Profile updated successfully: {serializer.data}")
+                logger.info(f"💾 Profile updated successfully: {serializer.data}")
                 return Response(serializer.data)
-            logger.warning(f"Profile update validation errors: {serializer.errors}")
+            logger.warning(f"❌ Profile update validation errors: {serializer.errors}")
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
-            logger.error(f"ProfileView.put error: {e}")
+            logger.error(f"💥 ProfileView.put error: {e}")
+            import traceback
+            logger.error(f"📋 Full traceback: {traceback.format_exc()}")
             return Response({"error": f"Profile update error: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    def patch(self, request, *args, **kwargs):
+        """Handle PATCH requests for partial updates"""
+        logger.info(f"🔄 ProfileView.patch called for user: {request.user}")
+        logger.info(f"📁 Request FILES: {request.FILES}")
+        logger.info(f"📋 Request DATA: {request.data}")
+        return self.put(request, *args, **kwargs)
+
+
+class UserView(APIView):
+    """
+    API view to retrieve current user information
+    """
+    serializer_class = UserSerializer
+    permission_classes = [IsAuthenticated]
+    authentication_classes = [TokenAuthentication]
+
+    def get(self, request, *args, **kwargs):
+        """Get current user data"""
+        logger.info(f"UserView.get called for user: {request.user}")
+        try:
+            serializer = UserSerializer(request.user)
+            return Response(serializer.data)
+        except Exception as e:
+            logger.error(f"UserView.get error: {e}")
+            return Response({"error": f"User error: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class SocialMediaAccountListView(ListCreateAPIView):

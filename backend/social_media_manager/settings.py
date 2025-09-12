@@ -15,7 +15,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = config("SECRET_KEY", default=os.environ.get('SECRET_KEY', 'django-insecure-change-in-production'))
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = 'RENDER' not in os.environ
+DEBUG = 'RENDER' not in os.environ and 'RAILWAY_ENVIRONMENT' not in os.environ
 
 ALLOWED_HOSTS = config("ALLOWED_HOSTS", default="localhost,127.0.0.1", cast=lambda v: [s.strip() for s in v.split(",")])
 
@@ -23,6 +23,13 @@ ALLOWED_HOSTS = config("ALLOWED_HOSTS", default="localhost,127.0.0.1", cast=lamb
 RENDER_EXTERNAL_HOSTNAME = os.environ.get('RENDER_EXTERNAL_HOSTNAME')
 if RENDER_EXTERNAL_HOSTNAME:
     ALLOWED_HOSTS.append(RENDER_EXTERNAL_HOSTNAME)
+
+# Add Railway hostname
+if 'RAILWAY_ENVIRONMENT' in os.environ:
+    ALLOWED_HOSTS.append('*')  # Railway handles SSL termination
+    
+# Railway static file serving
+RAILWAY_STATIC_URL = os.environ.get('RAILWAY_STATIC_URL')
 
 # Application definition
 DJANGO_APPS = [

@@ -7,6 +7,7 @@ import uuid
 from django.db import models
 from django.contrib.auth.models import User
 from django.core.validators import FileExtensionValidator
+from apps.core.upload_paths import user_media_upload_path, user_thumbnail_upload_path
 
 def get_media_storage():
     """Get the supabase storage instance for media files"""
@@ -30,7 +31,7 @@ class MediaFile(models.Model):
     name = models.CharField(max_length=255)
     original_name = models.CharField(max_length=255)
     file = models.FileField(
-        upload_to='media/user_uploads/',
+        upload_to=user_media_upload_path,
         storage=get_media_storage(),
         validators=[
             FileExtensionValidator(
@@ -55,7 +56,7 @@ class MediaFile(models.Model):
     
     # Thumbnail for videos/images
     thumbnail = models.ImageField(
-        upload_to='media/thumbnails/',
+        upload_to=user_thumbnail_upload_path,
         storage=get_media_storage(),
         null=True,
         blank=True

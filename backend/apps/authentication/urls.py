@@ -1,6 +1,6 @@
 from django.urls import path
 
-from .views import ProfileView  # Add these imports
+from .views import ProfileView, UserView  # Add these imports
 from .views import TeamMemberInviteView  # Add this
 from .views import debug_auth_open  # Add this
 from .views import login_view  # Import the function instead
@@ -33,6 +33,7 @@ urlpatterns = [
     path("register/", register, name="register"),
     path("login/", login_view, name="login"),  # Use function directly, no .as_view()
     path("logout/", LogoutView.as_view(), name="logout"),
+    path("user/", UserView.as_view(), name="user"),
     path("profile/", ProfileView.as_view(), name="profile"),
     path("debug-auth/", debug_auth, name="debug-auth"),
     path("debug-auth-open/", debug_auth_open, name="debug-auth-open"),
