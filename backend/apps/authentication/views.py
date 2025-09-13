@@ -818,6 +818,7 @@ def verify_email(request, token):
 @csrf_exempt
 @api_view(["POST"])
 @permission_classes([permissions.AllowAny])
+@authentication_classes([])
 def resend_verification_email(request):
     email = request.data.get("email")
 
@@ -1403,7 +1404,7 @@ def reset_password(request):
     
     if serializer.is_valid():
         token = serializer.validated_data['token']
-        new_password = serializer.validated_data['new_password']
+        new_password = serializer.validated_data['password']
         
         try:
             reset_token = PasswordResetToken.objects.get(token=token)
