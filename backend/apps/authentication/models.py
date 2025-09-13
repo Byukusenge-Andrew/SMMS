@@ -7,6 +7,7 @@ from django.dispatch import receiver
 from django.utils import timezone
 
 from apps.core.storage import SupabaseStorage
+from apps.core.upload_paths import user_avatar_upload_path
 from apps.core.models.payment_models import SubscriptionTier
 
 # Initialize Supabase storage
@@ -20,7 +21,7 @@ class UserProfile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="profile")
     company_name = models.CharField(max_length=255, blank=True, null=True)
     role = models.CharField(max_length=100, blank=True, null=True)  # User's role in the company
-    avatar = models.ImageField(upload_to="avatars/", null=True, blank=True, storage=supabase_storage)
+    avatar = models.ImageField(upload_to=user_avatar_upload_path, null=True, blank=True, storage=supabase_storage)
     # Link to subscription tier instead of simple string
     subscription_tier = models.ForeignKey(
         SubscriptionTier, 

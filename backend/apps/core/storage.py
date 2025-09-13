@@ -71,7 +71,7 @@ class SupabaseStorage(Storage):
 
     def _save(self, name: str, content) -> str:
         """
-        Save file to Supabase Storage
+        Save file to Supabase Storage with proper user scoping for RLS policies
         """
         try:
             # Generate unique filename if needed
@@ -89,16 +89,29 @@ class SupabaseStorage(Storage):
 
             # If Supabase client is configured, try uploading there first
             if self.client is not None:
+                # Normalize path for Supabase (convert Windows backslashes to forward slashes)
+                supabase_path = name.replace('\\', '/')
+                
+                # Log the path structure for debugging RLS policies
+                logger.info(f"Uploading file to Supabase: {supabase_path}")
+                
                 response = self.client.storage.from_(self.bucket_name).upload(
-                    path=name,
+                    path=supabase_path,
                     file=file_data,
                     file_options={"content-type": mimetypes.guess_type(name)[0] or "application/octet-stream"},
                 )
 
                 if getattr(response, "error", None):
-                    raise Exception(f"Upload failed: {response.error}")
+                    error_msg = getattr(response.error, 'message', str(response.error))
+                    logger.error(f"Supabase upload failed for {supabase_path}: {error_msg}")
+                    
+                    # Check if it's an RLS policy error
+                    if 'policy' in error_msg.lower() or 'rls' in error_msg.lower():
+                        logger.error(f"RLS Policy violation for file: {supabase_path}. Check if path follows user_id/folder structure.")
+                    
+                    raise Exception(f"Upload failed: {error_msg}")
 
-                logger.info(f"Successfully uploaded {name} to Supabase")
+                logger.info(f"Successfully uploaded {supabase_path} to Supabase")
                 return name
 
             # If no Supabase client, fall through to local
@@ -142,13 +155,16 @@ class SupabaseStorage(Storage):
                 return self.local_storage.delete(name.replace('local/', '', 1)) is None
             if self.client is None:
                 return self.local_storage.delete(name) is None
-            response = self.client.storage.from_(self.bucket_name).remove([name])
+            
+            # Normalize path for Supabase
+            supabase_path = name.replace('\\', '/')
+            response = self.client.storage.from_(self.bucket_name).remove([supabase_path])
 
             if response.error:
                 logger.error(f"Supabase delete error: {response.error}")
                 return False
 
-            logger.info(f"Successfully deleted {name} from Supabase")
+            logger.info(f"Successfully deleted {supabase_path} from Supabase")
             return True
 
         except Exception as e:
@@ -164,8 +180,11 @@ class SupabaseStorage(Storage):
                 return self.local_storage.exists(name.replace('local/', '', 1))
             if self.client is None:
                 return self.local_storage.exists(name)
-            directory = os.path.dirname(name) or ""
-            basename = os.path.basename(name)
+            
+            # Normalize path for Supabase
+            supabase_path = name.replace('\\', '/')
+            directory = os.path.dirname(supabase_path) or ""
+            basename = os.path.basename(supabase_path)
             response = self.client.storage.from_(self.bucket_name).list(path=directory)
 
             # storage3 may return a simple list or an object with .data/.error
@@ -234,7 +253,7 @@ class SupabaseStorage(Storage):
 
     def url(self, name: str) -> str:
         """
-        Get public URL for the file
+        Get signed URL for the file (required for private buckets)
         """
         try:
             if name.startswith('local/'):
@@ -242,8 +261,29 @@ class SupabaseStorage(Storage):
                 return self.local_storage.url(local_name)
             if self.client is None:
                 return self.local_storage.url(name)
-            response = self.client.storage.from_(self.bucket_name).get_public_url(name)
-            return response
+            
+            # Normalize path for Supabase
+            supabase_path = name.replace('\\', '/')
+            
+            # Use signed URL for private buckets (expires in 1 hour = 3600 seconds)
+            try:
+                response = self.client.storage.from_(self.bucket_name).create_signed_url(supabase_path, 3600)
+                if response and 'signedURL' in response:
+                    return response['signedURL']
+                else:
+                    logger.warning(f"No signed URL in response for {supabase_path}: {response}")
+                    # Fallback to public URL if signed URL fails
+                    response = self.client.storage.from_(self.bucket_name).get_public_url(supabase_path)
+                    if response.endswith('?'):
+                        response = response[:-1]
+                    return response
+            except Exception as signed_error:
+                logger.warning(f"Signed URL failed for {supabase_path}, trying public URL: {signed_error}")
+                # Fallback to public URL
+                response = self.client.storage.from_(self.bucket_name).get_public_url(supabase_path)
+                if response.endswith('?'):
+                    response = response[:-1]
+                return response
 
         except Exception as e:
             logger.error(f"Error getting URL for {name}: {str(e)}")
@@ -260,8 +300,10 @@ class SupabaseStorage(Storage):
         Get file creation time
         """
         try:
-            directory = os.path.dirname(name) or ""
-            basename = os.path.basename(name)
+            # Normalize path for Supabase
+            supabase_path = name.replace('\\', '/')
+            directory = os.path.dirname(supabase_path) or ""
+            basename = os.path.basename(supabase_path)
             response = self.client.storage.from_(self.bucket_name).list(path=directory)
 
             data = getattr(response, "data", response)
@@ -283,8 +325,10 @@ class SupabaseStorage(Storage):
         Get file modification time
         """
         try:
-            directory = os.path.dirname(name) or ""
-            basename = os.path.basename(name)
+            # Normalize path for Supabase
+            supabase_path = name.replace('\\', '/')
+            directory = os.path.dirname(supabase_path) or ""
+            basename = os.path.basename(supabase_path)
             response = self.client.storage.from_(self.bucket_name).list(path=directory)
 
             data = getattr(response, "data", response)

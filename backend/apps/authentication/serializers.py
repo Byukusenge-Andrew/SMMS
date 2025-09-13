@@ -45,14 +45,33 @@ class TeamSerializer(serializers.ModelSerializer):
 
 class UserSerializer(serializers.ModelSerializer):
     profile_uuid = serializers.SerializerMethodField()
+    avatar = serializers.SerializerMethodField()
+    name = serializers.SerializerMethodField()
 
     class Meta:
         model = User
-        fields = ["id", "username", "email", "first_name", "last_name", "date_joined", "profile_uuid"]
-        read_only_fields = ["id", "date_joined", "profile_uuid"]
+        fields = ["id", "username", "email", "first_name", "last_name", "date_joined", "profile_uuid", "avatar", "name"]
+        read_only_fields = ["id", "date_joined", "profile_uuid", "avatar", "name"]
 
     def get_profile_uuid(self, obj):
         return str(obj.profile.id) if hasattr(obj, "profile") else None
+    
+    def get_avatar(self, obj):
+        """Get avatar from user profile"""
+        if hasattr(obj, "profile") and obj.profile.avatar:
+            return obj.profile.avatar.url
+        return None
+    
+    def get_name(self, obj):
+        """Get full name from first_name and last_name"""
+        if obj.first_name and obj.last_name:
+            return f"{obj.first_name} {obj.last_name}"
+        elif obj.first_name:
+            return obj.first_name
+        elif obj.last_name:
+            return obj.last_name
+        else:
+            return obj.username
 
 
 class UserProfileSerializer(serializers.ModelSerializer):
