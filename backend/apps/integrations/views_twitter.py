@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 @authentication_classes([TokenAuthentication])
 @permission_classes([permissions.IsAuthenticated])
 def twitter_authorize(request):
-    """Initiate Twitter OAuth 2.0 flow (Authorization Code with PKCE optional)."""
+    """Initiate Twitter OAuth 2.0 flow (Authorization Code with PKCE)."""
     client_id = getattr(settings, 'TWITTER_CLIENT_ID', None) or ''
     redirect_uri = getattr(settings, 'TWITTER_REDIRECT_URI', None) or request.build_absolute_uri('/api/integrations/twitter/callback/')
     scope = getattr(settings, 'TWITTER_SCOPES', 'tweet.read tweet.write users.read offline.access')
@@ -35,13 +35,20 @@ def twitter_authorize(request):
     if not client_id:
         return Response({'success': False, 'error': 'TWITTER_CLIENT_ID not configured'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-    # Generate a per-request state and store in session for CSRF protection
+    # Generate PKCE parameters
     import secrets
     import json
     import base64
     import time
+    import hashlib
     
-    # Encode user ID in state parameter for session-independent user identification
+    # Generate code verifier and challenge for PKCE
+    code_verifier = base64.urlsafe_b64encode(secrets.token_bytes(32)).decode('utf-8').rstrip('=')
+    code_challenge = base64.urlsafe_b64encode(
+        hashlib.sha256(code_verifier.encode('utf-8')).digest()
+    ).decode('utf-8').rstrip('=')
+    
+    # Generate a per-request state and store in session for CSRF protection
     state_data = {
         'csrf_token': secrets.token_urlsafe(16),
         'user_id': request.user.id,
@@ -49,13 +56,19 @@ def twitter_authorize(request):
     }
     state_val = base64.urlsafe_b64encode(json.dumps(state_data).encode()).decode()
     
+    # Force session creation and save
+    if not request.session.session_key:
+        request.session.create()
+    
     request.session['twitter_oauth'] = {
         'state': state_val,
         'redirect_uri': redirect_uri,
         'popup_mode': True,  # Mark this as popup mode in session
         'user_id': request.user.id,  # Store user ID for callback
+        'code_verifier': code_verifier,  # Store PKCE code verifier
     }
     request.session.modified = True
+    request.session.save()
     
     # Debug: Log what we're saving to session
     logger.info(f"Twitter authorize: Saving to session: user_id={request.user.id}, state={state_val[:50]}...")
@@ -68,10 +81,16 @@ def twitter_authorize(request):
         'redirect_uri': redirect_uri,
         'scope': scope,
         'state': state_val,
-        'code_challenge': '',  # add PKCE if/when required
-        'code_challenge_method': ''
+        'code_challenge': code_challenge,
+        'code_challenge_method': 'S256'
     }
-    url = f"https://twitter.com/i/oauth2/authorize?{urlencode({k:v for k,v in params.items() if v})}"
+    url = f"https://twitter.com/i/oauth2/authorize?{urlencode(params)}"
+    
+    # Debug: Log the complete authorization URL and parameters
+    logger.info(f"Twitter OAuth URL generated: {url}")
+    logger.info(f"Twitter OAuth params: {params}")
+    logger.info(f"Redirect URI being used: {redirect_uri}")
+    
     return Response({'authorize_url': url})
 
 
@@ -160,27 +179,73 @@ def twitter_callback(request):
     client_id = getattr(settings, 'TWITTER_CLIENT_ID', None)
     client_secret = getattr(settings, 'TWITTER_CLIENT_SECRET', None)
     redirect_uri = getattr(settings, 'TWITTER_REDIRECT_URI', None) or request.build_absolute_uri('/api/integrations/twitter/callback/')
+    code_verifier = session_data.get('code_verifier', '')
+    
     if not client_id or not client_secret:
         return Response({'success': False, 'error': 'Twitter client credentials not configured'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-    token_resp = post(
-        'https://api.twitter.com/2/oauth2/token',
-        headers={'Content-Type': 'application/x-www-form-urlencoded'},
-        data={
-            'grant_type': 'authorization_code',
-            'code': code,
-            'redirect_uri': redirect_uri,
-            'client_id': client_id,
-            'client_secret': client_secret,
-            'code_verifier': ''
-        },
-        timeout=15
-    )
-    if token_resp.status_code >= 400:
-        try:
-            return Response({'success': False, 'error': token_resp.json()}, status=token_resp.status_code)
-        except Exception:
-            return Response({'success': False, 'error': token_resp.text}, status=token_resp.status_code)
+    # Prepare token exchange data
+    token_data = {
+        'grant_type': 'authorization_code',
+        'code': code,
+        'redirect_uri': redirect_uri,
+        'client_id': client_id,
+        'client_secret': client_secret,
+    }
+    
+    # Add PKCE code verifier if available
+    if code_verifier:
+        token_data['code_verifier'] = code_verifier
+        logger.info(f"Twitter callback: Using PKCE code verifier")
+    else:
+        logger.warning(f"Twitter callback: No PKCE code verifier found in session")
+
+    try:
+        token_resp = post(
+            'https://api.twitter.com/2/oauth2/token',
+            headers={'Content-Type': 'application/x-www-form-urlencoded'},
+            data=token_data,
+            timeout=15
+        )
+        logger.info(f"Twitter token exchange response status: {token_resp.status_code}")
+        
+        if token_resp.status_code >= 400:
+            logger.error(f"Twitter token exchange failed: {token_resp.status_code} - {token_resp.text}")
+            error_msg = 'Token exchange failed'
+            try:
+                error_detail = token_resp.json()
+                error_msg = f"Token exchange failed: {error_detail}"
+                logger.error(f"Twitter token exchange error details: {error_detail}")
+            except Exception:
+                logger.error(f"Twitter token exchange error (raw): {token_resp.text}")
+            
+            if popup_mode:
+                error_data = {'success': False, 'error': error_msg}
+                return HttpResponse(f"""
+                <script>
+                    window.opener.postMessage({{
+                        source: 'twitter-oauth',
+                        data: '{json.dumps(error_data)}'
+                    }}, '*');
+                    window.close();
+                </script>
+                """, content_type='text/html')
+            return Response({'success': False, 'error': error_msg}, status=token_resp.status_code)
+    except Exception as e:
+        logger.error(f"Twitter token exchange request failed: {e}")
+        error_msg = f'Token exchange request failed: {str(e)}'
+        if popup_mode:
+            error_data = {'success': False, 'error': error_msg}
+            return HttpResponse(f"""
+            <script>
+                window.opener.postMessage({{
+                    source: 'twitter-oauth',
+                    data: '{json.dumps(error_data)}'
+                }}, '*');
+                window.close();
+            </script>
+            """, content_type='text/html')
+        return Response({'success': False, 'error': error_msg}, status=status.HTTP_502_BAD_GATEWAY)
 
     token_json = token_resp.json()
     access_token = token_json.get('access_token')
