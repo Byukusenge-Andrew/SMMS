@@ -37,7 +37,18 @@ def twitter_authorize(request):
 
     # Generate a per-request state and store in session for CSRF protection
     import secrets
-    state_val = secrets.token_urlsafe(16)
+    import json
+    import base64
+    import time
+    
+    # Encode user ID in state parameter for session-independent user identification
+    state_data = {
+        'csrf_token': secrets.token_urlsafe(16),
+        'user_id': request.user.id,
+        'timestamp': int(time.time())
+    }
+    state_val = base64.urlsafe_b64encode(json.dumps(state_data).encode()).decode()
+    
     request.session['twitter_oauth'] = {
         'state': state_val,
         'redirect_uri': redirect_uri,
@@ -45,6 +56,11 @@ def twitter_authorize(request):
         'user_id': request.user.id,  # Store user ID for callback
     }
     request.session.modified = True
+    
+    # Debug: Log what we're saving to session
+    logger.info(f"Twitter authorize: Saving to session: user_id={request.user.id}, state={state_val[:50]}...")
+    logger.info(f"Twitter authorize: Session key={request.session.session_key}")
+    logger.info(f"Twitter authorize: Session data saved: {request.session.get('twitter_oauth')}")
 
     params = {
         'response_type': 'code',
@@ -73,6 +89,14 @@ def twitter_callback(request):
     # Check if this is a popup mode request (from session data)
     session_data = request.session.get('twitter_oauth') or {}
     popup_mode = session_data.get('popup_mode', False)
+    
+    # Debug session data
+    logger.info(f"Twitter callback session data: state_expected={session_data.get('state')}, state_received={state}")
+    logger.info(f"Twitter callback session data: popup_mode={popup_mode}")
+    logger.info(f"Twitter callback session data: user_id={session_data.get('user_id')}")
+    logger.info(f"Twitter callback session data: all_keys={list(session_data.keys())}")
+    logger.info(f"Twitter callback: session.session_key={request.session.session_key}")
+    logger.info(f"Twitter callback: session keys={list(request.session.keys())}")
     
     # If this looks like a browser navigation (no explicit JSON accept header), handle popup vs redirect
     accept = (request.META.get('HTTP_ACCEPT') or '')
@@ -191,16 +215,40 @@ def twitter_callback(request):
 
     # Bind tokens to the user's account
     user_id = session_data.get('user_id')
-    if user_id:
+    current_user = None
+    
+    # Primary method: Try to decode user ID from state parameter
+    if state and not current_user:
         try:
-            from django.contrib.auth.models import User
-            user = User.objects.get(id=user_id)
-            
+            import json
+            import base64
+            state_data = json.loads(base64.urlsafe_b64decode(state.encode()).decode())
+            state_user_id = state_data.get('user_id')
+            if state_user_id:
+                from django.contrib.auth import get_user_model
+                User = get_user_model()
+                current_user = User.objects.get(id=state_user_id)
+                logger.info(f"Twitter callback: Found user from state parameter: {current_user.username} (ID: {state_user_id})")
+        except Exception as e:
+            logger.warning(f"Twitter callback: Could not decode user from state parameter: {e}")
+    
+    # Fallback: Try to get user from session
+    if user_id and not current_user:
+        try:
+            from django.contrib.auth import get_user_model
+            User = get_user_model()
+            current_user = User.objects.get(id=user_id)
+            logger.info(f"Twitter callback: Found user from session: {current_user.username} (ID: {user_id})")
+        except Exception as e:
+            logger.error(f"Twitter callback: Could not get user from session user_id {user_id}: {e}")
+    
+    if current_user:
+        try:
             platform_user_id = me_json.get('id')
             
             # Create/update IntegratedAccount
             integrated_account, created = IntegratedAccount.objects.update_or_create(
-                user=user,
+                user=current_user,
                 platform='twitter',
                 platform_user_id=platform_user_id,
                 defaults={
@@ -224,7 +272,7 @@ def twitter_callback(request):
                 from apps.analytics.models import SocialMediaAccount
                 platform_obj, _ = SocialMediaPlatform.objects.get_or_create(name='twitter')
                 analytics_account, created = SocialMediaAccount.objects.update_or_create(
-                    user=user,
+                    user=current_user,
                     platform=platform_obj,
                     platform_user_id=platform_user_id,
                     defaults={
@@ -234,14 +282,14 @@ def twitter_callback(request):
                         'is_active': True,
                     }
                 )
-                logger.info(f"Twitter tokens bound successfully for user {user.id}, platform_user_id: {platform_user_id}")
+                logger.info(f"Twitter tokens bound successfully for user {current_user.id}, platform_user_id: {platform_user_id}")
             except Exception as e:
                 logger.error(f"Failed to create analytics SocialMediaAccount for Twitter: {e}")
                 
-        except User.DoesNotExist:
-            logger.error(f"User {user_id} not found during Twitter token binding")
         except Exception as e:
-            logger.error(f"Failed to bind Twitter tokens for user {user_id}: {e}")
+            logger.error(f"Failed to bind Twitter tokens for user {current_user.id}: {e}")
+    else:
+        logger.warning("Twitter callback: No user context found - tokens cannot be saved")
 
     # Prepare response data
     response_data = {

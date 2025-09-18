@@ -37,7 +37,17 @@ def linkedin_authorize(request):
         
         # Generate state for CSRF protection, but skip PKCE for now to debug
         import secrets
-        state_val = secrets.token_urlsafe(16)
+        import json
+        import base64
+        import time
+        
+        # Encode user ID in state parameter for session-independent user identification
+        state_data = {
+            'csrf_token': secrets.token_urlsafe(16),
+            'user_id': request.user.id,
+            'timestamp': int(time.time())
+        }
+        state_val = base64.urlsafe_b64encode(json.dumps(state_data).encode()).decode()
 
         # Optional redirect instruction from frontend (e.g., ?redirect=1&next=/dashboard/integrations)
         redirect_flag = str(request.GET.get('redirect', '')).lower() in {"1", "true", "yes"}
@@ -52,6 +62,11 @@ def linkedin_authorize(request):
             'user_id': request.user.id,  # Store user ID for callback
         }
         request.session.modified = True
+        
+        # Debug: Log what we're saving to session
+        logger.info(f"LinkedIn authorize: Saving to session: user_id={request.user.id}, state={state_val}, redirect={redirect_flag}")
+        logger.info(f"LinkedIn authorize: Session key={request.session.session_key}")
+        logger.info(f"LinkedIn authorize: Session data saved: {request.session.get('linkedin_oauth')}")
 
         # Start OAuth without PKCE for debugging
         result = linkedin_integrator.start_oauth(callback_url, state=state_val, code_challenge=None)
@@ -107,6 +122,16 @@ def linkedin_callback(request):
         sess = request.session.get('linkedin_oauth') or {}
         # If session missing, default to headless (False) so we can still try to exchange and postMessage
         redirect_pref = bool(sess.get('redirect')) if 'redirect' in sess else False
+        
+        # Debug session data
+        logger.info(f"LinkedIn callback session data: state_expected={sess.get('state')}, state_received={state}")
+        logger.info(f"LinkedIn callback session data: code_verifier={sess.get('code_verifier')} (PKCE disabled)")
+        logger.info(f"LinkedIn callback session data: callback_url={sess.get('callback_url')}")
+        logger.info(f"LinkedIn callback session data: user_id={sess.get('user_id')}")
+        logger.info(f"LinkedIn callback session data: redirect={sess.get('redirect')}")
+        logger.info(f"LinkedIn callback session data: all_keys={list(sess.keys())}")
+        logger.info(f"LinkedIn callback: session.session_key={request.session.session_key}")
+        logger.info(f"LinkedIn callback: session keys={list(request.session.keys())}")
 
         # If browser navigation and redirect preference is True, bounce to frontend
         if 'application/json' not in accept and redirect_pref:
@@ -201,8 +226,23 @@ def linkedin_callback(request):
         user_id = sess.get('user_id')
         current_user = None
         
-        # Try to get user from session first
-        if user_id:
+        # Primary method: Try to decode user ID from state parameter
+        if state and not current_user:
+            try:
+                import json
+                import base64
+                state_data = json.loads(base64.urlsafe_b64decode(state.encode()).decode())
+                state_user_id = state_data.get('user_id')
+                if state_user_id:
+                    from django.contrib.auth import get_user_model
+                    User = get_user_model()
+                    current_user = User.objects.get(id=state_user_id)
+                    logger.info(f"LinkedIn callback: Found user from state parameter: {current_user.username} (ID: {state_user_id})")
+            except Exception as e:
+                logger.warning(f"LinkedIn callback: Could not decode user from state parameter: {e}")
+        
+        # Fallback: Try to get user from session (should work for OAuth redirects)
+        if user_id and not current_user:
             try:
                 from django.contrib.auth import get_user_model
                 User = get_user_model()
@@ -211,23 +251,29 @@ def linkedin_callback(request):
             except Exception as e:
                 logger.error(f"LinkedIn callback: Could not get user from session user_id {user_id}: {e}")
         
-        # Fallback: try to get authenticated user from request
+        # Last resort: try to get authenticated user from request (for API calls)
         if not current_user and hasattr(request, 'user') and request.user.is_authenticated:
             current_user = request.user
             logger.info(f"LinkedIn callback: Using authenticated user from request: {current_user.username} (ID: {current_user.id})")
         
-        # Additional fallback: check if there's a user with the LinkedIn email
-        if not current_user and profile.get('email'):
-            try:
-                from django.contrib.auth import get_user_model
-                User = get_user_model()
-                current_user = User.objects.get(email=profile.get('email'))
-                logger.info(f"LinkedIn callback: Found user by email: {current_user.username}")
-            except Exception as e:
-                logger.info(f"LinkedIn callback: No user found with email {profile.get('email')}: {e}")
-        
         if not current_user:
             logger.warning("LinkedIn callback: No user context found - tokens cannot be saved")
+            # For OAuth redirects, redirect to frontend with error
+            if sess.get('redirect'):
+                target = sess.get('next') or "/dashboard/integrations"
+                url = f"{settings.FRONTEND_URL}{target}"
+                sep = '&' if ('?' in url) else '?'
+                url = f"{url}{sep}linkedin=error&reason=authentication_required"
+                try:
+                    del request.session['linkedin_oauth']
+                except Exception:
+                    pass
+                return redirect(url)
+            # For API calls, return 401 error
+            return Response({
+                'success': False, 
+                'error': 'Authentication required. Please log in and try connecting LinkedIn again.'
+            }, status=status.HTTP_401_UNAUTHORIZED)
         
         integration_saved = False
         if current_user:
@@ -519,6 +565,7 @@ def verify_linkedin_credentials(request):
         
         if not account:
             # Not connected - return 400 so frontend knows it's not connected
+            logger.warning(f"No active LinkedIn account found for user {request.user.email}")
             return Response({
                 'success': False,
                 'error': 'No connected LinkedIn account found'

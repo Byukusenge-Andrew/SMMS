@@ -7,5 +7,6 @@ class IntegrationsConfig(AppConfig):
     verbose_name = "Integrations"
 
     def ready(self):
-        # Lazy import admin registrations to avoid side effects
+        # Lazy import admin registrations and signals to avoid side effects
         from . import admin  # noqa: F401
+        from . import signals  # noqa: F401

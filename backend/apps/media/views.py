@@ -9,7 +9,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 
-from .models import MediaFile, MediaFolder
+from .models import MediaFile, MediaFolder, MediaUploadBatch
 from .serializers import MediaFileSerializer, MediaFileUploadSerializer, MediaFolderSerializer
 from .utils import generate_thumbnail, extract_media_metadata
 from apps.core.permissions import IsOwnerOnly, DataIsolationMixin, ClientDataValidator, ensure_data_isolation
@@ -78,16 +78,14 @@ class MediaLibraryView(DataIsolationMixin, generics.ListAPIView):
     
     serializer_class = MediaFileSerializer
     permission_classes = [permissions.IsAuthenticated, IsOwnerOnly]
+    queryset = MediaFile.objects.all()  # This will be filtered by DataIsolationMixin
     
     def get_queryset(self):
         """Filter media files by user and optional filters"""
         # DataIsolationMixin ensures base filtering by user
         queryset = super().get_queryset()
         
-        # Ensure we're only getting the authenticated user's files
-        queryset = MediaFile.objects.filter(user=self.request.user)
-        
-        # Apply filters from query parameters
+        # Apply additional filters from query parameters
         media_type = self.request.query_params.get('type')
         if media_type and media_type in ['image', 'video', 'audio']:
             queryset = queryset.filter(media_type=media_type)
@@ -144,9 +142,11 @@ class MediaFileDetailView(DataIsolationMixin, generics.RetrieveUpdateDestroyAPIV
     
     serializer_class = MediaFileSerializer
     permission_classes = [permissions.IsAuthenticated, IsOwnerOnly]
+    queryset = MediaFile.objects.all()  # This will be filtered by DataIsolationMixin
     
     def get_queryset(self):
-        return MediaFile.objects.filter(user=self.request.user)
+        # DataIsolationMixin will automatically filter by user
+        return super().get_queryset()
     
     def perform_update(self, serializer):
         """Ensure user ownership is maintained on update"""
@@ -271,21 +271,17 @@ def storage_info(request):
 
 
 # Media Folder Views
-class MediaFolderListCreateView(generics.ListCreateAPIView):
+class MediaFolderListCreateView(DataIsolationMixin, generics.ListCreateAPIView):
     """List and create media folders"""
     
     serializer_class = MediaFolderSerializer
-    permission_classes = [permissions.IsAuthenticated]
-    
-    def get_queryset(self):
-        return MediaFolder.objects.filter(user=self.request.user)
+    permission_classes = [permissions.IsAuthenticated, IsOwnerOnly]
+    queryset = MediaFolder.objects.all()  # This will be filtered by DataIsolationMixin
 
 
-class MediaFolderDetailView(generics.RetrieveUpdateDestroyAPIView):
+class MediaFolderDetailView(DataIsolationMixin, generics.RetrieveUpdateDestroyAPIView):
     """Retrieve, update, or delete a media folder"""
     
     serializer_class = MediaFolderSerializer
-    permission_classes = [permissions.IsAuthenticated]
-    
-    def get_queryset(self):
-        return MediaFolder.objects.filter(user=self.request.user)
+    permission_classes = [permissions.IsAuthenticated, IsOwnerOnly]
+    queryset = MediaFolder.objects.all()  # This will be filtered by DataIsolationMixin

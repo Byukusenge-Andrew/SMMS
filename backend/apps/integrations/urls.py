@@ -195,4 +195,7 @@ urlpatterns = [
 
     # Test pages
     path("facebook/test/", facebook_test_page, name="facebook-test"),
+    
+    # Social Media Sets URLs
+    path("", include("apps.integrations.set_urls")),
 ]
