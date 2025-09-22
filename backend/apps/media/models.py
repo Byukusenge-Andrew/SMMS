@@ -4,10 +4,13 @@ Integrates with Supabase storage for cloud storage
 """
 
 import uuid
+import logging
 from django.db import models
 from django.contrib.auth.models import User
 from django.core.validators import FileExtensionValidator
 from apps.core.upload_paths import user_media_upload_path, user_thumbnail_upload_path
+
+logger = logging.getLogger(__name__)
 
 def get_media_storage():
     """Get the supabase storage instance for media files"""
@@ -137,10 +140,26 @@ class MediaFile(models.Model):
     
     def delete(self, *args, **kwargs):
         """Delete file from storage when model is deleted"""
-        if self.file:
-            self.file.delete(save=False)
-        if self.thumbnail:
-            self.thumbnail.delete(save=False)
+        try:
+            # Delete main file from storage
+            if self.file and self.file.name:
+                logger.info(f"Deleting file from storage: {self.file.name}")
+                self.file.delete(save=False)
+            elif self.file:
+                logger.warning(f"File field exists but name is None for file {self.id}")
+            
+            # Delete thumbnail from storage
+            if self.thumbnail and self.thumbnail.name:
+                logger.info(f"Deleting thumbnail from storage: {self.thumbnail.name}")
+                self.thumbnail.delete(save=False)
+            elif self.thumbnail:
+                logger.warning(f"Thumbnail field exists but name is None for file {self.id}")
+                
+        except Exception as e:
+            logger.error(f"Error deleting file {self.id} from storage: {str(e)}")
+            # Continue with database deletion even if storage deletion fails
+        
+        # Always delete from database
         super().delete(*args, **kwargs)
 
 

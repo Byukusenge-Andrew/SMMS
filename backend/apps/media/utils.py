@@ -40,14 +40,72 @@ def extract_media_metadata(file):
 def generate_thumbnail(media_file, size=(300, 300)):
     """Generate thumbnail for media files"""
     try:
-        if media_file.media_type != 'image':
-            # For now, only handle image thumbnails
-            return
+        content_type = getattr(media_file.file, 'content_type', '')
+        file_path = media_file.file.path if hasattr(media_file.file, 'path') else None
         
-        # Open the original image
-        image = Image.open(media_file.file)
+        if content_type.startswith('image/'):
+            # Process image files
+            with Image.open(media_file.file) as img:
+                img.thumbnail(size)
+                # Convert to RGB if necessary
+                if img.mode in ('RGBA', 'P'):
+                    img = img.convert('RGB')
+                # Save thumbnail
+                thumb_io = io.BytesIO()
+                img.save(thumb_io, 'JPEG', quality=85)
+                return ContentFile(thumb_io.getvalue())
+                
+        elif content_type.startswith('video/'):
+            try:
+                import cv2
+                import numpy as np
+                from tempfile import NamedTemporaryFile
+                
+                # Save video to temporary file if we don't have direct path
+                if not file_path:
+                    with NamedTemporaryFile(delete=False, suffix='.mp4') as temp_file:
+                        temp_file.write(media_file.file.read())
+                        file_path = temp_file.name
+                        media_file.file.seek(0)  # Reset file pointer
+                
+                # Open video and read first frame
+                cap = cv2.VideoCapture(file_path)
+                ret, frame = cap.read()
+                cap.release()
+                
+                if not ret:
+                    raise ValueError("Could not read video frame")
+                
+                # Convert frame to PIL Image
+                frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                img = Image.fromarray(frame_rgb)
+                
+                # Resize maintaining aspect ratio
+                img.thumbnail(size)
+                
+                # Save thumbnail
+                thumb_io = io.BytesIO()
+                img.save(thumb_io, 'JPEG', quality=85)
+                
+                # Clean up temp file if we created one
+                if not hasattr(media_file.file, 'path'):
+                    import os
+                    os.unlink(file_path)
+                
+                return ContentFile(thumb_io.getvalue())
+                
+            except ImportError:
+                logger.warning("OpenCV not installed - video thumbnails not available")
+                return None
+            except Exception as e:
+                logger.error(f"Error generating video thumbnail: {str(e)}")
+                return None
         
-        # Convert to RGB if necessary (for PNG with transparency, etc.)
+        return None
+        
+    except Exception as e:
+        logger.error(f"Error generating thumbnail: {str(e)}")
+        return None
         if image.mode in ('RGBA', 'LA', 'P'):
             image = image.convert('RGB')
         
