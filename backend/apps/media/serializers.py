@@ -2,6 +2,9 @@
 Media serializers for API responses
 """
 
+import os
+import uuid
+from django.utils import timezone
 from rest_framework import serializers
 from .models import MediaFile, MediaFolder
 
@@ -68,6 +71,12 @@ class MediaFileUploadSerializer(serializers.ModelSerializer):
             validated_data['media_type'] = 'audio'
         else:
             validated_data['media_type'] = 'image'  # Default fallback
+            
+        # Generate timestamped filename
+        name, ext = os.path.splitext(file.name)
+        timestamp = timezone.now().strftime('%Y%m%d_%H%M%S')
+        unique_id = uuid.uuid4().hex[:8]
+        validated_data['name'] = f"{name}_{timestamp}_{unique_id}{ext}"
         
         # Set default name if not provided
         if not validated_data.get('name'):

@@ -3,6 +3,7 @@ Twitter/X API Views
 """
 import json
 import logging
+import time
 from datetime import datetime, timedelta
 from django.conf import settings
 from django.http import HttpResponse
@@ -56,24 +57,41 @@ def twitter_authorize(request):
     }
     state_val = base64.urlsafe_b64encode(json.dumps(state_data).encode()).decode()
     
-    # Force session creation and save
+    # Ensure session is created and working
     if not request.session.session_key:
         request.session.create()
+        logger.info(f"Twitter authorize: Created new session with key={request.session.session_key}")
     
-    request.session['twitter_oauth'] = {
+    oauth_data = {
         'state': state_val,
         'redirect_uri': redirect_uri,
-        'popup_mode': True,  # Mark this as popup mode in session
-        'user_id': request.user.id,  # Store user ID for callback
-        'code_verifier': code_verifier,  # Store PKCE code verifier
+        'popup_mode': True,
+        'user_id': request.user.id,
+        'code_verifier': code_verifier,
+        'created_at': int(time.time()),  # Track when this was created
     }
-    request.session.modified = True
-    request.session.save()
     
-    # Debug: Log what we're saving to session
-    logger.info(f"Twitter authorize: Saving to session: user_id={request.user.id}, state={state_val[:50]}...")
-    logger.info(f"Twitter authorize: Session key={request.session.session_key}")
-    logger.info(f"Twitter authorize: Session data saved: {request.session.get('twitter_oauth')}")
+    # Store in session
+    request.session['twitter_oauth'] = oauth_data
+    request.session.modified = True
+    
+    # Verify data was saved correctly
+    saved_data = request.session.get('twitter_oauth')
+    if not saved_data or saved_data.get('code_verifier') != code_verifier:
+        logger.error("Twitter authorize: Session data not saved correctly!")
+        logger.error(f"Expected: {oauth_data}")
+        logger.error(f"Got: {saved_data}")
+        return Response({
+            'success': False,
+            'error': 'Session storage failed'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+    # Force save and verify session is working
+    request.session.save()
+    verify_key = request.session.session_key
+    logger.info(f"Twitter authorize: Verified session key={verify_key}")
+    logger.info(f"Twitter authorize: Session contains: {list(request.session.keys())}")
+    logger.info(f"Twitter authorize: OAuth data saved: {json.dumps(saved_data, default=str)}")
 
     params = {
         'response_type': 'code',
@@ -102,25 +120,58 @@ def twitter_callback(request):
 
     code = request.GET.get('code')
     state = request.GET.get('state')
+    
+    # Log incoming request details
+    logger.info(f"Twitter callback received - Code: {code[:10]}... State: {state[:10]}...")
+    logger.info(f"Request session key: {request.session.session_key}")
+    logger.info(f"Available session keys: {list(request.session.keys())}")
+    
     if not code:
         return Response({'success': False, 'error': 'Missing code'}, status=status.HTTP_400_BAD_REQUEST)
 
-    # Check if this is a popup mode request (from session data)
+    # Attempt to get OAuth data from session
     session_data = request.session.get('twitter_oauth') or {}
+    if not session_data:
+        logger.error("Twitter callback: No OAuth data found in session!")
+        logger.error(f"Session contains: {list(request.session.keys())}")
+        return Response({
+            'success': False,
+            'error': 'Session data lost - please try authorizing again'
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Extract key data with validation
     popup_mode = session_data.get('popup_mode', False)
-    
-    # Debug session data
-    logger.info(f"Twitter callback session data: state_expected={session_data.get('state')}, state_received={state}")
-    logger.info(f"Twitter callback session data: popup_mode={popup_mode}")
-    logger.info(f"Twitter callback session data: user_id={session_data.get('user_id')}")
-    logger.info(f"Twitter callback session data: all_keys={list(session_data.keys())}")
-    logger.info(f"Twitter callback: session.session_key={request.session.session_key}")
-    logger.info(f"Twitter callback: session keys={list(request.session.keys())}")
-    
-    # If this looks like a browser navigation (no explicit JSON accept header), handle popup vs redirect
-    accept = (request.META.get('HTTP_ACCEPT') or '')
     expected_state = session_data.get('state')
-    # Validate state (if we have one). If mismatch, surface error early.
+    code_verifier = session_data.get('code_verifier')
+    created_at = session_data.get('created_at', 0)
+    
+    if not code_verifier:
+        logger.error("Twitter callback: No code verifier in session data!")
+        logger.error(f"Session data contains: {list(session_data.keys())}")
+        return Response({
+            'success': False,
+            'error': 'PKCE verification failed - missing code verifier'
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Check for session expiry (30 minute limit)
+    if created_at and (time.time() - created_at) > 1800:  # 30 minutes
+        logger.error(f"Twitter callback: Session too old - created at {datetime.fromtimestamp(created_at).isoformat()}")
+        return Response({
+            'success': False,
+            'error': 'Authorization session expired - please try again'
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Log detailed session state
+    logger.info("Twitter callback session data:")
+    logger.info(f"- State (expected): {expected_state[:30] if expected_state else 'None'}")
+    logger.info(f"- State (received): {state[:30] if state else 'None'}")
+    logger.info(f"- Has code verifier: {'Yes' if code_verifier else 'No'}")
+    logger.info(f"- Created at: {datetime.fromtimestamp(created_at).isoformat() if created_at else 'Unknown'}")
+    logger.info(f"- Popup mode: {popup_mode}")
+    logger.info(f"- User ID: {session_data.get('user_id')}")
+    
+    # Handle accept headers for popup/redirect mode
+    accept = (request.META.get('HTTP_ACCEPT') or '')
     state_ok = (not expected_state) or (expected_state == state)
     
     if 'application/json' not in accept:

@@ -81,6 +81,13 @@ class IsTeamMemberOrOwner(permissions.BasePermission):
         return False
 
 
+from rest_framework.permissions import BasePermission
+from rest_framework.exceptions import PermissionDenied
+import logging
+
+logger = logging.getLogger(__name__)
+
+
 class DataIsolationMixin:
     """
     Mixin to ensure all views automatically filter data by user
@@ -201,8 +208,45 @@ class ClientDataValidator:
         """
         Validate access to multiple objects at once
         """
-        for obj in objects:
-            ClientDataValidator.validate_user_access(user, obj)
+        try:
+            if not user or not user.is_authenticated:
+                logger.warning("Bulk validate: User not authenticated")
+                raise PermissionDenied("User not authenticated")
+
+            # Log user and object info for debugging
+            logger.info(f"Bulk validate: User {user.id} attempting to access {len(objects)} objects")
+            
+            for obj in objects:
+                try:
+                    if hasattr(obj, 'user'):
+                        if obj.user != user:
+                            logger.warning(
+                                f"Bulk validate: Access denied - Object {obj.id} belongs to user {obj.user.id}, "
+                                f"not requesting user {user.id}"
+                            )
+                            raise PermissionDenied(
+                                f"Access denied: Object {obj.id} belongs to different user"
+                            )
+                    else:
+                        # Check indirect relationships
+                        owner = ClientDataValidator.get_object_owner(obj)
+                        if owner and owner != user:
+                            logger.warning(
+                                f"Bulk validate: Access denied - Object {obj.id} belongs to user {owner.id}, "
+                                f"not requesting user {user.id}"
+                            )
+                            raise PermissionDenied(
+                                f"Access denied: Object {obj.id} belongs to different user (indirect)"
+                            )
+                except Exception as e:
+                    logger.error(f"Bulk validate: Error checking object {obj.id}: {str(e)}")
+                    raise
+            
+            logger.info(f"Bulk validate: Access granted for all {len(objects)} objects")
+            
+        except Exception as e:
+            logger.error(f"Bulk validate: Error during validation: {str(e)}")
+            raise
 
 
 class OwnerIfPresent(permissions.BasePermission):

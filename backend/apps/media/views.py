@@ -3,11 +3,13 @@ Media API views for handling file uploads and management
 """
 
 import logging
+import uuid
 from django.db.models import Sum, Count, Q
 from rest_framework import generics, status, permissions
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
+from rest_framework.exceptions import PermissionDenied
 
 from .models import MediaFile, MediaFolder, MediaUploadBatch
 from .serializers import MediaFileSerializer, MediaFileUploadSerializer, MediaFolderSerializer
@@ -164,41 +166,164 @@ class MediaFileDetailView(DataIsolationMixin, generics.RetrieveUpdateDestroyAPIV
 @ensure_data_isolation
 def bulk_delete_media(request):
     """Bulk delete media files"""
+    # Log comprehensive request info and payload
+    logger.info("=== Bulk Delete Media Request ===")
+    logger.info(f"User: {request.user.id} ({request.user.username})")
+    logger.info(f"Content Type: {request.content_type}")
+    logger.info("Request Data:")
+    logger.info(f"- Raw data: {request.data}")
+    if isinstance(request.data, dict) and 'ids' in request.data:
+        logger.info(f"- IDs array: {request.data['ids']}")
+        logger.info(f"- IDs types: {[type(id_).__name__ for id_ in request.data['ids']]}")
+        logger.info(f"- Number of IDs: {len(request.data['ids'])}")
+        logger.info(f"- Null/None values: {sum(1 for id_ in request.data['ids'] if id_ is None)}")
+    logger.info("================================")
     try:
+        # Get and validate input from request
         ids = request.data.get('ids', [])
+        if not isinstance(ids, list):
+            logger.warning(f"Bulk delete: Invalid IDs format - expected list, got {type(ids)}")
+            return Response({
+                'error': 'Invalid IDs format - expected array'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
         if not ids:
+            logger.warning("Bulk delete: No file IDs provided")
             return Response({
                 'error': 'No file IDs provided'
             }, status=status.HTTP_400_BAD_REQUEST)
         
+        # Try to find files by name first, then by UUID
+        user_files = MediaFile.objects.filter(user=request.user)
+        valid_uuids = []
+        invalid_ids = []
+        
+        for id_str in ids:
+            # First try to find by name
+            file = user_files.filter(name__iexact=id_str).first()
+            if file:
+                valid_uuids.append(file.id)
+                continue
+                
+            # If not found by name, try UUID
+            if id_str is None:
+                invalid_ids.append(None)
+                continue
+                
+            try:
+                # Try to convert to string first to handle non-string inputs
+                id_str = str(id_str).strip()
+                if not id_str:  # Handle empty strings
+                    invalid_ids.append("")
+                    continue
+                    
+                # Convert string to UUID to validate format
+                uuid_obj = uuid.UUID(id_str)
+                if user_files.filter(id=uuid_obj).exists():
+                    valid_uuids.append(uuid_obj)
+                else:
+                    invalid_ids.append(id_str)
+            except (ValueError, AttributeError, TypeError):
+                invalid_ids.append(id_str)
+            # Handle None values explicitly
+            if id_str is None:
+                invalid_ids.append(None)
+                continue
+                
+            try:
+                # Try to convert to string first to handle non-string inputs
+                id_str = str(id_str).strip()
+                if not id_str:  # Handle empty strings
+                    invalid_ids.append("")
+                    continue
+                    
+                # Convert string to UUID to validate format
+                valid_uuids.append(uuid.UUID(id_str))
+            except (ValueError, AttributeError, TypeError):
+                invalid_ids.append(id_str)
+                
+        if invalid_ids:
+            # Improve logging message to be more descriptive
+            logger.warning(
+                f"Bulk delete: Invalid UUIDs provided: {invalid_ids}. "
+                f"Types: {[type(id_).__name__ for id_ in invalid_ids]}"
+            )
+            return Response({
+                'error': 'Invalid file IDs provided. IDs must be valid UUIDs.',
+                'invalid_ids': [str(id_) if id_ is not None else None for id_ in invalid_ids]
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        logger.info(f"Bulk delete: Attempting to delete {len(valid_uuids)} files")
+        
         # Get user files and validate access
-        user_files = MediaFile.objects.filter(user=request.user, id__in=ids)
+        user_files = MediaFile.objects.filter(user=request.user, id__in=valid_uuids)
+        logger.info(f"Bulk delete: Found {user_files.count()} files belonging to user")
         
         # Additional security check - ensure all files belong to user
-        found_ids = set(str(f.id) for f in user_files)
-        requested_ids = set(str(id) for id in ids)
+        found_ids = set(str(file.id) for file in user_files)
+        requested_ids = set(str(uuid_obj) for uuid_obj in valid_uuids)
         
         if found_ids != requested_ids:
             missing_ids = requested_ids - found_ids
             logger.warning(
-                f"User {request.user.id} attempted to delete files they don't own: {missing_ids}"
+                f"Bulk delete: User {request.user.id} ({request.user.username}) attempted to delete "
+                f"files they don't own: {missing_ids}"
             )
             return Response({
-                'error': 'Access denied - some files do not belong to you'
+                'error': 'Access denied - some files do not belong to you',
+                'missing_ids': list(missing_ids)
             }, status=status.HTTP_403_FORBIDDEN)
         
         # Validate access to all files
-        ClientDataValidator.bulk_validate_access(request.user, user_files)
-        
-        # Delete the files
-        deleted_count = user_files.count()
-        user_files.delete()
-        
-        return Response({
-            'deleted_count': deleted_count,
-            'message': f'Successfully deleted {deleted_count} files'
-        })
-        
+        try:
+            logger.info("Bulk delete: Validating access to files...")
+            ClientDataValidator.bulk_validate_access(request.user, user_files)
+            
+            # Delete files from both database and storage
+            deleted_count = user_files.count()
+            logger.info(f"Bulk delete: Deleting {deleted_count} files...")
+            
+            # Get the Supabase storage handler
+            from apps.core.storage import SupabaseMediaHandler
+            storage = SupabaseMediaHandler()
+            
+            # Delete each file from storage first
+            storage_errors = []
+            for file in user_files:
+                try:
+                    if file.file:  # Check if file exists in storage
+                        storage.delete_file(file.file.name)
+                    if file.thumbnail:  # Also delete thumbnail if it exists
+                        storage.delete_file(file.thumbnail.name)
+                except Exception as e:
+                    storage_errors.append(f"{file.id}: {str(e)}")
+                    logger.error(f"Error deleting file from storage: {file.file.name} - {str(e)}")
+
+            # Delete database records
+            user_files.delete()
+            
+            response_data = {
+                'success': True,
+                'deleted_count': deleted_count,
+                'deleted_ids': list(found_ids),
+                'message': f'Successfully deleted {deleted_count} files'
+            }
+            
+            # Include storage errors in response if any occurred
+            if storage_errors:
+                response_data['storage_errors'] = storage_errors
+                logger.warning(f"Some files could not be deleted from storage: {storage_errors}")
+            
+            logger.info(f"Bulk delete: Successfully deleted {deleted_count} files")
+            return Response(response_data)
+            
+        except PermissionDenied as e:
+            logger.error(f"Bulk delete: Permission denied during validation: {str(e)}")
+            return Response({
+                'error': str(e),
+                'message': 'Access denied - some files do not belong to you'
+            }, status=status.HTTP_403_FORBIDDEN)
+            
     except Exception as e:
         logger.error(f"Error bulk deleting files: {str(e)}")
         return Response({

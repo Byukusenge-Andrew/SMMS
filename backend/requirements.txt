@@ -8,6 +8,7 @@ cryptography
 Pillow
 supabase
 redis==5.0.1
+opencv-python>=4.8.0  # For video thumbnail generation
 celery==5.3.4
 django-celery-beat==2.6.0
 slack-sdk==3.26.0
