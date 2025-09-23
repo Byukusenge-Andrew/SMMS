@@ -103,9 +103,9 @@ class EnhancedMediaUploadView(DataIsolationMixin, APIView):
         
         # Check file type
         allowed_types = [
-            'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml',
-            'video/mp4', 'video/quicktime', 'video/webm', 'video/avi',
-            'audio/mp3', 'audio/wav', 'audio/ogg', 'audio/mpeg'
+            'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp',
+            'video/mp4', 'video/mov', 'video/webm', 'video/mkv', 'video/3gpp',
+            'audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/aac', 'audio/ogg', 'audio/m4a', 'audio/opus'
         ]
         
         if file.content_type not in allowed_types:
@@ -259,6 +259,7 @@ class BulkMediaUploadView(DataIsolationMixin, APIView):
         
         for i, file in enumerate(files):
             try:
+                print(file)
                 # Validate individual file
                 upload_view = EnhancedMediaUploadView()
                 validation_result = upload_view._validate_upload(file, user)
