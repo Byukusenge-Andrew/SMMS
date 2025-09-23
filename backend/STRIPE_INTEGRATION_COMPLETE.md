@@ -10,11 +10,11 @@
 - ✅ Customer portal for subscription management
 
 ### 2. **Available Subscription Plans**
-- **Starter**: $0/month (Free tier) 
+
 - **Basic Plan**: $7.99/month, $79.90/year ⭐ *Ready for testing*
 - **Professional**: $14.99/month, $149.90/year
 - **Enterprise**: $19.99/month, $199.90/year
-- **Professional**: $29/month, $290/year (duplicate - can be cleaned up)
+
 
 ### 3. **Working API Endpoints**
 - `GET /api/billing/api/subscription-tiers/` - List all plans ✅ TESTED

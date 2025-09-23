@@ -35,7 +35,7 @@ def linkedin_authorize(request):
         # Use the exact redirect URI that's configured in LinkedIn app and .env
         callback_url = linkedin_integrator.redirect_uri
         
-        # Generate state for CSRF protection, but skip PKCE for now to debug
+        # Generate state for CSRF protection without PKCE
         import secrets
         import json
         import base64
@@ -53,7 +53,7 @@ def linkedin_authorize(request):
         redirect_flag = str(request.GET.get('redirect', '')).lower() in {"1", "true", "yes"}
         next_path = request.GET.get('next') or "/dashboard/integrations"
 
-        # Persist values in session for callback validation (without PKCE for now)
+        # Persist values in session for callback validation without PKCE
         request.session['linkedin_oauth'] = {
             'state': state_val,
             'redirect_uri': callback_url,
@@ -68,7 +68,7 @@ def linkedin_authorize(request):
         logger.info(f"LinkedIn authorize: Session key={request.session.session_key}")
         logger.info(f"LinkedIn authorize: Session data saved: {request.session.get('linkedin_oauth')}")
 
-        # Start OAuth without PKCE for debugging
+        # Start OAuth without PKCE
         result = linkedin_integrator.start_oauth(callback_url, state=state_val, code_challenge=None)
         
         if 'error' in result:
@@ -125,7 +125,7 @@ def linkedin_callback(request):
         
         # Debug session data
         logger.info(f"LinkedIn callback session data: state_expected={sess.get('state')}, state_received={state}")
-        logger.info(f"LinkedIn callback session data: code_verifier={sess.get('code_verifier')} (PKCE disabled)")
+        logger.info(f"LinkedIn callback session data: code_verifier disabled (PKCE not used)")
         logger.info(f"LinkedIn callback session data: callback_url={sess.get('callback_url')}")
         logger.info(f"LinkedIn callback session data: user_id={sess.get('user_id')}")
         logger.info(f"LinkedIn callback session data: redirect={sess.get('redirect')}")
@@ -162,11 +162,10 @@ def linkedin_callback(request):
 
         linkedin_integrator = LinkedInIntegrator()
         expected_state = sess.get('state')
-        code_verifier = sess.get('code_verifier')  # Will be None for now
         callback_url = sess.get('redirect_uri') or linkedin_integrator.redirect_uri
 
         logger.info(f"LinkedIn callback session data: state_expected={expected_state}, state_received={state}")
-        logger.info(f"LinkedIn callback session data: code_verifier={'None (PKCE disabled)' if not code_verifier else code_verifier[:10] + '...'}")
+        logger.info(f"LinkedIn callback session data: PKCE disabled - no code verifier used")
         logger.info(f"LinkedIn callback session data: callback_url={callback_url}")
 
         if expected_state and state and expected_state != state:
@@ -183,9 +182,9 @@ def linkedin_callback(request):
                 return redirect(url)
             return Response({'success': False, 'error': 'Invalid OAuth state. Please try connecting again.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Exchange code for tokens
+        # Exchange code for tokens without PKCE
         logger.info(f"Attempting token exchange for LinkedIn with code: {code[:10]}...")
-        token_result = linkedin_integrator.exchange_code_for_tokens(code, callback_url, code_verifier=code_verifier)
+        token_result = linkedin_integrator.exchange_code_for_tokens(code, callback_url, code_verifier=None)
         logger.info(f"Token exchange result: {token_result.get('success', False)}")
 
         if not token_result.get('success'):

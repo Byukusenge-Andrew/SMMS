@@ -103,8 +103,8 @@ DATABASE_URL=postgresql://user:password@localhost:5432/smms_db
 REDIS_URL=redis://localhost:6379/0
 
 # Stripe Configuration
-STRIPE_PUBLIC_KEY=pk_test_...
-STRIPE_SECRET_KEY=sk_test_...
+STRIPE_PUBLIC_KEY=pk_test_51QRVHpJa56HMqHf0LQjkQNqcPFGOVcdysRrooCqKAGALnFDjHFahTbDHrqKlTM1QHif9YtrFrxej8rli8Sbwzl5O00ih3Fczrx
+STRIPE_SECRET_KEY=sk_test_51QRVHpJa56HMqHf0R3oJAmnBjeBUZwQHHkobSYKBO7EF5CfBM0uHA1Th8m4Z6SE9HyaSPh5pRK9VlGKzTomLMJa300CxxeuLRT
 STRIPE_WEBHOOK_SECRET=whsec_...
 
 # GoHighLevel Configuration

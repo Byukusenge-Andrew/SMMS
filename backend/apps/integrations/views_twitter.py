@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 @authentication_classes([TokenAuthentication])
 @permission_classes([permissions.IsAuthenticated])
 def twitter_authorize(request):
-    """Initiate Twitter OAuth 2.0 flow (Authorization Code with PKCE)."""
+    """Initiate Twitter OAuth 2.0 flow (Authorization Code without PKCE)."""
     client_id = getattr(settings, 'TWITTER_CLIENT_ID', None) or ''
     redirect_uri = getattr(settings, 'TWITTER_REDIRECT_URI', None) or request.build_absolute_uri('/api/integrations/twitter/callback/')
     scope = getattr(settings, 'TWITTER_SCOPES', 'tweet.read tweet.write users.read offline.access')
@@ -36,18 +36,11 @@ def twitter_authorize(request):
     if not client_id:
         return Response({'success': False, 'error': 'TWITTER_CLIENT_ID not configured'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-    # Generate PKCE parameters
+    # Generate OAuth parameters without PKCE
     import secrets
     import json
     import base64
     import time
-    import hashlib
-    
-    # Generate code verifier and challenge for PKCE
-    code_verifier = base64.urlsafe_b64encode(secrets.token_bytes(32)).decode('utf-8').rstrip('=')
-    code_challenge = base64.urlsafe_b64encode(
-        hashlib.sha256(code_verifier.encode('utf-8')).digest()
-    ).decode('utf-8').rstrip('=')
     
     # Generate a per-request state and store in session for CSRF protection
     state_data = {
@@ -67,7 +60,6 @@ def twitter_authorize(request):
         'redirect_uri': redirect_uri,
         'popup_mode': True,
         'user_id': request.user.id,
-        'code_verifier': code_verifier,
         'created_at': int(time.time()),  # Track when this was created
     }
     
@@ -77,7 +69,7 @@ def twitter_authorize(request):
     
     # Verify data was saved correctly
     saved_data = request.session.get('twitter_oauth')
-    if not saved_data or saved_data.get('code_verifier') != code_verifier:
+    if not saved_data or saved_data.get('state') != state_val:
         logger.error("Twitter authorize: Session data not saved correctly!")
         logger.error(f"Expected: {oauth_data}")
         logger.error(f"Got: {saved_data}")
@@ -99,8 +91,6 @@ def twitter_authorize(request):
         'redirect_uri': redirect_uri,
         'scope': scope,
         'state': state_val,
-        'code_challenge': code_challenge,
-        'code_challenge_method': 'S256'
     }
     url = f"https://twitter.com/i/oauth2/authorize?{urlencode(params)}"
     
@@ -142,16 +132,7 @@ def twitter_callback(request):
     # Extract key data with validation
     popup_mode = session_data.get('popup_mode', False)
     expected_state = session_data.get('state')
-    code_verifier = session_data.get('code_verifier')
     created_at = session_data.get('created_at', 0)
-    
-    if not code_verifier:
-        logger.error("Twitter callback: No code verifier in session data!")
-        logger.error(f"Session data contains: {list(session_data.keys())}")
-        return Response({
-            'success': False,
-            'error': 'PKCE verification failed - missing code verifier'
-        }, status=status.HTTP_400_BAD_REQUEST)
     
     # Check for session expiry (30 minute limit)
     if created_at and (time.time() - created_at) > 1800:  # 30 minutes
@@ -165,7 +146,6 @@ def twitter_callback(request):
     logger.info("Twitter callback session data:")
     logger.info(f"- State (expected): {expected_state[:30] if expected_state else 'None'}")
     logger.info(f"- State (received): {state[:30] if state else 'None'}")
-    logger.info(f"- Has code verifier: {'Yes' if code_verifier else 'No'}")
     logger.info(f"- Created at: {datetime.fromtimestamp(created_at).isoformat() if created_at else 'Unknown'}")
     logger.info(f"- Popup mode: {popup_mode}")
     logger.info(f"- User ID: {session_data.get('user_id')}")
@@ -230,7 +210,6 @@ def twitter_callback(request):
     client_id = getattr(settings, 'TWITTER_CLIENT_ID', None)
     client_secret = getattr(settings, 'TWITTER_CLIENT_SECRET', None)
     redirect_uri = getattr(settings, 'TWITTER_REDIRECT_URI', None) or request.build_absolute_uri('/api/integrations/twitter/callback/')
-    code_verifier = session_data.get('code_verifier', '')
     
     if not client_id or not client_secret:
         return Response({'success': False, 'error': 'Twitter client credentials not configured'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -244,12 +223,7 @@ def twitter_callback(request):
         'client_secret': client_secret,
     }
     
-    # Add PKCE code verifier if available
-    if code_verifier:
-        token_data['code_verifier'] = code_verifier
-        logger.info(f"Twitter callback: Using PKCE code verifier")
-    else:
-        logger.warning(f"Twitter callback: No PKCE code verifier found in session")
+    logger.info(f"Twitter callback: Token exchange without PKCE")
 
     try:
         token_resp = post(

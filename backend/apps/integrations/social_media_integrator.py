@@ -294,24 +294,13 @@ class LinkedInIntegrator(SocialMediaIntegrator):
         # Updated scopes - using the scopes that are actually available in your LinkedIn app
         self.scopes = "openid profile email w_member_social"
 
-    @staticmethod
-    def _b64url(data: bytes) -> str:
-        return base64.urlsafe_b64encode(data).rstrip(b"=").decode("ascii")
-
-    def generate_pkce_pair(self) -> tuple[str, str]:
-        """Generate a PKCE code_verifier and S256 code_challenge."""
-        # 64 random urlsafe chars -> >43 as required by RFC 7636
-        verifier = secrets.token_urlsafe(64)
-        challenge = self._b64url(hashlib.sha256(verifier.encode("utf-8")).digest())
-        return verifier, challenge
-
     def start_oauth(self, callback_url=None, state: str | None = None, code_challenge: str | None = None):
-        """Start OAuth flow for LinkedIn authentication (supports PKCE)."""
+        """Start OAuth flow for LinkedIn authentication (without PKCE)."""
         try:
             redirect_uri = callback_url or self.redirect_uri
             state_param = state or secrets.token_urlsafe(16)
 
-            base = (
+            auth_url = (
                 "https://www.linkedin.com/oauth/v2/authorization"
                 f"?response_type=code"
                 f"&client_id={self.client_id}"
@@ -319,23 +308,19 @@ class LinkedInIntegrator(SocialMediaIntegrator):
                 f"&scope={self.scopes}"
                 f"&state={state_param}"
             )
-            if code_challenge:
-                base += f"&code_challenge={code_challenge}&code_challenge_method=S256"
-
-            auth_url = base
 
             return {
                 "auth_url": auth_url,
                 "client_id": self.client_id,
                 "redirect_uri": redirect_uri,
                 "state": state_param,
-                "code_challenge_used": bool(code_challenge),
+                "code_challenge_used": False,
             }
         except Exception as e:
             return {"error": str(e)}
 
     def exchange_code_for_tokens(self, code, redirect_uri=None, code_verifier: str | None = None):
-        """Exchange authorization code for access token"""
+        """Exchange authorization code for access token (without PKCE)"""
         # Setup logging at the beginning
         import logging
         logger = logging.getLogger(__name__)
@@ -357,17 +342,11 @@ class LinkedInIntegrator(SocialMediaIntegrator):
                 "client_id": self.client_id,
                 "client_secret": self.client_secret,
             }
-            # Only add code_verifier if it exists and is not empty/False
-            if code_verifier and isinstance(code_verifier, str) and len(code_verifier.strip()) > 0:
-                data["code_verifier"] = code_verifier
-                logger.info(f"LinkedIn token exchange - using PKCE with code_verifier")
-            else:
-                logger.info(f"LinkedIn token exchange - no PKCE code_verifier provided")
             
             # Log the parameters for debugging (without sensitive data)
             logger.info(f"LinkedIn token exchange - redirect_uri: {redirect_uri_to_use}")
             logger.info(f"LinkedIn token exchange - client_id: {self.client_id}")
-            logger.info(f"LinkedIn token exchange - has code_verifier: {bool(code_verifier)}")
+            logger.info(f"LinkedIn token exchange - PKCE disabled")
             
             # Increased timeout and added headers
             response = requests.post(token_url, data=data, headers=headers, timeout=30)
