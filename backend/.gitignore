@@ -1,3 +1,11 @@
+.env
+*.env
+node_modules/
+dist/
+logs/
+*.log
+.env.production
+.env.development
 # Python
 __pycache__/
 *.py[cod]
