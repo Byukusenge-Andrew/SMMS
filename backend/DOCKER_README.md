@@ -11,11 +11,13 @@ This document explains how to run the SMMS backend using Docker and Docker Compo
 ## Quick Start (Development)
 
 1. **Clone and navigate to the backend directory:**
+
    ```bash
    cd backend
    ```
 
 2. **Copy environment file:**
+
    ```bash
    # Windows
    copy .env.docker .env
@@ -25,6 +27,7 @@ This document explains how to run the SMMS backend using Docker and Docker Compo
    ```
 
 3. **Start the development environment:**
+
    ```bash
    # Windows
    docker-manager.bat start
@@ -34,6 +37,7 @@ This document explains how to run the SMMS backend using Docker and Docker Compo
    ```
 
 4. **Run initial migrations:**
+
    ```bash
    # Windows
    docker-manager.bat migrate
@@ -43,6 +47,7 @@ This document explains how to run the SMMS backend using Docker and Docker Compo
    ```
 
 5. **Create a superuser (optional):**
+
    ```bash
    # Windows
    docker-manager.bat createsuperuser
@@ -52,15 +57,16 @@ This document explains how to run the SMMS backend using Docker and Docker Compo
    ```
 
 6. **Access the application:**
-   - Backend API: http://localhost:8000
-   - Admin Panel: http://localhost:8000/admin
-   - API Documentation: http://localhost:8000/api/docs/
+   - Backend API:<http://localhost:8000>
+   - Admin Panel: <http://localhost:8000/admin>
+   - API Documentation: <http://localhost:8000/api/docs/>
 
 ## Services
 
 The Docker setup includes the following services:
 
 ### Development Environment
+
 - **backend**: Django application server
 - **postgres**: PostgreSQL database
 - **redis**: Redis cache and Celery broker
@@ -68,6 +74,7 @@ The Docker setup includes the following services:
 - **celery-beat**: Celery periodic task scheduler
 
 ### Production Environment
+
 - **backend**: Django with Gunicorn
 - **postgres**: PostgreSQL database
 - **celery-worker**: Celery task worker
@@ -77,6 +84,7 @@ The Docker setup includes the following services:
 ## Management Commands
 
 ### Windows (PowerShell/CMD)
+
 ```batch
 # Development
 docker-manager.bat build         # Build development images
@@ -103,6 +111,7 @@ docker-manager.bat reset         # Reset entire environment (deletes data!)
 ```
 
 ### Linux/Mac (Bash)
+
 ```bash
 # Development
 ./docker-manager.sh build         # Build development images
@@ -133,6 +142,7 @@ docker-manager.bat reset         # Reset entire environment (deletes data!)
 If you prefer using Docker Compose directly:
 
 ### Development
+
 ```bash
 # Start all services
 docker-compose up -d
@@ -150,6 +160,7 @@ docker-compose exec backend python manage.py shell
 ```
 
 ### Production
+
 ```bash
 # Start production environment
 docker-compose -f docker-compose.prod.yml up -d
@@ -164,11 +175,13 @@ docker-compose -f docker-compose.prod.yml down
 ## Environment Configuration
 
 ### Development (.env.docker)
+
 - Uses local PostgreSQL and Redis containers
 - Debug mode enabled
 - Development-friendly settings
 
 ### Production (.env)
+
 - Use your actual production environment variables
 - Set DEBUG=False
 - Configure your cloud Redis/Valkey instance
@@ -195,24 +208,28 @@ docker-compose -f docker-compose.prod.yml down
 ### Common Issues
 
 1. **Port already in use:**
+
    ```bash
    docker-compose down
    # Or change ports in docker-compose.yml
    ```
 
 2. **Database connection issues:**
+
    ```bash
    docker-compose logs postgres
    # Check if PostgreSQL is healthy
    ```
 
 3. **Celery worker not starting:**
+
    ```bash
    docker-compose logs celery-worker
    # Check Redis connection
    ```
 
 4. **Permission issues (Linux/Mac):**
+
    ```bash
    sudo chown -R $USER:$USER .
    ```
@@ -220,6 +237,7 @@ docker-compose -f docker-compose.prod.yml down
 ### Logs
 
 View logs for specific services:
+
 ```bash
 # Backend logs
 docker-compose logs backend
@@ -237,6 +255,7 @@ docker-compose logs
 ### Database Access
 
 Connect to PostgreSQL:
+
 ```bash
 # From host
 psql -h localhost -U postgres -d social-media-db
@@ -248,6 +267,7 @@ docker-compose exec postgres psql -U postgres -d social-media-db
 ### Redis Access
 
 Connect to Redis:
+
 ```bash
 # From container
 docker-compose exec redis redis-cli
@@ -257,14 +277,19 @@ docker-compose exec redis redis-cli
 
 1. **Make code changes** in your local files
 2. **Restart services** if needed:
+
    ```bash
    docker-compose restart backend
    ```
+
 3. **Run migrations** when models change:
+
    ```bash
    docker-manager.bat migrate
    ```
+
 4. **View logs** to debug:
+
    ```bash
    docker-manager.bat logs
    ```
@@ -273,14 +298,19 @@ docker-compose exec redis redis-cli
 
 1. **Update environment variables** in `.env`
 2. **Build production images:**
+
    ```bash
    docker-manager.bat build-prod
    ```
+
 3. **Deploy:**
+
    ```bash
    docker-manager.bat start-prod
    ```
+
 4. **Run migrations:**
+
    ```bash
    docker-compose -f docker-compose.prod.yml exec backend python manage.py migrate
    ```
@@ -296,16 +326,19 @@ docker-compose exec redis redis-cli
 ## Backup and Restore
 
 ### Database Backup
+
 ```bash
 docker-compose exec postgres pg_dump -U postgres social-media-db > backup.sql
 ```
 
 ### Database Restore
+
 ```bash
 docker-compose exec -T postgres psql -U postgres social-media-db < backup.sql
 ```
 
 ### Volume Backup
+
 ```bash
 docker run --rm -v smms_postgres_data:/data -v $(pwd):/backup alpine tar czf /backup/postgres-backup.tar.gz /data
 ```
@@ -313,6 +346,7 @@ docker run --rm -v smms_postgres_data:/data -v $(pwd):/backup alpine tar czf /ba
 ## Support
 
 For issues with Docker setup, check:
+
 1. Docker Desktop is running
 2. Required ports are available
 3. Environment variables are correctly set

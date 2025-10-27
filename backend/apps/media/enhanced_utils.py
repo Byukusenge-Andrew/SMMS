@@ -81,7 +81,7 @@ def _extract_video_metadata(file) -> Dict[str, Any]:
     try:
         # Try to use moviepy if available
         try:
-            from moviepy.editor import VideoFileClip
+            from moviepy.editor import VideoFileClip # type: ignore
             
             # Create temporary file
             temp_path = f"/tmp/{file.name}"
@@ -115,7 +115,7 @@ def _extract_audio_metadata(file) -> Dict[str, Any]:
     try:
         # Try to use mutagen if available
         try:
-            from mutagen import File as MutagenFile
+            from mutagen import File as MutagenFile # type: ignore
             
             # Create temporary file
             temp_path = f"/tmp/{file.name}"
@@ -209,7 +209,7 @@ def _generate_video_thumbnail(media_file, size: Tuple[int, int]) -> bool:
     try:
         # Try to use moviepy if available
         try:
-            from moviepy.editor import VideoFileClip
+            from moviepy.editor import VideoFileClip # type: ignore
             
             # Create temporary file
             temp_path = f"/tmp/{media_file.file.name}"

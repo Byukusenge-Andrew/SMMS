@@ -5,6 +5,7 @@
 ### Method 1: GitHub Integration (Recommended)
 
 1. **Push to GitHub**:
+
    ```bash
    git add .
    git commit -m "Add Railway deployment config"
@@ -21,11 +22,13 @@
 ### Method 2: Railway CLI
 
 1. **Install CLI**:
+
    ```bash
    npm install -g @railway/cli
    ```
 
 2. **Login & Deploy**:
+
    ```bash
    cd backend
    railway login
@@ -76,6 +79,7 @@ CORS_ALLOWED_ORIGINS=https://your-frontend-domain.com
 ## Railway Services Needed
 
 ### 1. Main Backend Service
+
 - **Type**: Web Service
 - **Source**: GitHub Repository
 - **Root Directory**: `backend`
@@ -83,14 +87,17 @@ CORS_ALLOWED_ORIGINS=https://your-frontend-domain.com
 - **Start Command**: `python manage.py migrate && python manage.py collectstatic --noinput && gunicorn social_media_manager.wsgi:application --bind 0.0.0.0:$PORT`
 
 ### 2. PostgreSQL Database
+
 - Add from Railway Templates
 - Copy `DATABASE_URL` to backend environment variables
 
 ### 3. Redis Instance
+
 - Add from Railway Templates  
 - Copy `REDIS_URL` to backend environment variables
 
 ### 4. Celery Worker (Optional)
+
 - **Type**: Worker Service
 - **Source**: Same GitHub Repository
 - **Root Directory**: `backend`
@@ -99,11 +106,13 @@ CORS_ALLOWED_ORIGINS=https://your-frontend-domain.com
 ## Post-Deployment Steps
 
 1. **Access Railway Console**:
+
    ```bash
    railway run python manage.py shell
    ```
 
 2. **Create Superuser**:
+
    ```python
    from django.contrib.auth import get_user_model
    User = get_user_model()
@@ -117,7 +126,7 @@ CORS_ALLOWED_ORIGINS=https://your-frontend-domain.com
 
 ## Troubleshooting
 
-### Common Issues:
+### Common Issues
 
 1. **Static Files Not Loading**:
    - Check `STATIC_ROOT` and `STATIC_URL` in settings
@@ -135,12 +144,14 @@ CORS_ALLOWED_ORIGINS=https://your-frontend-domain.com
    - Add frontend domain to `CORS_ALLOWED_ORIGINS`
    - Update `ALLOWED_HOSTS`
 
-### View Logs:
+### View Logs
+
 ```bash
 railway logs
 ```
 
-### Connect to Database:
+### Connect to Database
+
 ```bash
 railway connect postgres
 ```

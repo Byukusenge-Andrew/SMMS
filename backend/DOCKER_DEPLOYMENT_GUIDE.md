@@ -95,19 +95,23 @@ railway run python manage.py createsuperuser
 ## Docker Configuration Details
 
 ### Multi-Stage Build Benefits
+
 - **Builder Stage**: Installs dependencies and compiles packages
 - **Production Stage**: Lean runtime with only necessary files
 - **Security**: Non-root user, minimal attack surface
 - **Performance**: Optimized for production workloads
 
 ### Health Checks
+
 The Dockerfile includes health checks to ensure service reliability:
+
 - Endpoint: `/health/`
 - Interval: 30 seconds
 - Timeout: 10 seconds
 - Retries: 3
 
 ### Resource Optimization
+
 - Python virtual environment for isolation
 - Static file serving via WhiteNoise
 - Gunicorn WSGI server for production
@@ -116,6 +120,7 @@ The Dockerfile includes health checks to ensure service reliability:
 ## Local Development
 
 ### Using Docker Compose
+
 ```bash
 # Create .env file with Supabase credentials
 cp .env.example .env
@@ -131,7 +136,9 @@ docker-compose exec backend python manage.py createsuperuser
 ```
 
 ### Services Available
-- **Backend API**: http://localhost:8000
+
+- **Backend API**:<http://localhost:8000>
+
 - **PostgreSQL**: localhost:5432
 - **Redis**: localhost:6379
 - **Celery Worker**: Background task processing
@@ -140,24 +147,28 @@ docker-compose exec backend python manage.py createsuperuser
 ## Production Considerations
 
 ### 1. Security
+
 - Use strong SECRET_KEY in production
 - Configure ALLOWED_HOSTS appropriately
 - Enable HTTPS in production
 - Use environment variables for sensitive data
 
 ### 2. Performance
+
 - Configure Gunicorn workers based on CPU cores
 - Use connection pooling for database
 - Enable Redis persistence if needed
 - Monitor memory usage and optimize
 
 ### 3. Monitoring
+
 - Check Railway dashboard for service health
 - Monitor application logs via Railway CLI
 - Set up error tracking (Sentry recommended)
 - Configure alerts for critical issues
 
 ### 4. Scaling
+
 - Horizontal scaling: Add more web service instances
 - Vertical scaling: Increase RAM/CPU allocation
 - Database: Consider read replicas for high traffic
@@ -168,6 +179,7 @@ docker-compose exec backend python manage.py createsuperuser
 ### Common Issues
 
 **Build Failures:**
+
 ```bash
 # Check build logs
 railway logs --service=your-service-name
@@ -177,6 +189,7 @@ docker build -f Dockerfile.railway -t smms-backend .
 ```
 
 **Database Connection:**
+
 ```bash
 # Test database connectivity
 railway run python manage.py dbshell
@@ -186,6 +199,7 @@ railway run python manage.py showmigrations
 ```
 
 **Static Files:**
+
 ```bash
 # Collect static files
 railway run python manage.py collectstatic --noinput
@@ -195,6 +209,7 @@ curl https://your-app.railway.app/static/admin/css/base.css
 ```
 
 **Environment Variables:**
+
 ```bash
 # List all environment variables
 railway variables
@@ -204,6 +219,7 @@ railway run echo $DATABASE_URL
 ```
 
 ### Logs and Debugging
+
 ```bash
 # View application logs
 railway logs
@@ -216,6 +232,7 @@ railway logs --service=backend
 ```
 
 ### Performance Optimization
+
 ```bash
 # Check resource usage
 railway status
@@ -230,6 +247,7 @@ railway service update
 ## Maintenance
 
 ### Updates and Rollbacks
+
 ```bash
 # Deploy new version
 git push origin main
@@ -242,6 +260,7 @@ railway deployments
 ```
 
 ### Database Maintenance
+
 ```bash
 # Backup database
 railway run pg_dump $DATABASE_URL > backup.sql
@@ -251,6 +270,7 @@ railway run python manage.py your_custom_command
 ```
 
 ### Monitoring Health
+
 ```bash
 # Check service health
 curl https://your-app.railway.app/health/
@@ -271,7 +291,9 @@ railway metrics
 
 ## Support Resources
 
-- **Railway Documentation**: https://docs.railway.app/
-- **Django Deployment**: https://docs.djangoproject.com/en/4.2/howto/deployment/
-- **Docker Best Practices**: https://docs.docker.com/develop/best-practices/
-- **Gunicorn Configuration**: https://docs.gunicorn.org/en/stable/configure.html
+- **Railway Documentation**:<https://docs.railway.app/>
+
+- **Django Deployment**: <https://docs.djangoproject.com/en/4.2/howto/deployment/>
+- **Docker Best Practices**:<https://docs.docker.com/develop/best-practices/>
+
+- **Gunicorn Configuration**:<https://docs.gunicorn.org/en/stable/configure.html>

@@ -9,6 +9,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 
 from apps.integrations.ai_service import AIService
+from .real_analytics_collector import RealAnalyticsCollector
 
 from .models import AnalyticsData, BestPerformingPost, PerformanceReport, PlatformAverage
 from .serializers import BestPerformingPostSerializer, PerformanceReportSerializer
@@ -46,30 +47,91 @@ def get_user_social_accounts(user):
 @api_view(["GET"])
 @permission_classes([permissions.IsAuthenticated])
 def analytics_dashboard(request):
-    """Get analytics dashboard data"""
+    """Get analytics dashboard data with real metrics from connected accounts"""
     user = request.user
-
-    # Get recent analytics data
-    recent_data = AnalyticsData.objects.filter(user=user, date__gte=timezone.now().date() - timedelta(days=7))
-
-    # Get social accounts from both apps
-    social_data = get_user_social_accounts(user)
     
-    # Platform breakdown
+    # Initialize real analytics collector
+    collector = RealAnalyticsCollector()
+    
+    # Check if we should refresh data (only if last update was >1 hour ago)
+    should_refresh = request.GET.get('refresh', 'false').lower() == 'true'
+    
+    if should_refresh:
+        try:
+            # Collect fresh analytics data
+            collection_results = collector.collect_all_user_analytics(user)
+            logger.info(f"Analytics collection results for user {user.id}: {collection_results}")
+        except Exception as e:
+            logger.error(f"Error collecting analytics for user {user.id}: {e}")
+    
+    # Get recent analytics data (last 30 days)
+    recent_data = AnalyticsData.objects.filter(
+        user=user, 
+        date__gte=timezone.now().date() - timedelta(days=30)
+    )
+    
+    # Get social accounts from integrations app
+    from apps.integrations.models import SocialMediaAccount
+    connected_accounts = SocialMediaAccount.objects.filter(user=user, is_active=True)
+    
+    # Calculate real metrics
+    total_followers = sum(account.followers_count or 0 for account in connected_accounts)
+    total_following = sum(account.following_count or 0 for account in connected_accounts)
+    connected_platforms = list(connected_accounts.values_list('platform', flat=True).distinct())
+    
+    # Platform breakdown with real data
     platform_stats = {}
-    for platform in social_data['platforms']:
+    for platform in connected_platforms:
         platform_data = recent_data.filter(platform=platform)
+        platform_account = connected_accounts.filter(platform=platform).first()
+        
+        # Get latest metrics for this platform
+        latest_followers = platform_data.filter(metric_type="followers").order_by('-date').first()
+        latest_engagement = platform_data.filter(metric_type="engagement").aggregate(
+            total=models.Sum('value')
+        )['total'] or 0
+        
         platform_stats[platform] = {
-            "impressions": sum(platform_data.filter(metric_type="impressions").values_list("value", flat=True)),
-            "reach": sum(platform_data.filter(metric_type="reach").values_list("value", flat=True)),
-            "engagement": sum(platform_data.filter(metric_type="engagement").values_list("value", flat=True)),
+            "followers": latest_followers.value if latest_followers else (platform_account.followers_count if platform_account else 0),
+            "following": platform_account.following_count if platform_account else 0,
+            "engagement": latest_engagement,
+            "account_username": platform_account.username if platform_account else "",
+            "account_verified": platform_account.is_verified if platform_account else False,
+            "last_updated": platform_account.last_synced.isoformat() if platform_account and platform_account.last_synced else None
         }
+    
+    # Get growth trends (compare last 7 days vs previous 7 days)
+    last_week = timezone.now().date() - timedelta(days=7)
+    prev_week = timezone.now().date() - timedelta(days=14)
+    
+    current_week_followers = recent_data.filter(
+        metric_type="followers", 
+        date__gte=last_week
+    ).aggregate(avg=models.Avg('value'))['avg'] or 0
+    
+    previous_week_followers = recent_data.filter(
+        metric_type="followers", 
+        date__gte=prev_week,
+        date__lt=last_week
+    ).aggregate(avg=models.Avg('value'))['avg'] or 0
+    
+    follower_growth = current_week_followers - previous_week_followers if previous_week_followers > 0 else 0
+    growth_percentage = (follower_growth / previous_week_followers * 100) if previous_week_followers > 0 else 0
 
     return Response(
         {
             "platform_stats": platform_stats,
             "total_posts": user.posts.count(),
-            "total_followers": social_data['total_followers'],
+            "total_followers": total_followers,
+            "total_following": total_following,
+            "connected_platforms": connected_platforms,
+            "growth_metrics": {
+                "follower_growth": round(follower_growth, 0),
+                "growth_percentage": round(growth_percentage, 2),
+                "period": "7 days"
+            },
+            "last_updated": timezone.now().isoformat(),
+            "accounts_count": connected_accounts.count()
         }
     )
 
@@ -77,22 +139,187 @@ def analytics_dashboard(request):
 @api_view(["POST"])
 @permission_classes([permissions.IsAuthenticated])
 def collect_analytics(request):
-    """Trigger analytics collection"""
-    platform = request.data.get("platform")
-    collect_analytics_data.delay(request.user.id, platform)
-    return Response({"message": "Analytics collection started"}, status=status.HTTP_202_ACCEPTED)
+    """Trigger analytics collection for real data from connected accounts"""
+    user = request.user
+    platform = request.data.get("platform")  # Optional: collect for specific platform only
+    
+    try:
+        collector = RealAnalyticsCollector()
+        
+        if platform:
+            # Collect for specific platform
+            from apps.integrations.models import SocialMediaAccount
+            account = SocialMediaAccount.objects.filter(
+                user=user, 
+                platform=platform, 
+                is_active=True
+            ).first()
+            
+            if not account:
+                return Response(
+                    {"error": f"No active {platform} account found"}, 
+                    status=status.HTTP_404_NOT_FOUND
+                )
+            
+            result = collector._collect_platform_analytics(account)
+            
+            if result['success']:
+                collector._update_account_metrics(account, result['data'])
+                return Response({
+                    "message": f"Analytics collected for {platform}",
+                    "data": result['data']
+                }, status=status.HTTP_200_OK)
+            else:
+                return Response({
+                    "error": f"Failed to collect {platform} analytics",
+                    "details": result['error']
+                }, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            # Collect for all connected accounts
+            results = collector.collect_all_user_analytics(user)
+            
+            return Response({
+                "message": "Analytics collection completed",
+                "summary": results['summary'],
+                "successful_platforms": len(results['success']),
+                "failed_platforms": len(results['errors']),
+                "details": {
+                    "success": results['success'],
+                    "errors": results['errors']
+                }
+            }, status=status.HTTP_200_OK)
+            
+    except Exception as e:
+        logger.error(f"Error in analytics collection: {e}")
+        return Response({
+            "error": "Failed to collect analytics",
+            "details": str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-@api_view(["POST"])
+@api_view(["GET"])
 @permission_classes([permissions.IsAuthenticated])
-def comment_sentiment_analysis(request):
-    """Analyze comment sentiment for a post"""
-    post_id = request.data.get("post_id")
-    if not post_id:
-        return Response({"error": "post_id is required"}, status=status.HTTP_400_BAD_REQUEST)
+def platform_insights(request):
+    """Get detailed insights for specific platform or all platforms"""
+    user = request.user
+    platform = request.GET.get('platform')  # Optional: filter by platform
+    days = int(request.GET.get('days', 30))  # Default to 30 days
+    
+    try:
+        collector = RealAnalyticsCollector()
+        insights = collector.get_platform_insights(user, platform=platform, days=days)
+        
+        # Add connected account info
+        from apps.integrations.models import SocialMediaAccount
+        connected_accounts = SocialMediaAccount.objects.filter(user=user, is_active=True)
+        
+        if platform:
+            connected_accounts = connected_accounts.filter(platform=platform)
+        
+        account_info = {}
+        for account in connected_accounts:
+            account_info[account.platform] = {
+                'username': account.username,
+                'display_name': account.display_name,
+                'followers_count': account.followers_count,
+                'following_count': account.following_count,
+                'is_verified': account.is_verified,
+                'last_synced': account.last_synced.isoformat() if account.last_synced else None,
+                'profile_image_url': account.profile_image_url
+            }
+        
+        return Response({
+            'insights': insights,
+            'account_info': account_info,
+            'period_days': days,
+            'generated_at': timezone.now().isoformat()
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting platform insights: {e}")
+        return Response({
+            'error': 'Failed to get platform insights',
+            'details': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-    analyze_comment_sentiment.delay(post_id)
-    return Response({"message": "Sentiment analysis started"}, status=status.HTTP_202_ACCEPTED)
+
+@api_view(["GET"])
+@permission_classes([permissions.IsAuthenticated])
+def analytics_overview(request):
+    """Get comprehensive analytics overview with real data"""
+    user = request.user
+    
+    try:
+        # Get connected accounts
+        from apps.integrations.models import SocialMediaAccount
+        connected_accounts = SocialMediaAccount.objects.filter(user=user, is_active=True)
+        
+        if not connected_accounts.exists():
+            return Response({
+                'message': 'No connected social media accounts found',
+                'suggestion': 'Connect your social media accounts to see analytics',
+                'connected_accounts': 0,
+                'available_platforms': ['twitter', 'linkedin', 'facebook', 'instagram']
+            })
+        
+        # Calculate overview metrics
+        total_followers = sum(account.followers_count or 0 for account in connected_accounts)
+        total_following = sum(account.following_count or 0 for account in connected_accounts)
+        
+        # Get recent analytics data for trends
+        end_date = timezone.now().date()
+        start_date = end_date - timedelta(days=30)
+        
+        recent_analytics = AnalyticsData.objects.filter(
+            user=user,
+            date__gte=start_date
+        )
+        
+        # Platform breakdown
+        platform_breakdown = []
+        for account in connected_accounts:
+            platform_analytics = recent_analytics.filter(platform=account.platform)
+            
+            # Get latest engagement data
+            engagement_data = platform_analytics.filter(
+                metric_type__in=['likes', 'shares', 'comments', 'engagement']
+            ).aggregate(
+                total_engagement=models.Sum('value')
+            )
+            
+            platform_breakdown.append({
+                'platform': account.platform,
+                'username': account.username,
+                'display_name': account.display_name,
+                'followers': account.followers_count or 0,
+                'following': account.following_count or 0,
+                'verified': account.is_verified,
+                'total_engagement': engagement_data['total_engagement'] or 0,
+                'last_synced': account.last_synced.isoformat() if account.last_synced else None
+            })
+        
+        # Top performing platform (by followers)
+        top_platform = max(platform_breakdown, key=lambda x: x['followers']) if platform_breakdown else None
+        
+        return Response({
+            'overview': {
+                'total_followers': total_followers,
+                'total_following': total_following,
+                'connected_platforms': len(platform_breakdown),
+                'total_posts': user.posts.count(),
+                'top_platform': top_platform['platform'] if top_platform else None
+            },
+            'platform_breakdown': platform_breakdown,
+            'last_updated': timezone.now().isoformat(),
+            'data_period': '30 days'
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting analytics overview: {e}")
+        return Response({
+            'error': 'Failed to get analytics overview',
+            'details': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @api_view(["GET", "POST"])

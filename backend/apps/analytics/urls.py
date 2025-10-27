@@ -11,8 +11,9 @@ app_name = "analytics"
 urlpatterns = [
     # Basic Analytics
     path("dashboard/", views.analytics_dashboard, name="analytics-dashboard"),
+    path("overview/", views.analytics_overview, name="analytics-overview"),
     path("collect/", views.collect_analytics, name="collect-analytics"),
-    path("sentiment/", views.comment_sentiment_analysis, name="sentiment-analysis"),
+    path("platform-insights/", views.platform_insights, name="platform-insights"),
     # Reports and Performance
     path("reports/", views.performance_reports, name="performance-reports"),
     path("reports/weekly/", views.weekly_report, name="weekly-report"),

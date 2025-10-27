@@ -41,6 +41,15 @@ def twitter_authorize(request):
     import json
     import base64
     import time
+    import hashlib
+
+    def _generate_code_verifier():
+        random_bytes = secrets.token_bytes(64)
+        return base64.urlsafe_b64encode(random_bytes).decode().rstrip('=')
+
+    def _generate_code_challenge(verifier: str) -> str:
+        digest = hashlib.sha256(verifier.encode()).digest()
+        return base64.urlsafe_b64encode(digest).decode().rstrip('=')
     
     # Generate a per-request state and store in session for CSRF protection
     state_data = {
@@ -49,6 +58,9 @@ def twitter_authorize(request):
         'timestamp': int(time.time())
     }
     state_val = base64.urlsafe_b64encode(json.dumps(state_data).encode()).decode()
+
+    code_verifier = _generate_code_verifier()
+    code_challenge = _generate_code_challenge(code_verifier)
     
     # Ensure session is created and working
     if not request.session.session_key:
@@ -61,6 +73,7 @@ def twitter_authorize(request):
         'popup_mode': True,
         'user_id': request.user.id,
         'created_at': int(time.time()),  # Track when this was created
+        'code_verifier': code_verifier,
     }
     
     # Store in session
@@ -91,6 +104,8 @@ def twitter_authorize(request):
         'redirect_uri': redirect_uri,
         'scope': scope,
         'state': state_val,
+        'code_challenge': code_challenge,
+        'code_challenge_method': 'S256',
     }
     url = f"https://twitter.com/i/oauth2/authorize?{urlencode(params)}"
     
@@ -110,14 +125,29 @@ def twitter_callback(request):
 
     code = request.GET.get('code')
     state = request.GET.get('state')
+    error = request.GET.get('error')
+    error_description = request.GET.get('error_description')
     
-    # Log incoming request details
-    logger.info(f"Twitter callback received - Code: {code[:10]}... State: {state[:10]}...")
+    # Check for OAuth errors first
+    if error:
+        logger.error(f"Twitter OAuth error: {error}")
+        if error_description:
+            logger.error(f"Error description: {error_description}")
+        return Response({
+            'success': False, 
+            'error': f'Twitter OAuth error: {error}',
+            'error_description': error_description
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Log incoming request details (safely handle None values)
+    code_preview = code[:10] + "..." if code and len(code) > 10 else code
+    state_preview = state[:10] + "..." if state and len(state) > 10 else state
+    logger.info(f"Twitter callback received - Code: {code_preview}, State: {state_preview}")
     logger.info(f"Request session key: {request.session.session_key}")
     logger.info(f"Available session keys: {list(request.session.keys())}")
     
     if not code:
-        return Response({'success': False, 'error': 'Missing code'}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({'success': False, 'error': 'Missing authorization code'}, status=status.HTTP_400_BAD_REQUEST)
 
     # Attempt to get OAuth data from session
     session_data = request.session.get('twitter_oauth') or {}
@@ -133,6 +163,7 @@ def twitter_callback(request):
     popup_mode = session_data.get('popup_mode', False)
     expected_state = session_data.get('state')
     created_at = session_data.get('created_at', 0)
+    code_verifier = session_data.get('code_verifier')
     
     # Check for session expiry (30 minute limit)
     if created_at and (time.time() - created_at) > 1800:  # 30 minutes
@@ -222,6 +253,11 @@ def twitter_callback(request):
         'client_id': client_id,
         'client_secret': client_secret,
     }
+
+    if code_verifier:
+        token_data['code_verifier'] = code_verifier
+    else:
+        logger.warning("Twitter callback: Missing code_verifier in session; token exchange may fail")
     
     logger.info(f"Twitter callback: Token exchange without PKCE")
 
