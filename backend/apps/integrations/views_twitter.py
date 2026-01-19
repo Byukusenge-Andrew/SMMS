@@ -122,6 +122,8 @@ def twitter_authorize(request):
 def twitter_callback(request):
     """Handle OAuth 2.0 callback: exchange code for tokens and persist account."""
     from requests import post
+    import json
+    import base64
 
     code = request.GET.get('code')
     state = request.GET.get('state')
@@ -195,7 +197,7 @@ def twitter_callback(request):
                     <script>
                         window.opener.postMessage({{
                             source: 'twitter-oauth',
-                            data: '{json.dumps(error_data)}'
+                            data: {json.dumps(error_data)}
                         }}, '*');
                         window.close();
                     </script>
@@ -209,7 +211,7 @@ def twitter_callback(request):
                 <script>
                     window.opener.postMessage({{
                         source: 'twitter-oauth',
-                        data: '{json.dumps(error_data)}'
+                        data: {json.dumps(error_data)}
                     }}, '*');
                     window.close();
                 </script>
@@ -250,8 +252,6 @@ def twitter_callback(request):
         'grant_type': 'authorization_code',
         'code': code,
         'redirect_uri': redirect_uri,
-        'client_id': client_id,
-        'client_secret': client_secret,
     }
 
     if code_verifier:
@@ -259,12 +259,13 @@ def twitter_callback(request):
     else:
         logger.warning("Twitter callback: Missing code_verifier in session; token exchange may fail")
     
-    logger.info(f"Twitter callback: Token exchange without PKCE")
+    logger.info(f"Twitter callback: Token exchange with Basic Auth")
 
     try:
         token_resp = post(
             'https://api.twitter.com/2/oauth2/token',
             headers={'Content-Type': 'application/x-www-form-urlencoded'},
+            auth=(client_id, client_secret),
             data=token_data,
             timeout=15
         )
@@ -275,9 +276,11 @@ def twitter_callback(request):
             error_msg = 'Token exchange failed'
             try:
                 error_detail = token_resp.json()
-                error_msg = f"Token exchange failed: {error_detail}"
+                error_description = error_detail.get('error_description', 'No description from Twitter.')
+                error_msg = f"Token exchange failed: {error_description}"
                 logger.error(f"Twitter token exchange error details: {error_detail}")
             except Exception:
+                error_msg = f"Token exchange failed. Raw response: {token_resp.text}"
                 logger.error(f"Twitter token exchange error (raw): {token_resp.text}")
             
             if popup_mode:
@@ -286,7 +289,7 @@ def twitter_callback(request):
                 <script>
                     window.opener.postMessage({{
                         source: 'twitter-oauth',
-                        data: '{json.dumps(error_data)}'
+                        data: {json.dumps(error_data)}
                     }}, '*');
                     window.close();
                 </script>
@@ -301,7 +304,7 @@ def twitter_callback(request):
             <script>
                 window.opener.postMessage({{
                     source: 'twitter-oauth',
-                    data: '{json.dumps(error_data)}'
+                    data: {json.dumps(error_data)}
                 }}, '*');
                 window.close();
             </script>
@@ -332,7 +335,7 @@ def twitter_callback(request):
             <script>
                 window.opener.postMessage({{
                     source: 'twitter-oauth',
-                    data: '{json.dumps(error_data)}'
+                    data: {json.dumps(error_data)}
                 }}, '*');
                 window.close();
             </script>
@@ -346,8 +349,6 @@ def twitter_callback(request):
     # Primary method: Try to decode user ID from state parameter
     if state and not current_user:
         try:
-            import json
-            import base64
             state_data = json.loads(base64.urlsafe_b64decode(state.encode()).decode())
             state_user_id = state_data.get('user_id')
             if state_user_id:
@@ -380,7 +381,6 @@ def twitter_callback(request):
                 defaults={
                     'username': me_json.get('username', ''),
                     'display_name': me_json.get('name', ''),
-                    'email': '',  # Twitter doesn't provide email in basic scope
                     'profile_image_url': me_json.get('profile_image_url', ''),
                     'followers_count': (me_json.get('public_metrics') or {}).get('followers_count', 0),
                     'following_count': (me_json.get('public_metrics') or {}).get('following_count', 0),
@@ -393,24 +393,31 @@ def twitter_callback(request):
                 }
             )
             
-            # Mirror to apps.analytics.models.SocialMediaAccount if needed
+            # Mirror to apps.authentication.models.SocialMediaAccount as it is used by analytics
             try:
-                from apps.analytics.models import SocialMediaAccount
-                platform_obj, _ = SocialMediaPlatform.objects.get_or_create(name='twitter')
-                analytics_account, created = SocialMediaAccount.objects.update_or_create(
-                    user=current_user,
-                    platform=platform_obj,
-                    platform_user_id=platform_user_id,
-                    defaults={
-                        'username': me_json.get('username', ''),
-                        'access_token': access_token,
-                        'refresh_token': refresh_token,
-                        'is_active': True,
-                    }
-                )
-                logger.info(f"Twitter tokens bound successfully for user {current_user.id}, platform_user_id: {platform_user_id}")
+                from apps.authentication.models import SocialMediaAccount as AuthSocialMediaAccount
+
+                twitter_username = me_json.get('username', '')
+
+                if twitter_username:
+                    auth_account, auth_created = AuthSocialMediaAccount.objects.update_or_create(
+                        user=current_user,
+                        platform='twitter',
+                        username=twitter_username,
+                        defaults={
+                            'platform_user_id': platform_user_id,
+                            'access_token': access_token,
+                            'refresh_token': refresh_token,
+                            'is_active': True,
+                        }
+                    )
+                    log_msg = 'created' if auth_created else 'updated'
+                    logger.info(f"Successfully {log_msg} mirrored Twitter account in authentication app for user {current_user.id}")
+                else:
+                    logger.warning("Could not mirror Twitter account to authentication app: missing username.")
+
             except Exception as e:
-                logger.error(f"Failed to create analytics SocialMediaAccount for Twitter: {e}")
+                logger.error(f"Failed to create/update authentication.SocialMediaAccount for Twitter: {e}")
                 
         except Exception as e:
             logger.error(f"Failed to bind Twitter tokens for user {current_user.id}: {e}")

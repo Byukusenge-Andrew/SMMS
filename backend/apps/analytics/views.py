@@ -97,7 +97,7 @@ def analytics_dashboard(request):
             "engagement": latest_engagement,
             "account_username": platform_account.username if platform_account else "",
             "account_verified": platform_account.is_verified if platform_account else False,
-            "last_updated": platform_account.last_synced.isoformat() if platform_account and platform_account.last_synced else None
+            "last_updated": platform_account.last_sync.isoformat() if platform_account and platform_account.last_sync else None
         }
     
     # Get growth trends (compare last 7 days vs previous 7 days)
@@ -224,7 +224,7 @@ def platform_insights(request):
                 'followers_count': account.followers_count,
                 'following_count': account.following_count,
                 'is_verified': account.is_verified,
-                'last_synced': account.last_synced.isoformat() if account.last_synced else None,
+                'last_sync': account.last_sync.isoformat() if account.last_sync else None,
                 'profile_image_url': account.profile_image_url
             }
         

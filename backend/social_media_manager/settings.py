@@ -187,9 +187,8 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 # Session configuration
 SESSION_ENGINE = 'django.contrib.sessions.backends.db'
 SESSION_COOKIE_AGE = 3600  # 1 hour
-SESSION_COOKIE_SECURE = not DEBUG  # True in production
-SESSION_COOKIE_HTTPONLY = True
-SESSION_COOKIE_SAMESITE = 'None' if not DEBUG else 'Lax'  # Required for cross-origin OAuth callbacks
+SESSION_COOKIE_SECURE = True  # Must be True for SameSite='None' to work
+SESSION_COOKIE_SAMESITE = 'None'  # Required for cross-origin OAuth callbacks
 SESSION_SAVE_EVERY_REQUEST = True
 SESSION_COOKIE_DOMAIN = None  # Allow cross-subdomain cookies if needed
 
