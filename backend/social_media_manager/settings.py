@@ -63,6 +63,7 @@ LOCAL_APPS = [
     "apps.messaging",
     "apps.media",  # Media management app
     "apps.core",  # Rate limiting and core utilities
+    "apps.crm",   # CRM: contacts, deals, pipelines
 ]
 
 INSTALLED_APPS = (

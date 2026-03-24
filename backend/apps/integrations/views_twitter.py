@@ -208,13 +208,24 @@ def twitter_callback(request):
             except Exception as e:
                 error_data = {'success': False, 'error': str(e)}
                 return HttpResponse(f"""
-                <script>
-                    window.opener.postMessage({{
-                        source: 'twitter-oauth',
-                        data: {json.dumps(error_data)}
-                    }}, '*');
-                    window.close();
-                </script>
+                <html>
+                <body style="font-family: sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #f9fafb;">
+                    <div style="text-align: center; padding: 2rem; background: white; border-radius: 8px; shadow: 0 4px 6px rgba(0,0,0,0.1); max-width: 400px;">
+                        <h2 style="color: #ef4444; margin-bottom: 1rem;">Connection Error</h2>
+                        <p style="color: #4b5563; margin-bottom: 2rem;">{json.dumps(error_data.get('error', 'Unknown error'))}</p>
+                        <button onclick="window.close()" style="background: #ef4444; color: white; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer;">Close Window</button>
+                    </div>
+                    <script>
+                        if (window.opener) {{
+                            window.opener.postMessage({{
+                                source: 'twitter-oauth',
+                                data: {json.dumps(error_data)}
+                            }}, '*');
+                            setTimeout(() => window.close(), 1000);
+                        }}
+                    </script>
+                </body>
+                </html>
                 """, content_type='text/html')
         else:
             # Handle redirect mode
@@ -286,13 +297,24 @@ def twitter_callback(request):
             if popup_mode:
                 error_data = {'success': False, 'error': error_msg}
                 return HttpResponse(f"""
-                <script>
-                    window.opener.postMessage({{
-                        source: 'twitter-oauth',
-                        data: {json.dumps(error_data)}
-                    }}, '*');
-                    window.close();
-                </script>
+                <html>
+                <body style="font-family: sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #f9fafb;">
+                    <div style="text-align: center; padding: 2rem; background: white; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); max-width: 4000px;">
+                        <h2 style="color: #ef4444; margin-bottom: 1rem;">Exchange Error</h2>
+                        <p style="color: #4b5563; margin-bottom: 2rem;">{json.dumps(error_msg)}</p>
+                        <button onclick="window.close()" style="background: #ef4444; color: white; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer;">Close Window</button>
+                    </div>
+                    <script>
+                        if (window.opener) {{
+                            window.opener.postMessage({{
+                                source: 'twitter-oauth',
+                                data: {json.dumps(error_data)}
+                            }}, '*');
+                            setTimeout(() => window.close(), 1000);
+                        }}
+                    </script>
+                </body>
+                </html>
                 """, content_type='text/html')
             return Response({'success': False, 'error': error_msg}, status=token_resp.status_code)
     except Exception as e:
@@ -301,14 +323,25 @@ def twitter_callback(request):
         if popup_mode:
             error_data = {'success': False, 'error': error_msg}
             return HttpResponse(f"""
-            <script>
-                window.opener.postMessage({{
-                    source: 'twitter-oauth',
-                    data: {json.dumps(error_data)}
-                }}, '*');
-                window.close();
-            </script>
-            """, content_type='text/html')
+                <html>
+                <body style="font-family: sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #f9fafb;">
+                    <div style="text-align: center; padding: 2rem; background: white; border-radius: 8px; shadow: 0 4px 6px rgba(0,0,0,0.1); max-width: 400px;">
+                        <h2 style="color: #ef4444; margin-bottom: 1rem;">Connection Error</h2>
+                        <p style="color: #4b5563; margin-bottom: 2rem;">{json.dumps(error_data.get('error', 'Unknown error'))}</p>
+                        <button onclick="window.close()" style="background: #ef4444; color: white; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer;">Close Window</button>
+                    </div>
+                    <script>
+                        if (window.opener) {{
+                            window.opener.postMessage({{
+                                source: 'twitter-oauth',
+                                data: {json.dumps(error_data)}
+                            }}, '*');
+                            setTimeout(() => window.close(), 1000);
+                        }}
+                    </script>
+                </body>
+                </html>
+                """, content_type='text/html')
         return Response({'success': False, 'error': error_msg}, status=status.HTTP_502_BAD_GATEWAY)
 
     token_json = token_resp.json()
@@ -322,7 +355,7 @@ def twitter_callback(request):
         me = _r.get(
             'https://api.twitter.com/2/users/me',
             headers={'Authorization': f'Bearer {access_token}'},
-            params={'user.fields': 'id,name,username,profile_image_url,public_metrics,verified'},
+            params={'user.fields': 'id,name,username,profile_image_url'},
             timeout=15
         )
         me.raise_for_status()
@@ -332,13 +365,24 @@ def twitter_callback(request):
         if popup_mode:
             error_data = {'success': False, 'error': 'Failed to fetch user profile'}
             return HttpResponse(f"""
-            <script>
-                window.opener.postMessage({{
-                    source: 'twitter-oauth',
-                    data: {json.dumps(error_data)}
-                }}, '*');
-                window.close();
-            </script>
+            <html>
+            <body style="font-family: sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #f9fafb;">
+                <div style="text-align: center; padding: 2rem; background: white; border-radius: 8px; shadow: 0 4px 6px rgba(0,0,0,0.1); max-width: 400px;">
+                    <h2 style="color: #ef4444; margin-bottom: 1rem;">Profile Error</h2>
+                    <p style="color: #4b5563; margin-bottom: 2rem;">Failed to fetch your Twitter profile. Please ensure your account has permissions authorized.</p>
+                    <button onclick="window.close()" style="background: #ef4444; color: white; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer;">Close Window</button>
+                </div>
+                <script>
+                    if (window.opener) {{
+                        window.opener.postMessage({{
+                            source: 'twitter-oauth',
+                            data: {json.dumps(error_data)}
+                        }}, '*');
+                        setTimeout(() => window.close(), 1000);
+                    }}
+                </script>
+            </body>
+            </html>
             """, content_type='text/html')
         return Response({'success': False, 'error': 'Failed to fetch user profile'}, status=status.HTTP_502_BAD_GATEWAY)
 
@@ -454,13 +498,24 @@ def twitter_callback(request):
     # Handle popup mode
     if popup_mode:
         return HttpResponse(f"""
-        <script>
-            window.opener.postMessage({{
-                source: 'twitter-oauth',
-                data: {json.dumps(response_data)}
-            }}, '*');
-            window.close();
-        </script>
+        <html>
+        <body style="font-family: sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #f9fafb;">
+            <div style="text-align: center; padding: 2rem; background: white; border-radius: 8px; shadow: 0 4px 6px rgba(0,0,0,0.1); max-width: 400px;">
+                <h2 style="color: #10b981; margin-bottom: 1rem;">Success!</h2>
+                <p style="color: #4b5563; margin-bottom: 2rem;">Twitter account connected successfully. You can close this window now.</p>
+                <button onclick="window.close()" style="background: #10b981; color: white; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer;">Close Window</button>
+            </div>
+            <script>
+                if (window.opener) {{
+                    window.opener.postMessage({{
+                        source: 'twitter-oauth',
+                        data: {json.dumps(response_data)}
+                    }}, '*');
+                    setTimeout(() => window.close(), 1500);
+                }}
+            </script>
+        </body>
+        </html>
         """, content_type='text/html')
 
     # Return JSON response for non-popup mode

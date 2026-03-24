@@ -247,6 +247,9 @@ class AnalyticsInsight(models.Model):
     # Actionable recommendations
     action_items = models.JSONField(default=list)
 
+    # Associated data stored as JSON
+    data = models.JSONField(default=dict)
+
     # Metadata
     is_read = models.BooleanField(default=False)
     priority = models.CharField(

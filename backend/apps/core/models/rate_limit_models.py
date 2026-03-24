@@ -97,22 +97,30 @@ class RateLimitLog(models.Model):
     requests_in_window = models.IntegerField(null=True, blank=True)
 
     # Timestamps
-    blocked_at = models.DateTimeField(default=timezone.now)
+    timestamp = models.DateTimeField(default=timezone.now)
+    blocked_at = models.DateTimeField(null=True, blank=True, help_text="Specific time of block if applicable")
     retry_after = models.DateTimeField(null=True, blank=True)
+
+    # Added fields for monitoring
+    user_type = models.CharField(max_length=20, blank=True)
+    action = models.CharField(max_length=20, default="denied")
+    algorithm_used = models.CharField(max_length=50, blank=True)
+    requests_remaining = models.IntegerField(null=True, blank=True)
+    metadata = models.JSONField(default=dict, blank=True)
 
     class Meta:
         verbose_name = "Rate Limit Log"
         verbose_name_plural = "Rate Limit Logs"
-        ordering = ["-blocked_at"]
+        ordering = ["-timestamp"]
         indexes = [
-            models.Index(fields=["ip_address", "-blocked_at"]),
-            models.Index(fields=["user", "-blocked_at"]),
-            models.Index(fields=["endpoint", "-blocked_at"]),
+            models.Index(fields=["ip_address", "-timestamp"]),
+            models.Index(fields=["user", "-timestamp"]),
+            models.Index(fields=["endpoint", "-timestamp"]),
         ]
 
     def __str__(self):
         user_info = self.user.username if self.user else self.ip_address
-        return f"{user_info} - {self.endpoint} ({self.blocked_at})"
+        return f"{user_info} - {self.endpoint} ({self.timestamp})"
 
 
 class RateLimitStats(models.Model):
@@ -129,12 +137,27 @@ class RateLimitStats(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     # Provide default to simplify future migrations / data creation
     period_type = models.CharField(max_length=10, choices=PERIOD_CHOICES, default="hourly")
-    period_start = models.DateTimeField(default=timezone.now)
-    period_end = models.DateTimeField(default=timezone.now)
-
+    date = models.DateField(default=timezone.now)
+    hour = models.IntegerField(default=0)
+    
     # Statistics
     total_requests = models.BigIntegerField(default=0)
+    allowed_requests = models.BigIntegerField(default=0)
+    denied_requests = models.BigIntegerField(default=0)
     blocked_requests = models.BigIntegerField(default=0)
+    burst_protections = models.BigIntegerField(default=0)
+    
+    # User types
+    anonymous_requests = models.BigIntegerField(default=0)
+    authenticated_requests = models.BigIntegerField(default=0)
+    premium_requests = models.BigIntegerField(default=0)
+    admin_requests = models.BigIntegerField(default=0)
+    
+    # Performance
+    average_tokens_remaining = models.FloatField(default=0.0)
+    average_requests_remaining = models.FloatField(default=0.0)
+    peak_requests_per_minute = models.IntegerField(default=0)
+
     unique_ips = models.IntegerField(default=0)
     unique_users = models.IntegerField(default=0)
 
@@ -147,11 +170,11 @@ class RateLimitStats(models.Model):
     class Meta:
         verbose_name = "Rate Limit Stats"
         verbose_name_plural = "Rate Limit Stats"
-        unique_together = ["period_type", "period_start"]
-        ordering = ["-period_start"]
+        unique_together = ["date", "hour"]
+        ordering = ["-date", "-hour"]
 
     def __str__(self):
-        return f"{self.period_type.title()} Stats ({self.period_start.date()})"
+        return f"{self.period_type.title()} Stats ({self.date})"
 
     @property
     def block_percentage(self):

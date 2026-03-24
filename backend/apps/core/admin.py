@@ -35,11 +35,11 @@ class RateLimitRuleAdmin(admin.ModelAdmin):
 
 @admin.register(RateLimitLog)
 class RateLimitLogAdmin(admin.ModelAdmin):
-    list_display = ["blocked_at", "block_type_colored", "endpoint", "ip_address", "user", "tokens_remaining"]
-    list_filter = ["block_type", "blocked_at"]
+    list_display = ["timestamp", "block_type_colored", "endpoint", "ip_address", "user", "tokens_remaining"]
+    list_filter = ["block_type", "timestamp"]
     search_fields = ["ip_address", "endpoint", "user__username"]
-    readonly_fields = ["id", "blocked_at"]
-    date_hierarchy = "blocked_at"
+    readonly_fields = ["id", "timestamp"]
+    date_hierarchy = "timestamp"
 
     def block_type_colored(self, obj):
         colors = {"token_bucket": "orange", "sliding_window": "blue", "both": "red"}
@@ -58,16 +58,17 @@ class RateLimitLogAdmin(admin.ModelAdmin):
 @admin.register(RateLimitStats)
 class RateLimitStatsAdmin(admin.ModelAdmin):
     list_display = [
-        "period_start",
+        "date",
+        "hour",
         "period_type",
         "total_requests",
         "blocked_requests",
         "block_percentage",
         "unique_ips",
     ]
-    list_filter = ["period_type", "period_start"]
+    list_filter = ["period_type", "date", "hour"]
     readonly_fields = ["id", "created_at", "updated_at"]
-    date_hierarchy = "period_start"
+    date_hierarchy = "date"
 
     def block_percentage(self, obj):
         percentage = obj.block_percentage
@@ -128,7 +129,7 @@ class RateLimitMonitoringAdmin(admin.ModelAdmin):
         extra_context = extra_context or {}
 
         # Recent activity summary
-        recent_logs = RateLimitLog.objects.filter(blocked_at__gte=timezone.now() - timezone.timedelta(hours=24))
+        recent_logs = RateLimitLog.objects.filter(timestamp__gte=timezone.now() - timezone.timedelta(hours=24))
 
         extra_context["summary"] = {
             "total_requests_24h": recent_logs.count(),

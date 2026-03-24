@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import AnalyticsData, BestPerformingPost, PerformanceReport, PlatformAverage
+from .models import AnalyticsData, AnalyticsInsight, BestPerformingPost, PerformanceReport, PlatformAverage
 
 
 class AnalyticsDataSerializer(serializers.ModelSerializer):
@@ -41,3 +41,10 @@ class PlatformAverageSerializer(serializers.ModelSerializer):
         model = PlatformAverage
         fields = "__all__"
         read_only_fields = ["id", "user", "calculated_at"]
+
+
+class AnalyticsInsightSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = AnalyticsInsight
+        fields = "__all__"
+        read_only_fields = ["id", "user", "created_at"]

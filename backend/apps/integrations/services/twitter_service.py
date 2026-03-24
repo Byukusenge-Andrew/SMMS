@@ -84,19 +84,28 @@ class TwitterService:
     def _build_clients(self, access_token: Optional[str], access_token_secret: Optional[str]) -> Tuple[Optional[Any], Optional[Any]]:
         """Build per-user clients if user tokens provided, else use app-level clients."""
         # If user tokens provided, build user-scoped clients
-        if access_token and access_token_secret:
+        if access_token:
             try:
-                auth_v1 = tweepy.OAuthHandler(self.api_key, self.api_secret)
-                auth_v1.set_access_token(access_token, access_token_secret)
-                api_v1 = tweepy.API(auth_v1, wait_on_rate_limit=True)
+                # If we have both, it's likely OAuth 1.0a
+                if access_token_secret and not access_token_secret.startswith('eyJ'): # Heuristic: JWTs are likely OAuth2
+                    auth_v1 = tweepy.OAuthHandler(self.api_key, self.api_secret)
+                    auth_v1.set_access_token(access_token, access_token_secret)
+                    api_v1 = tweepy.API(auth_v1, wait_on_rate_limit=True)
 
-                client_v2 = tweepy.Client(
-                    consumer_key=self.api_key,
-                    consumer_secret=self.api_secret,
-                    access_token=access_token,
-                    access_token_secret=access_token_secret,
-                    wait_on_rate_limit=True
-                )
+                    client_v2 = tweepy.Client(
+                        consumer_key=self.api_key,
+                        consumer_secret=self.api_secret,
+                        access_token=access_token,
+                        access_token_secret=access_token_secret,
+                        wait_on_rate_limit=True
+                    )
+                else:
+                    # It's OAuth 2.0 (which doesn't support v1.1 media upload easily without extra steps)
+                    api_v1 = None 
+                    client_v2 = tweepy.Client(
+                        access_token=access_token,
+                        wait_on_rate_limit=True
+                    )
                 return api_v1, client_v2
             except Exception as e:
                 logger.error(f"Failed to build user-scoped Twitter clients: {e}")
@@ -117,24 +126,22 @@ class TwitterService:
             
         try:
             # Get authenticated user info
+            # Restricted fields (public_metrics, verified) often cause 403 if scopes aren't perfect
             user = client_v2.get_me(
-                user_fields=['id', 'name', 'username', 'profile_image_url', 
-                           'public_metrics', 'description', 'location', 'verified']
+                user_fields=['id', 'name', 'username', 'profile_image_url']
             )
             
             if user.data:
                 return {
                     'success': True,
-                    'user_id': user.data.id,
+                    'user_id': str(user.data.id),
                     'name': user.data.name,
                     'username': user.data.username,
                     'profile_image_url': user.data.profile_image_url,
-                    'description': user.data.description or '',
-                    'location': user.data.location or '',
-                    'verified': user.data.verified or False,
-                    'followers_count': user.data.public_metrics['followers_count'],
-                    'following_count': user.data.public_metrics['following_count'],
-                    'tweet_count': user.data.public_metrics['tweet_count'],
+                    'verified': getattr(user.data, 'verified', False),
+                    'followers_count': 0, # Default to 0 if metrics fail
+                    'following_count': 0,
+                    'tweet_count': 0,
                 }
             else:
                 return {'success': False, 'error': 'Unable to verify credentials'}

@@ -22,6 +22,7 @@ urlpatterns = [
     path("api/media/", include("apps.media.urls")),  # Media management
     path("api/core/", include("apps.core.urls")),  # Rate limiting management
     path("api/billing/", include("apps.billing.urls")),  # Billing system
+    path("api/crm/", include("apps.crm.urls")),  # CRM system
     # API Documentation
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
     path("api/docs/", SpectacularSwaggerView.as_view(url_name="schema"), name="swagger-ui"),

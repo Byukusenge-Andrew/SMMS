@@ -446,7 +446,7 @@ def reels_analytics(request):
             platform=platform,
             date__gte=start_date,
             date__lte=end_date,
-            post__content_type__in=["video", "reel"],
+            post__post_type__in=["video", "reel"],
         ).aggregate(
             total_views=models.Sum("value", filter=models.Q(metric_type="views")),
             total_likes=models.Sum("value", filter=models.Q(metric_type="likes")),
@@ -461,7 +461,7 @@ def reels_analytics(request):
                 user=user,
                 platform=platform,
                 date__gte=start_date,
-                post__content_type__in=["video", "reel"],
+                post__post_type__in=["video", "reel"],
                 metric_type="views",
             )
             .select_related("post")
