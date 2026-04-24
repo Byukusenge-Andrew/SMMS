@@ -106,6 +106,7 @@ def twitter_authorize(request):
         'state': state_val,
         'code_challenge': code_challenge,
         'code_challenge_method': 'S256',
+        'prompt': 'login',
     }
     url = f"https://twitter.com/i/oauth2/authorize?{urlencode(params)}"
     
