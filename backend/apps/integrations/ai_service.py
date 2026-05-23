@@ -1,6 +1,8 @@
 # AI service integration for content generation and analysis
 import json
 import logging
+import os
+import requests
 import random
 import re
 from datetime import datetime, timedelta
@@ -82,6 +84,50 @@ class AIService:
         except Exception as e:
             logging.error(f"Failed to initialize AI sentiment model: {str(e)}")
             self.sentiment_analyzer = None
+
+    def _call_gemini(self, prompt: str, system_instruction: str = None, json_mode: bool = False) -> str:
+        """Call the Google Gemini API using raw HTTP requests"""
+        api_key = os.getenv("GEMINI_API_KEY")
+        if not api_key:
+            logging.warning("GEMINI_API_KEY not found in environment, skipping Gemini API call.")
+            return ""
+
+        # Using gemini-1.5-flash which is widely supported and fast
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
+
+        contents = {
+            "parts": [
+                {"text": prompt}
+            ]
+        }
+
+        payload = {
+            "contents": [contents],
+        }
+
+        if system_instruction:
+            payload["systemInstruction"] = {
+                "parts": [{"text": system_instruction}]
+            }
+
+        if json_mode:
+            payload["generationConfig"] = {
+                "responseMimeType": "application/json"
+            }
+
+        try:
+            logging.info("Sending request to Gemini API...")
+            response = requests.post(url, json=payload, timeout=15)
+            if response.status_code == 200:
+                res_json = response.json()
+                text = res_json["candidates"][0]["content"]["parts"][0]["text"]
+                return text
+            else:
+                logging.error(f"Gemini API returned error {response.status_code}: {response.text}")
+                return ""
+        except Exception as e:
+            logging.error(f"Error calling Gemini API: {str(e)}")
+            return ""
 
     def analyze_performance_data(self, analytics_data: List[Dict], user_context: Dict = None) -> Dict[str, Any]:
         """Analyze performance data and provide AI insights"""
@@ -342,6 +388,42 @@ class AIService:
         if not analytics_data:
             return self.generate_post_suggestions(None, platform)
 
+        # Try Gemini API if key is available
+        if os.getenv("GEMINI_API_KEY"):
+            # Prepare summary of analytics to give as context to Gemini
+            analytics_summary = f"Platform: {platform}. Total records: {len(analytics_data)}. "
+            engagements = [d.get("engagement", 0) for d in analytics_data if d.get("engagement") is not None]
+            avg_eng = sum(engagements)/len(engagements) if engagements else 0
+            analytics_summary += f"Average Engagement: {avg_eng:.1f}. "
+            
+            prompt = f"""
+            You are an expert Social Media AI Planner.
+            Analyze the following analytics summary of a user's performance and generate exactly 4 actionable content creation suggestions tailored for {platform}.
+            
+            Performance Summary: {analytics_summary}
+            
+            Provide the response in raw JSON format as a list of objects, where each object has:
+            - "content": The suggestion text (e.g. "Create more posts about tips because they get 30% higher engagement").
+            - "confidence": A float between 0.5 and 0.99.
+            - "reason": A brief reason identifier (e.g. "based_on_high_engagement", "optimal_timing").
+            
+            Do not include any markdown formatting like ```json in the output. Return only raw valid JSON list.
+            """
+            
+            res_text = self._call_gemini(prompt, json_mode=True)
+            if res_text:
+                try:
+                    res_text = res_text.strip()
+                    if res_text.startswith("```json"):
+                        res_text = res_text.split("```json")[1].split("```")[0].strip()
+                    elif res_text.startswith("```"):
+                        res_text = res_text.split("```")[1].split("```")[0].strip()
+                    data = json.loads(res_text)
+                    if isinstance(data, list):
+                        return data[:5]
+                except Exception as e:
+                    logging.error(f"Failed to parse Gemini analytics suggestions: {str(e)}")
+
         # Analyze what content performs well
         high_performing = [
             data
@@ -434,6 +516,32 @@ class AIService:
 
     def generate_post_suggestions(self, user, platform: str) -> List[Dict[str, Any]]:
         """Generate content suggestions based on platform and user context"""
+        if os.getenv("GEMINI_API_KEY"):
+            prompt = f"""
+            You are a social media copywriter.
+            Generate 3 creative, engaging, and high-performing posts tailored for {platform}.
+            Ensure they match the platform tone and styling conventions.
+            
+            Provide the response in raw JSON format as a list of objects, where each object has:
+            - "content": The post content (use emojis where appropriate).
+            - "confidence": A float between 0.7 and 0.99.
+            
+            Do not include any markdown formatting like ```json in the output. Return only raw valid JSON list.
+            """
+            res_text = self._call_gemini(prompt, json_mode=True)
+            if res_text:
+                try:
+                    res_text = res_text.strip()
+                    if res_text.startswith("```json"):
+                        res_text = res_text.split("```json")[1].split("```")[0].strip()
+                    elif res_text.startswith("```"):
+                        res_text = res_text.split("```")[1].split("```")[0].strip()
+                    data = json.loads(res_text)
+                    if isinstance(data, list):
+                        return data[:3]
+                except Exception as e:
+                    logging.error(f"Failed to parse Gemini post suggestions: {str(e)}")
+
         platform_suggestions = {
             "twitter": [
                 {"content": "Just had an amazing coffee ☕ What's everyone drinking today?", "confidence": 0.85},
@@ -487,6 +595,31 @@ class AIService:
 
     def generate_hashtags(self, content: str, platform: str) -> List[str]:
         """Generate relevant hashtags for content"""
+        if os.getenv("GEMINI_API_KEY"):
+            prompt = f"""
+            Generate exactly 6 relevant, high-performing hashtags for the following content on {platform}.
+            Ensure they are formatted with '#' and are related to the content topic.
+            
+            Content: "{content}"
+            
+            Provide the response in raw JSON format as a list of strings.
+            
+            Do not include any markdown formatting like ```json in the output. Return only raw valid JSON list.
+            """
+            res_text = self._call_gemini(prompt, json_mode=True)
+            if res_text:
+                try:
+                    res_text = res_text.strip()
+                    if res_text.startswith("```json"):
+                        res_text = res_text.split("```json")[1].split("```")[0].strip()
+                    elif res_text.startswith("```"):
+                        res_text = res_text.split("```")[1].split("```")[0].strip()
+                    data = json.loads(res_text)
+                    if isinstance(data, list):
+                        return [tag if tag.startswith('#') else f"#{tag}" for tag in data[:6]]
+                except Exception as e:
+                    logging.error(f"Failed to parse Gemini hashtags: {str(e)}")
+
         # Extract key words from content
         words = re.findall(r"\b\w{4,}\b", content.lower())
 
@@ -518,6 +651,37 @@ class AIService:
 
         # Clean and prepare text
         cleaned_text = self._preprocess_text(text)
+
+        # Try Gemini API first if key is available
+        if os.getenv("GEMINI_API_KEY"):
+            prompt = f"""
+            Analyze the sentiment of the following social media text:
+            "{cleaned_text}"
+            
+            Provide the response in raw JSON format with the following keys:
+            - "sentiment": either "positive", "neutral", or "negative".
+            - "confidence": a float between 0.0 and 1.0 representing your confidence.
+            - "scores": an object with keys "positive", "neutral", "negative" whose values sum to 1.0.
+            
+            Do not include any markdown formatting like ```json in the output. Return only raw valid JSON.
+            """
+            res_text = self._call_gemini(prompt, json_mode=True)
+            if res_text:
+                try:
+                    res_text = res_text.strip()
+                    if res_text.startswith("```json"):
+                        res_text = res_text.split("```json")[1].split("```")[0].strip()
+                    elif res_text.startswith("```"):
+                        res_text = res_text.split("```")[1].split("```")[0].strip()
+                    data = json.loads(res_text)
+                    return {
+                        "sentiment": data.get("sentiment", "neutral"),
+                        "confidence": round(data.get("confidence", 0.8), 2),
+                        "scores": {k: round(v, 2) for k, v in data.get("scores", {"positive": 0.33, "neutral": 0.34, "negative": 0.33}).items()},
+                        "method": "gemini_api"
+                    }
+                except Exception as e:
+                    logging.error(f"Failed to parse Gemini sentiment response: {str(e)}")
 
         # Try AI model first
         if self.sentiment_analyzer and TRANSFORMERS_AVAILABLE:
@@ -845,6 +1009,46 @@ class AIService:
         platform_info = optimizations.get(platform.lower(), optimizations["twitter"])
         content_length = len(content)
 
+        # Try Gemini API if key is available
+        if os.getenv("GEMINI_API_KEY"):
+            prompt = f"""
+            You are a social media optimization expert.
+            Analyze and optimize the following content for {platform}.
+            Ensure it fits platform character limits (max {platform_info["max_length"]} characters) and best practices.
+            
+            Original Content: "{content}"
+            
+            Provide the response in raw JSON format with the following keys:
+            - "optimized_content": A highly optimized version of the post for {platform}.
+            - "variations": A list of 3 creative alternative variations of the post (e.g. professional tone, casual/funny tone, question/engaging tone).
+            - "tips": A list of 2-3 specific optimization tips for this post on {platform}.
+            
+            Do not include any markdown formatting like ```json in the output. Return only raw valid JSON.
+            """
+            res_text = self._call_gemini(prompt, json_mode=True)
+            if res_text:
+                try:
+                    res_text = res_text.strip()
+                    if res_text.startswith("```json"):
+                        res_text = res_text.split("```json")[1].split("```")[0].strip()
+                    elif res_text.startswith("```"):
+                        res_text = res_text.split("```")[1].split("```")[0].strip()
+                    data = json.loads(res_text)
+                    opt_content = data.get("optimized_content", content)
+                    return {
+                        "platform": platform,
+                        "is_optimized": len(opt_content) <= platform_info["max_length"],
+                        "current_length": len(content),
+                        "max_length": platform_info["max_length"],
+                        "suggestion": opt_content,
+                        "optimized_content": opt_content,
+                        "variations": data.get("variations", []),
+                        "tips": data.get("tips", platform_info["tips"]),
+                        "method": "gemini_api"
+                    }
+                except Exception as e:
+                    logging.error(f"Failed to parse Gemini optimize content response: {str(e)}")
+
         is_optimized = content_length <= platform_info["max_length"]
 
         result = {
@@ -853,7 +1057,10 @@ class AIService:
             "current_length": content_length,
             "max_length": platform_info["max_length"],
             "suggestion": platform_info["suggestion"],
+            "optimized_content": content,
+            "variations": [],
             "tips": platform_info["tips"],
+            "method": "rules"
         }
 
         if not is_optimized:
@@ -863,6 +1070,34 @@ class AIService:
 
     def generate_content_ideas(self, topic: str, platform: str, count: int = 5) -> List[Dict[str, Any]]:
         """Generate content ideas around a specific topic"""
+        if os.getenv("GEMINI_API_KEY"):
+            prompt = f"""
+            You are a social media campaign strategist.
+            Generate exactly {count} creative content ideas / topics to post about based on the main topic "{topic}" for {platform}.
+            Ensure they are tailored to {platform} and are highly engaging.
+            
+            Provide the response in raw JSON format as a list of objects, where each object has:
+            - "content": The post content draft / description of the idea.
+            - "type": The category of the idea (e.g. "tips", "behind_scenes", "case_study", "trends", "myths").
+            - "confidence": A float between 0.7 and 0.99.
+            - "estimated_engagement": either "High", "Medium", or "Low".
+            
+            Do not include any markdown formatting like ```json in the output. Return only raw valid JSON list.
+            """
+            res_text = self._call_gemini(prompt, json_mode=True)
+            if res_text:
+                try:
+                    res_text = res_text.strip()
+                    if res_text.startswith("```json"):
+                        res_text = res_text.split("```json")[1].split("```")[0].strip()
+                    elif res_text.startswith("```"):
+                        res_text = res_text.split("```")[1].split("```")[0].strip()
+                    data = json.loads(res_text)
+                    if isinstance(data, list):
+                        return data[:count]
+                except Exception as e:
+                    logging.error(f"Failed to parse Gemini content ideas: {str(e)}")
+
         idea_templates = {
             "tips": f"5 essential tips for {topic} that everyone should know",
             "behind_scenes": f"Behind the scenes: How we approach {topic}",
@@ -890,11 +1125,6 @@ class AIService:
             )
 
         return ideas
-        """Analyze sentiment of text"""
-        sentiments = ["positive", "neutral", "negative"]
-        weights = [0.6, 0.3, 0.1]  # More likely to be positive
-
-        return {"sentiment": random.choices(sentiments, weights=weights)[0], "confidence": round(random.uniform(0.7, 0.95), 2)}
 
 
 # Export the class as default

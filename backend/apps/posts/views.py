@@ -529,12 +529,12 @@ def extract_hashtags(content):
 # AI-Powered Content Suggestions
 
 
-@api_view(["GET"])
+@api_view(["POST"])
 @permission_classes([permissions.IsAuthenticated])
 def ai_content_suggestions(request):
     """Get AI-powered content suggestions based on analytics"""
     try:
-        platform = request.query_params.get("platform", "instagram")
+        platform = request.data.get("platform", "instagram")
 
         # Get user's analytics data for better suggestions
         from apps.analytics.models import AnalyticsData
@@ -566,14 +566,15 @@ def ai_content_suggestions(request):
         # Also get general suggestions
         general_suggestions = ai_service.generate_post_suggestions(request.user, platform)
 
-        return Response(
-            {
-                "analytics_based_suggestions": suggestions,
-                "general_suggestions": general_suggestions,
-                "platform": platform,
-                "based_on_days": 30,
-            }
-        )
+            return Response({
+                "success": True,
+                "data": {
+                    "analytics_based_suggestions": suggestions,
+                    "general_suggestions": general_suggestions,
+                    "platform": platform,
+                    "based_on_days": 30,
+                },
+            })
 
     except Exception as e:
         logger.error(f"Error generating AI content suggestions: {str(e)}")
@@ -676,7 +677,7 @@ def get_optimal_posting_times(request):
         if recent_insights:
             return Response(
                 {
-                    "optimal_times": recent_insights.data,
+                    "optimal_times": recent_insights.data.get("optimal_times", []),
                     "generated_at": recent_insights.created_at,
                     "confidence": recent_insights.confidence_score,
                 }
