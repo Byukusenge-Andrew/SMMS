@@ -1,29 +1,25 @@
 from django.urls import path
 
-from .views import ProfileView, UserView  # Add these imports
-from .views import TeamMemberInviteView  # Add this
-from .views import debug_auth_open  # Add this
-from .views import login_view  # Import the function instead
-from .views import simple_test  # Add this import
-from .views import teams_for_invitation  # Add this import
-from .views import user_time_format_setting  # Add this import
-from .views import oauth_callback  # Add this import
-from .views import subscription_tiers_view  # Add this import
-from .views import trial_status_view, start_trial_view  # Add trial endpoints
-from .views import change_password, get_user_stats, update_notification_settings, get_account_overview, plan_selection_tiers, complete_setup  # Add new endpoints
-from .views import forgot_password, reset_password, validate_reset_token  # Add password reset endpoints
+from .views import ProfileView, UserView
+from .views import TeamMemberInviteView
+from .views import login_view
+from .views import teams_for_invitation
+from .views import user_time_format_setting
+from .views import oauth_callback
+from .views import subscription_tiers_view
+from .views import trial_status_view, start_trial_view
+from .views import change_password, get_user_stats, update_notification_settings, get_account_overview, plan_selection_tiers, complete_setup
+from .views import forgot_password, reset_password, validate_reset_token
 from .views import (
     LogoutView,
     SocialMediaAccountListView,
     TeamListCreateView,
     TeamMemberListView,
     check_social_account_exists,
-    debug_auth,
     health_check,
     register,
     remove_social_media_account,
     resend_verification_email,
-    ultra_simple_test,
     user_dashboard,
     verify_email,
 )
@@ -31,15 +27,10 @@ from .views import (
 urlpatterns = [
     path("subscription-tiers/", subscription_tiers_view, name="subscription-tiers"),
     path("register/", register, name="register"),
-    path("login/", login_view, name="login"),  # Use function directly, no .as_view()
+    path("login/", login_view, name="login"),
     path("logout/", LogoutView.as_view(), name="logout"),
     path("user/", UserView.as_view(), name="user"),
     path("profile/", ProfileView.as_view(), name="profile"),
-    path("debug-auth/", debug_auth, name="debug-auth"),
-    path("debug-auth-open/", debug_auth_open, name="debug-auth-open"),
-    path("test-endpoint/", debug_auth_open, name="test-endpoint"),  # Simple test endpoint
-    path("simple-test/", simple_test, name="simple-test"),  # Even simpler test
-    path("ultra-simple/", ultra_simple_test, name="ultra-simple"),  # Ultra simple test
     path("social-accounts/", SocialMediaAccountListView.as_view(), name="social-accounts"),
     path("social-accounts/check/", check_social_account_exists, name="check-social-account"),
     path("social-accounts/<uuid:account_id>/remove/", remove_social_media_account, name="remove-social-account"),

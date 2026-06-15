@@ -102,8 +102,13 @@ from .views_canva import (
     canva_bind_tokens,
     canva_disconnect,
 )
+from .views_agents import AIAgentListCreateView, AIAgentDetailView
 
 urlpatterns = [
+    # Custom AI Agent endpoints
+    path("ai-agents/", AIAgentListCreateView.as_view(), name="ai-agent-list-create"),
+    path("ai-agents/<uuid:pk>/", AIAgentDetailView.as_view(), name="ai-agent-detail"),
+
     # OAuth and general integrations
     path("slack/", slack_integration, name="slack-integration"),
     path("slack/conversations/", slack_conversations, name="slack-conversations"),

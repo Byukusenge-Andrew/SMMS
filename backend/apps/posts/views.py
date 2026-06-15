@@ -535,6 +535,12 @@ def ai_content_suggestions(request):
     """Get AI-powered content suggestions based on analytics"""
     try:
         platform = request.data.get("platform", "instagram")
+        agent_id = request.data.get("agent_id")
+
+        agent = None
+        if agent_id:
+            from apps.integrations.models import AIAgent
+            agent = AIAgent.objects.filter(id=agent_id, user=request.user).first()
 
         # Get user's analytics data for better suggestions
         from apps.analytics.models import AnalyticsData
@@ -561,20 +567,20 @@ def ai_content_suggestions(request):
 
         ai_service = AIService()
 
-        suggestions = ai_service.generate_content_suggestions_based_on_analytics(analytics_data, platform)
+        suggestions = ai_service.generate_content_suggestions_based_on_analytics(analytics_data, platform, agent=agent)
 
         # Also get general suggestions
-        general_suggestions = ai_service.generate_post_suggestions(request.user, platform)
+        general_suggestions = ai_service.generate_post_suggestions(request.user, platform, agent=agent)
 
-            return Response({
-                "success": True,
-                "data": {
-                    "analytics_based_suggestions": suggestions,
-                    "general_suggestions": general_suggestions,
-                    "platform": platform,
-                    "based_on_days": 30,
-                },
-            })
+        return Response({
+            "success": True,
+            "data": {
+                "analytics_based_suggestions": suggestions,
+                "general_suggestions": general_suggestions,
+                "platform": platform,
+                "based_on_days": 30,
+            },
+        })
 
     except Exception as e:
         logger.error(f"Error generating AI content suggestions: {str(e)}")

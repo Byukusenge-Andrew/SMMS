@@ -50,6 +50,16 @@ class AIService:
     """AI service for content generation and analysis"""
 
     def __init__(self):
+        # Ensure GEMINI_API_KEY is populated in os.environ from .env (via decouple)
+        if not os.getenv("GEMINI_API_KEY"):
+            try:
+                from decouple import config
+                key = config("GEMINI_API_KEY", default=None)
+                if key:
+                    os.environ["GEMINI_API_KEY"] = key
+            except Exception:
+                pass
+
         # Initialize AI models for sentiment analysis
         self.sentiment_analyzer = None
         self.sentiment_model_name = "cardiffnlp/twitter-roberta-base-sentiment-latest"
@@ -85,15 +95,15 @@ class AIService:
             logging.error(f"Failed to initialize AI sentiment model: {str(e)}")
             self.sentiment_analyzer = None
 
-    def _call_gemini(self, prompt: str, system_instruction: str = None, json_mode: bool = False) -> str:
+    def _call_gemini(self, prompt: str, system_instruction: str = None, json_mode: bool = False, temperature: float = None) -> str:
         """Call the Google Gemini API using raw HTTP requests"""
         api_key = os.getenv("GEMINI_API_KEY")
         if not api_key:
             logging.warning("GEMINI_API_KEY not found in environment, skipping Gemini API call.")
             return ""
 
-        # Using gemini-1.5-flash which is widely supported and fast
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
+        # Using gemini-2.5-flash which is a free model with active quotas
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
 
         contents = {
             "parts": [
@@ -110,14 +120,18 @@ class AIService:
                 "parts": [{"text": system_instruction}]
             }
 
+        generation_config = {}
         if json_mode:
-            payload["generationConfig"] = {
-                "responseMimeType": "application/json"
-            }
+            generation_config["responseMimeType"] = "application/json"
+        if temperature is not None:
+            generation_config["temperature"] = temperature
+
+        if generation_config:
+            payload["generationConfig"] = generation_config
 
         try:
             logging.info("Sending request to Gemini API...")
-            response = requests.post(url, json=payload, timeout=15)
+            response = requests.post(url, json=payload, timeout=25)
             if response.status_code == 200:
                 res_json = response.json()
                 text = res_json["candidates"][0]["content"]["parts"][0]["text"]
@@ -382,11 +396,11 @@ class AIService:
         return round(score, 1)
 
     def generate_content_suggestions_based_on_analytics(
-        self, analytics_data: List[Dict], platform: str
+        self, analytics_data: List[Dict], platform: str, agent=None
     ) -> List[Dict[str, Any]]:
         """Generate content suggestions based on analytics performance"""
         if not analytics_data:
-            return self.generate_post_suggestions(None, platform)
+            return self.generate_post_suggestions(None, platform, agent=agent)
 
         # Try Gemini API if key is available
         if os.getenv("GEMINI_API_KEY"):
@@ -396,9 +410,18 @@ class AIService:
             avg_eng = sum(engagements)/len(engagements) if engagements else 0
             analytics_summary += f"Average Engagement: {avg_eng:.1f}. "
             
+            system_instruction = None
+            temp = None
+            tone_str = ""
+            if agent:
+                system_instruction = agent.persona
+                temp = agent.temperature
+                tone_str = f" Ensure the suggestions reflect a '{agent.tone}' tone."
+            else:
+                system_instruction = "You are an expert Social Media AI Planner."
+
             prompt = f"""
-            You are an expert Social Media AI Planner.
-            Analyze the following analytics summary of a user's performance and generate exactly 4 actionable content creation suggestions tailored for {platform}.
+            Analyze the following analytics summary of a user's performance and generate exactly 4 actionable content creation suggestions tailored for {platform}.{tone_str}
             
             Performance Summary: {analytics_summary}
             
@@ -410,7 +433,7 @@ class AIService:
             Do not include any markdown formatting like ```json in the output. Return only raw valid JSON list.
             """
             
-            res_text = self._call_gemini(prompt, json_mode=True)
+            res_text = self._call_gemini(prompt, system_instruction=system_instruction, json_mode=True, temperature=temp)
             if res_text:
                 try:
                     res_text = res_text.strip()
@@ -514,34 +537,280 @@ class AIService:
 
         return optimization_tips.get(platform.lower(), [])
 
-    def generate_post_suggestions(self, user, platform: str) -> List[Dict[str, Any]]:
-        """Generate content suggestions based on platform and user context"""
-        if os.getenv("GEMINI_API_KEY"):
-            prompt = f"""
-            You are a social media copywriter.
-            Generate 3 creative, engaging, and high-performing posts tailored for {platform}.
-            Ensure they match the platform tone and styling conventions.
-            
-            Provide the response in raw JSON format as a list of objects, where each object has:
-            - "content": The post content (use emojis where appropriate).
-            - "confidence": A float between 0.7 and 0.99.
-            
-            Do not include any markdown formatting like ```json in the output. Return only raw valid JSON list.
-            """
-            res_text = self._call_gemini(prompt, json_mode=True)
-            if res_text:
-                try:
-                    res_text = res_text.strip()
-                    if res_text.startswith("```json"):
-                        res_text = res_text.split("```json")[1].split("```")[0].strip()
-                    elif res_text.startswith("```"):
-                        res_text = res_text.split("```")[1].split("```")[0].strip()
-                    data = json.loads(res_text)
-                    if isinstance(data, list):
-                        return data[:3]
-                except Exception as e:
-                    logging.error(f"Failed to parse Gemini post suggestions: {str(e)}")
+    # ──────────────────────────────────────────────────────────────────────
+    #  Helper: robust JSON extraction from Gemini text
+    # ──────────────────────────────────────────────────────────────────────
+    def _parse_json_response(self, raw_text: str):
+        """Safely extract JSON from a Gemini response, handling markdown fences."""
+        if not raw_text:
+            return None
+        text = raw_text.strip()
+        # Strip markdown code fences if present
+        if text.startswith("```json"):
+            text = text.split("```json", 1)[1].rsplit("```", 1)[0].strip()
+        elif text.startswith("```"):
+            text = text.split("```", 1)[1].rsplit("```", 1)[0].strip()
+        try:
+            return json.loads(text)
+        except json.JSONDecodeError as e:
+            logging.error(f"JSON parse error: {e} — raw text: {text[:200]}")
+            return None
 
+    # ──────────────────────────────────────────────────────────────────────
+    #  Main dispatcher
+    # ──────────────────────────────────────────────────────────────────────
+    def generate_post_suggestions(self, user, platform: str, agent=None) -> List[Dict[str, Any]]:
+        """Generate content suggestions based on platform and user context.
+
+        When a custom **AIAgent** is provided the method runs the *deliberative*
+        pipeline (Plan → Write → Review) for higher-quality output.  Otherwise
+        the fast *reactive* single-step path is used.
+        """
+        if not os.getenv("GEMINI_API_KEY"):
+            return self._fallback_post_suggestions(platform)
+
+        # Deliberative mode when a custom agent is attached
+        if agent:
+            try:
+                result = self._generate_post_suggestions_deliberative(platform, agent)
+                if result:
+                    return result
+                logging.warning("Deliberative pipeline returned empty — falling back to reactive.")
+            except Exception as e:
+                logging.error(f"Deliberative pipeline failed: {e} — falling back to reactive.")
+
+        # Default reactive single-call path
+        return self._generate_post_suggestions_reactive(platform, agent)
+
+    # ──────────────────────────────────────────────────────────────────────
+    #  Reactive (single-step) generation
+    # ──────────────────────────────────────────────────────────────────────
+    def _generate_post_suggestions_reactive(self, platform: str, agent=None) -> List[Dict[str, Any]]:
+        """Single Gemini call — fast, good-enough suggestions."""
+        system_instruction = "You are a social media copywriter."
+        temp = None
+        tone_str = ""
+        if agent:
+            system_instruction = agent.persona
+            temp = agent.temperature
+            tone_str = f" Ensure they reflect a '{agent.tone}' tone and match the agent instructions."
+
+        prompt = f"""
+        Generate 3 creative, engaging, and high-performing posts tailored for {platform}.{tone_str}
+        Ensure they match the platform tone and styling conventions.
+
+        Provide the response in raw JSON format as a list of objects, where each object has:
+        - "content": The post content (use emojis where appropriate).
+        - "confidence": A float between 0.7 and 0.99.
+
+        Do not include any markdown formatting like ```json in the output. Return only raw valid JSON list.
+        """
+        res_text = self._call_gemini(prompt, system_instruction=system_instruction, json_mode=True, temperature=temp)
+        data = self._parse_json_response(res_text)
+        if isinstance(data, list) and data:
+            return data[:3]
+
+        return self._fallback_post_suggestions(platform)
+
+    # ──────────────────────────────────────────────────────────────────────
+    #  Deliberative (Plan → Write → Review) pipeline
+    # ──────────────────────────────────────────────────────────────────────
+    def _generate_post_suggestions_deliberative(self, platform: str, agent) -> List[Dict[str, Any]]:
+        """Multi-step agent pipeline inspired by ReAct / Google ADK patterns.
+
+        Step 1 – **Plan**: Generate a structured content plan (topics, hooks, CTA)
+        Step 2 – **Write**: Draft 3 full posts grounded in the plan
+        Step 3 – **Review**: Self-critique and refine the drafts
+        """
+        logging.info(f"🤖 Deliberative Agent [{agent.name}] — starting pipeline for {platform}")
+
+        # ── Step 1: PLAN ────────────────────────────────────────────────
+        plan_system = (
+            f"You are '{agent.name}', a planning specialist. "
+            f"Your persona: {agent.persona}\n"
+            f"Your writing tone is '{agent.tone}'.\n"
+            "Your job is to create a structured content plan that will guide the writing of 3 social media posts."
+        )
+
+        plan_prompt = f"""
+Create a content plan for 3 high-performing {platform} posts.
+
+For each post idea, provide:
+- "topic": A concise topic / angle
+- "hook": The opening hook strategy (question, bold statement, story, statistic, etc.)
+- "key_message": The core message or value proposition
+- "cta": A call-to-action or engagement driver
+- "hashtag_strategy": 2-3 suggested hashtag themes
+- "format_notes": Any formatting recommendations specific to {platform}
+
+Return a JSON object:
+{{
+  "platform": "{platform}",
+  "plan": [
+    {{
+      "topic": "...",
+      "hook": "...",
+      "key_message": "...",
+      "cta": "...",
+      "hashtag_strategy": ["...", "..."],
+      "format_notes": "..."
+    }}
+  ]
+}}
+
+Return only raw valid JSON, no markdown fences.
+"""
+        plan_text = self._call_gemini(
+            plan_prompt,
+            system_instruction=plan_system,
+            json_mode=True,
+            temperature=max(0.3, (agent.temperature or 0.7) - 0.2),  # slightly lower temp for planning
+        )
+        plan_data = self._parse_json_response(plan_text)
+
+        if not plan_data or not isinstance(plan_data.get("plan"), list):
+            logging.error("Deliberative Agent — Step 1 (Plan) failed or returned invalid JSON.")
+            return []
+
+        plan_items = plan_data["plan"][:3]
+        logging.info(f"🤖 Deliberative Agent [{agent.name}] — Plan created: {len(plan_items)} topics")
+
+        # ── Step 2: WRITE ───────────────────────────────────────────────
+        write_system = (
+            f"You are '{agent.name}', a content writer. "
+            f"Your persona: {agent.persona}\n"
+            f"Your writing tone is '{agent.tone}'.\n"
+            "You must write posts that precisely follow the content plan provided."
+        )
+
+        plan_summary = json.dumps(plan_items, indent=2)
+        write_prompt = f"""
+Based on the following content plan, write exactly {len(plan_items)} complete, publish-ready {platform} posts.
+
+=== CONTENT PLAN ===
+{plan_summary}
+====================
+
+Requirements:
+- Each post must follow its plan item's topic, hook, key message, CTA, and formatting guidance.
+- Use emojis where appropriate for {platform}.
+- Include relevant hashtags based on the hashtag strategy.
+- Respect {platform} character limits and conventions.
+- Make each post unique and engaging.
+
+Return a JSON list of objects:
+[
+  {{
+    "content": "The full post text ready to publish",
+    "confidence": 0.85,
+    "plan_topic": "The topic from the plan this post addresses"
+  }}
+]
+
+Return only raw valid JSON, no markdown fences.
+"""
+        write_text = self._call_gemini(
+            write_prompt,
+            system_instruction=write_system,
+            json_mode=True,
+            temperature=agent.temperature or 0.7,
+        )
+        drafts = self._parse_json_response(write_text)
+
+        if not isinstance(drafts, list) or not drafts:
+            logging.error("Deliberative Agent — Step 2 (Write) failed or returned invalid JSON.")
+            return []
+
+        logging.info(f"🤖 Deliberative Agent [{agent.name}] — Drafts written: {len(drafts)} posts")
+
+        # ── Step 3: REVIEW ──────────────────────────────────────────────
+        review_system = (
+            f"You are '{agent.name}', acting as a senior content editor and quality reviewer. "
+            f"Your persona: {agent.persona}\n"
+            f"Your tone standard is '{agent.tone}'.\n"
+            "Your job is to review draft posts, improve them if needed, and score their quality."
+        )
+
+        drafts_json = json.dumps(drafts, indent=2)
+        review_prompt = f"""
+Review these {platform} post drafts and improve them. For each post:
+1. Fix any awkward phrasing, grammar, or tone inconsistencies.
+2. Ensure the hook is strong and attention-grabbing.
+3. Verify the CTA drives engagement.
+4. Optimize for {platform} best practices.
+5. Assign a final confidence score (0.7 - 0.99) based on expected performance.
+
+=== DRAFT POSTS ===
+{drafts_json}
+====================
+
+Return the final polished posts as a JSON list:
+[
+  {{
+    "content": "The final polished post text",
+    "confidence": 0.92,
+    "agent_name": "{agent.name}",
+    "generation_method": "deliberative",
+    "plan_topic": "The topic this post addresses"
+  }}
+]
+
+Return only raw valid JSON, no markdown fences.
+"""
+        review_text = self._call_gemini(
+            review_prompt,
+            system_instruction=review_system,
+            json_mode=True,
+            temperature=max(0.2, (agent.temperature or 0.7) - 0.3),  # lower temp for editing
+        )
+        final_posts = self._parse_json_response(review_text)
+
+        if not isinstance(final_posts, list) or not final_posts:
+            # If review step fails, fall back to the unreviewed drafts
+            logging.warning("Deliberative Agent — Step 3 (Review) failed — using raw drafts.")
+            for draft in drafts:
+                draft["agent_name"] = agent.name
+                draft["generation_method"] = "deliberative_unreviewed"
+                # Match plans to drafts
+                topic = draft.get("plan_topic", "")
+                matched_plan = None
+                if topic:
+                    for item in plan_items:
+                        if item.get("topic", "").lower() in topic.lower() or topic.lower() in item.get("topic", "").lower():
+                            matched_plan = item
+                            break
+                if not matched_plan and len(plan_items) > 0:
+                    matched_plan = plan_items[0]
+                if matched_plan:
+                    draft["plan"] = matched_plan
+            return drafts[:3]
+
+        # Match plans to final polished posts
+        for post in final_posts:
+            post["agent_name"] = agent.name
+            post["generation_method"] = "deliberative"
+            topic = post.get("plan_topic", "")
+            matched_plan = None
+            if topic:
+                for item in plan_items:
+                    if item.get("topic", "").lower() in topic.lower() or topic.lower() in item.get("topic", "").lower():
+                        matched_plan = item
+                        break
+            if not matched_plan and len(plan_items) > 0:
+                matched_plan = plan_items[0]
+            if matched_plan:
+                post["plan"] = matched_plan
+
+        logging.info(
+            f"🤖 Deliberative Agent [{agent.name}] — Review complete: {len(final_posts)} polished posts"
+        )
+        return final_posts[:3]
+
+    # ──────────────────────────────────────────────────────────────────────
+    #  Static fallback suggestions (no API key / offline)
+    # ──────────────────────────────────────────────────────────────────────
+    def _fallback_post_suggestions(self, platform: str) -> List[Dict[str, Any]]:
+        """Return canned suggestions when Gemini API is unavailable."""
         platform_suggestions = {
             "twitter": [
                 {"content": "Just had an amazing coffee ☕ What's everyone drinking today?", "confidence": 0.85},

@@ -188,10 +188,15 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 # Session configuration
 SESSION_ENGINE = 'django.contrib.sessions.backends.db'
 SESSION_COOKIE_AGE = 3600  # 1 hour
-SESSION_COOKIE_SECURE = True  # Must be True for SameSite='None' to work
-SESSION_COOKIE_SAMESITE = 'None'  # Required for cross-origin OAuth callbacks
+SESSION_COOKIE_SECURE = not DEBUG  # Only True in production (required for SameSite='None')
+SESSION_COOKIE_SAMESITE = 'None' if not DEBUG else 'Lax'  # Cross-origin only in production
 SESSION_SAVE_EVERY_REQUEST = True
 SESSION_COOKIE_DOMAIN = None  # Allow cross-subdomain cookies if needed
+
+# Security headers
+SECURE_BROWSER_XSS_FILTER = True
+SECURE_CONTENT_TYPE_NOSNIFF = True
+X_FRAME_OPTIONS = 'DENY'
 
 # REST Framework configuration
 REST_FRAMEWORK = {
@@ -211,7 +216,10 @@ REST_FRAMEWORK = {
         "rest_framework.filters.OrderingFilter",
     ],
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
-    # Note: Rate limiting is handled by middleware, not DRF throttling
+    "DEFAULT_THROTTLE_CLASSES": [
+        "rest_framework.throttling.AnonRateThrottle",
+        "rest_framework.throttling.UserRateThrottle",
+    ],
     "DEFAULT_THROTTLE_RATES": {
         "anon": "20/hour",
         "user": "1000/hour",
@@ -245,8 +253,8 @@ CSRF_TRUSTED_ORIGINS = CORS_ALLOWED_ORIGINS.copy()
 # Add Render domain
 if RENDER_EXTERNAL_HOSTNAME:
     CSRF_TRUSTED_ORIGINS.append(f"https://{RENDER_EXTERNAL_HOSTNAME}")
-# CORS_ALLOW_ALL_ORIGINS = True  # Set to True for development debugging
-CORS_ALLOW_ALL_ORIGINS = True  # Temporarily enabled for Stripe testing
+# CORS_ALLOW_ALL_ORIGINS = True  # DISABLED - use explicit allowlist for security
+CORS_ALLOW_ALL_ORIGINS = False
 
 # Allow common headers
 # CORS_ALLOW_HEADERS = [

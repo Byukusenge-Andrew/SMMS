@@ -9,20 +9,18 @@ from django.core.exceptions import PermissionDenied
 class IsOwnerOrReadOnly(permissions.BasePermission):
     """
     Custom permission to only allow owners of an object to edit/delete it.
+    Read-only access (GET, HEAD, OPTIONS) is allowed if the object belongs to the user.
+    Write access (POST, PUT, PATCH, DELETE) is also allowed only to the owner.
     Assumes the model instance has a `user` attribute.
     """
     
     def has_object_permission(self, request, view, obj):
-        # Read permissions for any authenticated user (if object belongs to them)
-        if hasattr(obj, 'user') and obj.user != request.user:
+        # Deny access if the object has no user field or belongs to someone else
+        if not hasattr(obj, 'user') or obj.user != request.user:
             return False
-            
-        # Write permissions are only allowed to the owner of the object
-        if request.method in permissions.SAFE_METHODS:
-            return hasattr(obj, 'user') and obj.user == request.user
         
-        # Write permissions only for owner
-        return hasattr(obj, 'user') and obj.user == request.user
+        # Owner can perform any action (read or write)
+        return True
 
 
 class IsOwnerOnly(permissions.BasePermission):
@@ -81,8 +79,6 @@ class IsTeamMemberOrOwner(permissions.BasePermission):
         return False
 
 
-from rest_framework.permissions import BasePermission
-from rest_framework.exceptions import PermissionDenied
 import logging
 
 logger = logging.getLogger(__name__)

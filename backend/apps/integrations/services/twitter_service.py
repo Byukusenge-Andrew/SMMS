@@ -83,11 +83,14 @@ class TwitterService:
 
     def _build_clients(self, access_token: Optional[str], access_token_secret: Optional[str]) -> Tuple[Optional[Any], Optional[Any]]:
         """Build per-user clients if user tokens provided, else use app-level clients."""
+        # Ensure credentials are lazy loaded first
+        self._lazy_init()
+
         # If user tokens provided, build user-scoped clients
         if access_token:
             try:
                 # If we have both, it's likely OAuth 1.0a
-                if access_token_secret and not access_token_secret.startswith('eyJ'): # Heuristic: JWTs are likely OAuth2
+                if access_token_secret and not access_token.startswith('eyJ'): # Heuristic: JWTs are likely OAuth2
                     auth_v1 = tweepy.OAuthHandler(self.api_key, self.api_secret)
                     auth_v1.set_access_token(access_token, access_token_secret)
                     api_v1 = tweepy.API(auth_v1, wait_on_rate_limit=True)
@@ -147,8 +150,36 @@ class TwitterService:
                 return {'success': False, 'error': 'Unable to verify credentials'}
                 
         except Exception as e:
-            logger.error(f"Twitter credentials verification failed: {e}")
-            return {'success': False, 'error': str(e)}
+            error_msg = str(e)
+            # If 401 Unauthorized occurs and it's OAuth2, try to refresh and retry
+            if account and access_token and access_token.startswith('eyJ') and ("401" in error_msg or "Unauthorized" in error_msg):
+                logger.info("Twitter credentials verification failed with 401. Attempting token refresh...")
+                if self.refresh_oauth2_token(account):
+                    access_token = account.access_token
+                    access_token_secret = account.refresh_token
+                    api_v1, client_v2 = self._build_clients(access_token, access_token_secret)
+                    if client_v2:
+                        try:
+                            user = client_v2.get_me(
+                                user_fields=['id', 'name', 'username', 'profile_image_url']
+                            )
+                            if user.data:
+                                return {
+                                    'success': True,
+                                    'user_id': str(user.data.id),
+                                    'name': user.data.name,
+                                    'username': user.data.username,
+                                    'profile_image_url': user.data.profile_image_url,
+                                    'verified': getattr(user.data, 'verified', False),
+                                    'followers_count': 0,
+                                    'following_count': 0,
+                                    'tweet_count': 0,
+                                }
+                        except Exception as retry_e:
+                            error_msg = str(retry_e)
+            
+            logger.error(f"Twitter credentials verification failed: {error_msg}")
+            return {'success': False, 'error': error_msg}
     
     def post_tweet(self, text: str, media_paths: List[str] = None, account: Optional[Any] = None) -> Dict[str, Any]:
         """
@@ -432,6 +463,65 @@ class TwitterService:
         except Exception as e:
             logger.error(f"Failed to check rate limit status: {e}")
             return {'success': False, 'error': str(e)}
+
+    def refresh_oauth2_token(self, account) -> bool:
+        """Refresh Twitter OAuth 2.0 token and save it to the account"""
+        refresh_token = getattr(account, 'refresh_token', None)
+        client_id = getattr(settings, 'TWITTER_CLIENT_ID', None)
+        client_secret = getattr(settings, 'TWITTER_CLIENT_SECRET', None)
+        
+        if not refresh_token or not client_id or not client_secret:
+            return False
+            
+        try:
+            import requests
+            token_data = {
+                'grant_type': 'refresh_token',
+                'refresh_token': refresh_token,
+                'client_id': client_id,
+            }
+            response = requests.post(
+                'https://api.twitter.com/2/oauth2/token',
+                headers={'Content-Type': 'application/x-www-form-urlencoded'},
+                auth=(client_id, client_secret),
+                data=token_data,
+                timeout=15
+            )
+            if response.status_code == 200:
+                res_json = response.json()
+                new_access_token = res_json.get('access_token')
+                new_refresh_token = res_json.get('refresh_token') or refresh_token
+                expires_in = res_json.get('expires_in')
+                
+                account.access_token = new_access_token
+                account.refresh_token = new_refresh_token
+                if expires_in:
+                    from django.utils import timezone
+                    account.token_expires_at = timezone.now() + timezone.timedelta(seconds=expires_in)
+                account.save()
+                
+                # Also update authentication.SocialMediaAccount if it exists
+                try:
+                    from apps.authentication.models import SocialMediaAccount as AuthSocialMediaAccount
+                    AuthSocialMediaAccount.objects.filter(
+                        user=account.user,
+                        platform='twitter',
+                        platform_user_id=account.platform_user_id
+                    ).update(
+                        access_token=new_access_token,
+                        refresh_token=new_refresh_token
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to update mirrored SocialMediaAccount tokens: {e}")
+                    
+                logger.info(f"Successfully refreshed Twitter OAuth 2.0 token for user {account.user.id}")
+                return True
+            else:
+                logger.error(f"Twitter token refresh failed: {response.status_code} - {response.text}")
+                return False
+        except Exception as e:
+            logger.error(f"Error refreshing Twitter token: {e}")
+            return False
 
 
 # Singleton instance

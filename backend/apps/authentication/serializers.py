@@ -7,6 +7,9 @@ from rest_framework import serializers
 from .models import SocialMediaAccount, Team, TeamMember, UserProfile
 from apps.core.models.payment_models import SubscriptionTier
 
+import logging
+logger = logging.getLogger(__name__)
+
 
 class SubscriptionTierSerializer(serializers.ModelSerializer):
     class Meta:
@@ -137,8 +140,8 @@ class RegisterSerializer(serializers.ModelSerializer):
         return attrs
 
     def create(self, validated_data):
-        print("🔧 UserRegistrationSerializer.create() CALLED")
-        print(f"🔧 validated_data keys: {list(validated_data.keys())}")
+        logger.debug("RegisterSerializer.create() called")
+        logger.debug("validated_data keys: %s", list(validated_data.keys()))
         
         from datetime import timedelta
         from django.utils import timezone
@@ -148,8 +151,8 @@ class RegisterSerializer(serializers.ModelSerializer):
         company_name = validated_data.pop("company_name", "")
         subscription_tier_id = validated_data.pop("subscription_tier_id", None)
         
-        print(f"🔧 subscription_tier_id: {subscription_tier_id}")
-        print(f"🔧 company_name: {company_name}")
+        logger.debug("subscription_tier_id: %s", subscription_tier_id)
+        logger.debug("company_name: %s", company_name)
 
         password = validated_data.pop("password")
         user = User.objects.create_user(
@@ -159,23 +162,23 @@ class RegisterSerializer(serializers.ModelSerializer):
             last_name=validated_data.get("last_name", ""),
             password=password,
         )
-        print(f"🔧 User created: {user.username}")
+        logger.debug("User created: %s", user.username)
 
         # Get the subscription tier
         subscription_tier = None
         if subscription_tier_id:
             try:
                 subscription_tier = SubscriptionTier.objects.get(id=subscription_tier_id, is_active=True)
-                print(f"🔧 Found subscription tier: {subscription_tier.name} (ID: {subscription_tier.id})")
+                logger.debug("Found subscription tier: %s (ID: %s)", subscription_tier.name, subscription_tier.id)
             except SubscriptionTier.DoesNotExist:
-                print(f"🔧 ERROR: Invalid subscription tier ID: {subscription_tier_id}")
+                logger.warning("Invalid subscription tier ID: %s", subscription_tier_id)
                 # Fallback to free tier if provided ID is invalid
                 subscription_tier = SubscriptionTier.objects.filter(name="free", is_active=True).first()
-                print(f"🔧 Fallback to free tier: {subscription_tier}")
+                logger.debug("Fallback to free tier: %s", subscription_tier)
         else:
             # Default to free tier if no tier specified
             subscription_tier = SubscriptionTier.objects.filter(name="free", is_active=True).first()
-            print(f"🔧 Default to free tier: {subscription_tier}")
+            logger.debug("Default to free tier: %s", subscription_tier)
 
         # Create or get profile WITHOUT subscription tier initially
         profile, created = UserProfile.objects.get_or_create(
@@ -185,7 +188,7 @@ class RegisterSerializer(serializers.ModelSerializer):
                 # Don't set subscription_tier here
             }
         )
-        print(f"🔧 Profile {'created' if created else 'retrieved'}: {profile.id}")
+        logger.debug("Profile %s: %s", 'created' if created else 'retrieved', profile.id)
 
         if not created:
             if company_name:
@@ -193,7 +196,7 @@ class RegisterSerializer(serializers.ModelSerializer):
 
         # Create UserSubscription record first
         if subscription_tier:
-            print(f"🔧 Creating UserSubscription for tier: {subscription_tier.name}")
+            logger.debug("Creating UserSubscription for tier: %s", subscription_tier.name)
             now = timezone.now()
             is_paid_tier = subscription_tier.price_monthly > 0
             
@@ -215,29 +218,29 @@ class RegisterSerializer(serializers.ModelSerializer):
                 start_date=now,
                 trial_end_date=trial_end,
             )
-            print(f"🔧 UserSubscription created: {user_subscription.id}")
+            logger.debug("UserSubscription created: %s", user_subscription.id)
             
             # NOW update profile with subscription tier and trial information
-            print(f"🔧 BEFORE profile update - subscription_tier: {profile.subscription_tier}")
+            logger.debug("BEFORE profile update - subscription_tier: %s", profile.subscription_tier)
             profile.subscription_tier = subscription_tier
-            print(f"🔧 AFTER assignment - subscription_tier: {profile.subscription_tier}")
+            logger.debug("AFTER assignment - subscription_tier: %s", profile.subscription_tier)
             
             if start_trial:
                 profile.trial_start_date = now
                 profile.trial_end_date = trial_end
                 profile.is_trial_active = True
-                print(f"🔧 Trial setup - start: {now}, end: {trial_end}")
+                logger.debug("Trial setup - start: %s, end: %s", now, trial_end)
             
             profile.save()
-            print(f"🔧 Profile saved with subscription_tier: {profile.subscription_tier}")
+            logger.debug("Profile saved with subscription_tier: %s", profile.subscription_tier)
             
             # Verify the save worked
             profile.refresh_from_db()
-            print(f"🔧 Profile after refresh_from_db: subscription_tier={profile.subscription_tier}")
+            logger.debug("Profile after refresh_from_db: subscription_tier=%s", profile.subscription_tier)
         else:
-            print("🔧 No subscription tier provided")
+            logger.debug("No subscription tier provided")
 
-        print(f"🔧 UserRegistrationSerializer.create() COMPLETED for user: {user.username}")
+        logger.debug("RegisterSerializer.create() COMPLETED for user: %s", user.username)
         return user
 
 
@@ -249,20 +252,20 @@ class LoginSerializer(serializers.Serializer):
         username = attrs.get("username")
         password = attrs.get("password")
 
-        print(f"LoginSerializer: Attempting to authenticate with username/email: {username}")
+        logger.debug("LoginSerializer: Attempting to authenticate with username/email: %s", username)
 
         if username and password:
             # The custom backend will handle whether 'username' is an email or a username
             user = authenticate(request=self.context.get('request'), username=username, password=password)
             
-            print(f"LoginSerializer: authenticate() returned: {user}")
+            logger.debug("LoginSerializer: authenticate() returned: %s", user)
 
             if not user:
-                print("LoginSerializer: Authentication failed. User is None.")
+                logger.debug("LoginSerializer: Authentication failed. User is None.")
                 raise serializers.ValidationError("Invalid credentials. Please check your username/email and password.")
             
             if not user.is_active:
-                print(f"LoginSerializer: User '{username}' is not active.")
+                logger.debug("LoginSerializer: User '%s' is not active.", username)
                 raise serializers.ValidationError("Account is disabled or email not verified.")
         else:
             raise serializers.ValidationError("Must include 'username' and 'password'.")
@@ -370,8 +373,8 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         return value
 
     def create(self, validated_data):
-        print("🔧 UserRegistrationSerializer.create() CALLED (SECOND ONE)")
-        print(f"🔧 validated_data keys: {list(validated_data.keys())}")
+        logger.debug("UserRegistrationSerializer.create() called")
+        logger.debug("validated_data keys: %s", list(validated_data.keys()))
         
         from datetime import timedelta
         from django.utils import timezone
@@ -385,32 +388,32 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
             company_name = validated_data.pop("company_name", None)
             subscription_tier_id = validated_data.pop("subscription_tier_id", None)
             
-            print(f"🔧 subscription_tier_id: {subscription_tier_id}")
-            print(f"🔧 company_name: {company_name}")
-            print(f"🔧 role: {role}")
+            logger.debug("subscription_tier_id: %s", subscription_tier_id)
+            logger.debug("company_name: %s", company_name)
+            logger.debug("role: %s", role)
             
             user = User.objects.create_user(**validated_data)
-            print(f"🔧 User created: {user.username}")
+            logger.debug("User created: %s", user.username)
             
             # IMPORTANT: Force save user to trigger all signals first
             user.save()
-            print(f"🔧 User saved to trigger signals")
+            logger.debug("User saved to trigger signals")
 
             # Get the subscription tier
             subscription_tier = None
             if subscription_tier_id:
                 try:
                     subscription_tier = SubscriptionTier.objects.get(id=subscription_tier_id, is_active=True)
-                    print(f"🔧 Found subscription tier: {subscription_tier.name} (ID: {subscription_tier.id})")
+                    logger.debug("Found subscription tier: %s (ID: %s)", subscription_tier.name, subscription_tier.id)
                 except SubscriptionTier.DoesNotExist:
-                    print(f"🔧 ERROR: Invalid subscription tier ID: {subscription_tier_id}")
+                    logger.warning("Invalid subscription tier ID: %s", subscription_tier_id)
                     # Fallback to free tier if provided ID is invalid
                     subscription_tier = SubscriptionTier.objects.filter(name="free", is_active=True).first()
-                    print(f"🔧 Fallback to free tier: {subscription_tier}")
+                    logger.debug("Fallback to free tier: %s", subscription_tier)
             else:
                 # Default to free tier if no tier specified
                 subscription_tier = SubscriptionTier.objects.filter(name="free", is_active=True).first()
-                print(f"🔧 Default to free tier: {subscription_tier}")
+                logger.debug("Default to free tier: %s", subscription_tier)
 
             # Create UserProfile WITHOUT subscription tier initially
             # Note: post_save signal may have already created a blank profile
@@ -422,7 +425,7 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
                     # Don't set subscription_tier here - will be set from UserSubscription
                 }
             )
-            print(f"🔧 Profile {'created' if created else 'retrieved'}: {profile.id}")
+            logger.debug("Profile %s: %s", 'created' if created else 'retrieved', profile.id)
             
             # Always update profile fields in case signal created a blank one
             if role:
@@ -433,7 +436,7 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
 
             # Create UserSubscription record first
             if subscription_tier:
-                print(f"🔧 Creating UserSubscription for tier: {subscription_tier.name}")
+                logger.debug("Creating UserSubscription for tier: %s", subscription_tier.name)
                 now = timezone.now()
                 is_paid_tier = subscription_tier.price_monthly > 0
                 
@@ -455,32 +458,32 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
                     start_date=now,
                     trial_end_date=trial_end,
                 )
-                print(f"🔧 UserSubscription created: {user_subscription.id}")
+                logger.debug("UserSubscription created: %s", user_subscription.id)
                 
                 # NOW update profile with subscription tier and trial information
-                print(f"🔧 BEFORE profile update - subscription_tier: {profile.subscription_tier}")
+                logger.debug("BEFORE profile update - subscription_tier: %s", profile.subscription_tier)
                 profile.subscription_tier = subscription_tier
-                print(f"🔧 AFTER assignment - subscription_tier: {profile.subscription_tier}")
+                logger.debug("AFTER assignment - subscription_tier: %s", profile.subscription_tier)
                 
                 if start_trial:
                     profile.trial_start_date = now
                     profile.trial_end_date = trial_end
                     profile.is_trial_active = True
-                    print(f"🔧 Trial setup - start: {now}, end: {trial_end}")
+                    logger.debug("Trial setup - start: %s, end: %s", now, trial_end)
                 
                 # CRITICAL: Save with update_fields to prevent signal interference
                 profile.save(update_fields=['subscription_tier', 'role', 'company_name', 'trial_start_date', 'trial_end_date', 'is_trial_active'])
-                print(f"🔧 Profile saved with update_fields: subscription_tier={profile.subscription_tier}")
+                logger.debug("Profile saved with update_fields: subscription_tier=%s", profile.subscription_tier)
                 
                 # Verify the save worked
                 profile.refresh_from_db()
-                print(f"🔧 Profile after refresh_from_db: subscription_tier={profile.subscription_tier}")
+                logger.debug("Profile after refresh_from_db: subscription_tier=%s", profile.subscription_tier)
             else:
-                print("🔧 No subscription tier provided")
+                logger.debug("No subscription tier provided")
                 # Still save the profile to ensure role and company_name are saved
                 profile.save(update_fields=['role', 'company_name'])
 
-            print(f"🔧 UserRegistrationSerializer.create() COMPLETED for user: {user.username}")
+            logger.debug("UserRegistrationSerializer.create() COMPLETED for user: %s", user.username)
             return user
 
 

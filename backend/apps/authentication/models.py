@@ -1,3 +1,4 @@
+import logging
 import uuid
 
 from django.contrib.auth.models import User
@@ -12,6 +13,8 @@ from apps.core.models.payment_models import SubscriptionTier
 
 # Initialize Supabase storage
 supabase_storage = SupabaseStorage()
+
+logger = logging.getLogger(__name__)
 
 
 class UserProfile(models.Model):
@@ -112,12 +115,12 @@ class UserProfile(models.Model):
                     
                     stripe_subscription = stripe.Subscription.retrieve(subscription.stripe_subscription_id)
                     return stripe_subscription.status in ['active', 'trialing']
-                except:
+                except Exception:
                     # If Stripe call fails, fall back to local status
                     return subscription.status == 'active'
             
             return False
-        except:
+        except Exception:
             return False
 
 
@@ -139,12 +142,12 @@ def save_user_profile(sender, instance, **kwargs):
         profile = instance.profile
         # Only save if the profile seems empty/default
         # Don't auto-save if it has subscription data or other important info
-        print(f"🔔 SIGNAL: save_user_profile called for user {instance.username}")
-        print(f"🔔 Profile has subscription_tier: {profile.subscription_tier}")
-        print(f"🔔 Skipping auto-save to preserve subscription data")
+        logger.debug("SIGNAL: save_user_profile called for user %s", instance.username)
+        logger.debug("Profile has subscription_tier: %s", profile.subscription_tier)
+        logger.debug("Skipping auto-save to preserve subscription data")
         # Don't call profile.save() here as it overwrites our data
     except UserProfile.DoesNotExist:
-        print(f"🔔 SIGNAL: Creating missing profile for user {instance.username}")
+        logger.debug("SIGNAL: Creating missing profile for user %s", instance.username)
         UserProfile.objects.create(user=instance)
 
 

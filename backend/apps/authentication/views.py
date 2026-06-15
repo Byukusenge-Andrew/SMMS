@@ -202,18 +202,17 @@ def start_trial_view(request):
 )
 @method_decorator(csrf_exempt, name="dispatch")
 class RegisterView(APIView):
+    """DEPRECATED: Use the register() function-based view instead.
+    This view bypasses email verification and should not be used.
+    Kept as a stub to avoid import errors; returns 410 Gone.
+    """
     permission_classes = [permissions.AllowAny]
 
     def post(self, request):
-        serializer = RegisterSerializer(data=request.data)
-        if serializer.is_valid():
-            user = serializer.save()
-            token, created = Token.objects.get_or_create(user=user)
-            return Response(
-                {"user": UserSerializer(user).data, "token": token.key, "message": "User created successfully"},
-                status=status.HTTP_201_CREATED,
-            )
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        return Response(
+            {"error": "This registration endpoint is deprecated. Use /api/auth/register/ instead."},
+            status=status.HTTP_410_GONE,
+        )
 
 
 @csrf_exempt
@@ -268,7 +267,8 @@ class LogoutView(APIView):
             request.user.auth_token.delete()
             logout(request)
             return Response({"message": "Logout successful"}, status=status.HTTP_200_OK)
-        except:
+        except Exception as e:
+            logger.warning("Error during logout for user %s: %s", request.user.username, str(e))
             return Response({"error": "Error logging out"}, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -356,6 +356,7 @@ class UserView(APIView):
 class SocialMediaAccountListView(ListCreateAPIView):
     serializer_class = SocialMediaAccountSerializer
     permission_classes = [IsAuthenticated]
+    pagination_class = None
 
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):
@@ -514,9 +515,6 @@ def user_dashboard(request):
 @permission_classes([permissions.AllowAny])
 def health_check(request):
     """Health check endpoint"""
-    print("HEALTH CHECK ENDPOINT REACHED!")
-    print(f"Request path: {request.path}")
-    print(f"Request method: {request.method}")
     return Response({"status": "healthy", "message": "Social Media Manager API is running"})
 
 
@@ -524,11 +522,7 @@ def health_check(request):
 @permission_classes([permissions.AllowAny])
 def ultra_simple_test(request):
     """Ultra simple test endpoint to verify Django is working"""
-    print("ULTRA SIMPLE TEST ENDPOINT REACHED!")
-    print(f"Request path: {request.path}")
-    print(f"Request method: {request.method}")
-    print(f"Request user: {request.user}")
-    print(f"Request authenticated: {request.user.is_authenticated}")
+    logger.debug("ultra_simple_test called: method=%s, user=%s", request.method, request.user)
     return Response({"message": "Ultra simple test working", "method": request.method, "authenticated": request.user.is_authenticated})
 
 
@@ -718,7 +712,8 @@ def resend_verification_email(request):
         return Response({"message": "Verification email sent successfully"})
 
     except User.DoesNotExist:
-        return Response({"error": "User with this email does not exist"}, status=status.HTTP_404_NOT_FOUND)
+        # Return same message to prevent email enumeration
+        return Response({"message": "If an account with this email exists and is unverified, a verification email has been sent."})
 
 
 def send_verification_email(user, token):
@@ -768,8 +763,7 @@ def debug_auth(request):
 @permission_classes([permissions.AllowAny])
 def simple_test(request):
     """Simple test endpoint"""
-    print(f"🟢 SIMPLE TEST ENDPOINT CALLED! Method: {request.method}")
-    print(f"🟢 Request data: {request.data}")
+    logger.debug("simple_test called: method=%s", request.method)
     return Response({"message": "Test endpoint working", "method": request.method})
 
 
@@ -777,7 +771,7 @@ def simple_test(request):
 @permission_classes([permissions.AllowAny])
 def debug_auth_open(request):
     """Open debug endpoint to check what's happening with auth"""
-    print("🔍 DEBUG_AUTH_OPEN endpoint called!")
+    logger.debug("debug_auth_open called")
     auth_header = request.META.get("HTTP_AUTHORIZATION", "Not provided")
 
     # Try to manually authenticate
@@ -963,6 +957,13 @@ def change_password(request):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
+        # Reject if new password is the same as the old one
+        if current_password == new_password:
+            return Response(
+                {"error": "New password must be different from the current password"}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
         # Validate new password
         from django.contrib.auth.password_validation import validate_password
         try:
@@ -977,11 +978,21 @@ def change_password(request):
         user.set_password(new_password)
         user.save()
         
-        logger.info(f"Password changed successfully for user: {user.username}")
-        return Response({"message": "Password changed successfully"})
+        # Invalidate old token and issue a new one (token rotation)
+        try:
+            user.auth_token.delete()
+        except Exception:
+            pass
+        new_token = Token.objects.create(user=user)
+        
+        logger.info("Password changed successfully for user: %s", user.username)
+        return Response({
+            "message": "Password changed successfully",
+            "token": new_token.key,
+        })
         
     except Exception as e:
-        logger.error(f"Error changing password: {str(e)}")
+        logger.error("Error changing password: %s", str(e))
         return Response(
             {"error": "Failed to change password"}, 
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -1351,9 +1362,8 @@ def validate_reset_token(request, token):
             )
         
         return Response({
+            "valid": True,
             "message": "Token is valid",
-            "email": reset_token.user.email,
-            "username": reset_token.user.username
         })
     
     except PasswordResetToken.DoesNotExist:

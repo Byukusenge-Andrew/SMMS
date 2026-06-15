@@ -709,3 +709,33 @@ class SocialMediaSetMembership(models.Model):
     def save(self, *args, **kwargs):
         self.clean()
         super().save(*args, **kwargs)
+
+
+class AIAgent(models.Model):
+    """Custom AI Agent configurations for content generation"""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='ai_agents')
+    name = models.CharField(max_length=100)
+    persona = models.TextField(help_text="System instructions or persona prompt for the agent")
+    platform = models.CharField(
+        max_length=20, 
+        default='all', 
+        help_text="Default platform for this agent (e.g., twitter, linkedin, instagram, tiktok, all)"
+    )
+    tone = models.CharField(
+        max_length=50, 
+        default='professional', 
+        help_text="Agent's writing tone/style (e.g., professional, humorous, educational, persuasive, witty)"
+    )
+    temperature = models.FloatField(default=0.7, help_text="Creativity temperature (0.0 to 1.0)")
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "ai_agents"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.name} ({self.user.username})"
+

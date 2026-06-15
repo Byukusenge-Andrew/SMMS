@@ -3,7 +3,7 @@ Serializers for social media API integrations
 """
 from rest_framework import serializers
 from django.utils import timezone
-from .models import TwitterPost, TikTokPost, SocialMediaAccount, SocialMediaAnalytics
+from .models import TwitterPost, TikTokPost, SocialMediaAccount, SocialMediaAnalytics, AIAgent
 
 
 class TwitterPostCreateSerializer(serializers.Serializer):
@@ -531,3 +531,21 @@ class TikTokAuthSerializer(serializers.Serializer):
     
     class Meta:
         fields = ['access_token', 'refresh_token', 'expires_in', 'scope']
+
+
+class AIAgentSerializer(serializers.ModelSerializer):
+    """Serializer for AIAgent model"""
+    class Meta:
+        model = AIAgent
+        fields = [
+            'id', 'name', 'persona', 'platform', 'tone', 
+            'temperature', 'is_active', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+    def validate_temperature(self, value):
+        """Validate temperature is between 0.0 and 1.0"""
+        if not (0.0 <= value <= 1.0):
+            raise serializers.ValidationError("Temperature must be between 0.0 and 1.0")
+        return value
+
