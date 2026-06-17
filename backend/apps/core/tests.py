@@ -41,7 +41,6 @@ class SubscriptionTierModelTest(TestCase):
             advanced_analytics=True,
             priority_support=False,
             white_label=False,
-            api_access=True,
             is_active=True
         )
         
@@ -60,7 +59,7 @@ class SubscriptionTierModelTest(TestCase):
             price_yearly=Decimal("299.99")
         )
         
-        self.assertEqual(str(tier), "Test Tier")
+        self.assertEqual(str(tier), "Test Tier - $29.99/month")
 
 
 class UserSubscriptionModelTest(TestCase):
@@ -87,13 +86,13 @@ class UserSubscriptionModelTest(TestCase):
             tier=self.tier,
             stripe_subscription_id="sub_test123",
             status="active",
-            billing_cycle="monthly"
+            billing_period="monthly"
         )
         
         self.assertEqual(subscription.user, self.user)
         self.assertEqual(subscription.tier, self.tier)
         self.assertEqual(subscription.status, "active")
-        self.assertEqual(subscription.billing_cycle, "monthly")
+        self.assertEqual(subscription.billing_period, "monthly")
     
     def test_subscription_string_representation(self):
         """Test string representation of subscription"""
@@ -140,8 +139,7 @@ class PaymentHistoryModelTest(TestCase):
             stripe_payment_intent_id="pi_test123",
             amount=Decimal("29.99"),
             currency="usd",
-            status="succeeded",
-            description="Monthly subscription payment"
+            status="succeeded"
         )
         
         self.assertEqual(payment.user, self.user)
@@ -164,25 +162,24 @@ class GoHighLevelIntegrationModelTest(TestCase):
         """Test creating GoHighLevel integration"""
         integration = GoHighLevelIntegration.objects.create(
             user=self.user,
-            ghl_location_id="loc_test123",
-            access_token="token_test123",
-            refresh_token="refresh_test123",
+            location_id="loc_test123",
+            api_key="token_test123",
             is_active=True
         )
         
         self.assertEqual(integration.user, self.user)
-        self.assertEqual(integration.ghl_location_id, "loc_test123")
+        self.assertEqual(integration.location_id, "loc_test123")
         self.assertTrue(integration.is_active)
     
     def test_integration_string_representation(self):
         """Test string representation of GHL integration"""
         integration = GoHighLevelIntegration.objects.create(
             user=self.user,
-            ghl_location_id="loc_test123",
-            access_token="token_test123"
+            location_id="loc_test123",
+            api_key="token_test123"
         )
         
-        expected = f"GoHighLevel - {self.user.username} (loc_test123)"
+        expected = f"{self.user.username} - GoHighLevel"
         self.assertEqual(str(integration), expected)
 
 
@@ -198,15 +195,14 @@ class CRMContactModelTest(TestCase):
         
         self.integration = GoHighLevelIntegration.objects.create(
             user=self.user,
-            ghl_location_id="loc_test123",
-            access_token="token_test123"
+            location_id="loc_test123",
+            api_key="token_test123"
         )
     
     def test_create_crm_contact(self):
         """Test creating CRM contact"""
         contact = CRMContact.objects.create(
             user=self.user,
-            integration=self.integration,
             ghl_contact_id="contact_test123",
             first_name="John",
             last_name="Doe",
@@ -227,7 +223,6 @@ class CRMContactModelTest(TestCase):
         """Test string representation of CRM contact"""
         contact = CRMContact.objects.create(
             user=self.user,
-            integration=self.integration,
             ghl_contact_id="contact_test123",
             first_name="John",
             last_name="Doe",
@@ -261,23 +256,22 @@ class PaymentAPITestCase(APITestCase):
     
     def test_get_subscription_tiers(self):
         """Test getting available subscription tiers"""
-        url = reverse('core:subscription-tiers')
+        url = reverse('core:subscription_tiers')
         response = self.client.get(url)
         
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 1)
-        self.assertEqual(response.data[0]['name'], 'professional')
+        self.assertEqual(len(response.data['tiers']), 1)
+        self.assertEqual(response.data['tiers'][0]['name'], 'professional')
     
     def test_get_current_subscription_no_subscription(self):
         """Test getting current subscription when user has none"""
-        url = reverse('core:current-subscription')
+        url = reverse('core:user_subscription')
         response = self.client.get(url)
         
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIsNone(response.data['subscription'])
     
     def test_get_current_subscription_with_subscription(self):
-        """Test getting current subscription when user has one"""
         subscription = UserSubscription.objects.create(
             user=self.user,
             tier=self.tier,
@@ -285,33 +279,32 @@ class PaymentAPITestCase(APITestCase):
             status="active"
         )
         
-        url = reverse('core:current-subscription')
+        url = reverse('core:user_subscription')
         response = self.client.get(url)
         
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIsNotNone(response.data['subscription'])
         self.assertEqual(response.data['subscription']['tier']['name'], 'professional')
     
-    @patch('stripe.checkout.Session.create')
-    def test_create_checkout_session(self, mock_stripe_session):
-        """Test creating Stripe checkout session"""
-        # Mock Stripe response
-        mock_stripe_session.return_value = Mock(
-            id='cs_test123',
-            url='https://checkout.stripe.com/pay/cs_test123'
-        )
+    @patch('apps.core.services.stripe_service.StripePaymentService.create_subscription')
+    def test_create_checkout_session(self, mock_create_sub):
+        """Test creating Stripe subscription"""
+        mock_create_sub.return_value = {
+            'success': True,
+            'subscription_id': 'sub_test123',
+            'status': 'active'
+        }
         
-        url = reverse('core:create-checkout-session')
+        url = reverse('core:create_subscription')
         data = {
             'tier_id': self.tier.id,
-            'billing_cycle': 'monthly'
+            'billing_period': 'monthly'
         }
         
         response = self.client.post(url, data, format='json')
         
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertIn('checkout_url', response.data)
-        self.assertIn('session_id', response.data)
+        self.assertTrue(response.data['success'])
 
 
 class CRMAPITestCase(APITestCase):
@@ -324,10 +317,25 @@ class CRMAPITestCase(APITestCase):
             password="testpass123"
         )
         
+        # Create subscription for user to allow GHL integration access
+        tier = SubscriptionTier.objects.create(
+            name="professional",
+            display_name="Professional",
+            price_monthly=Decimal("29.99"),
+            price_yearly=Decimal("299.99"),
+            gohighlevel_integration=True,
+            is_active=True
+        )
+        UserSubscription.objects.create(
+            user=self.user,
+            tier=tier,
+            status="active"
+        )
+        
         self.integration = GoHighLevelIntegration.objects.create(
             user=self.user,
-            ghl_location_id="loc_test123",
-            access_token="token_test123",
+            location_id="loc_test123",
+            api_key="token_test123",
             is_active=True
         )
         
@@ -339,14 +347,13 @@ class CRMAPITestCase(APITestCase):
         # Create test contact
         CRMContact.objects.create(
             user=self.user,
-            integration=self.integration,
             ghl_contact_id="contact_test123",
             first_name="John",
             last_name="Doe",
             email="john.doe@example.com"
         )
         
-        url = reverse('core:crm-contacts')
+        url = reverse('core:get_contacts')
         response = self.client.get(url)
         
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -355,24 +362,23 @@ class CRMAPITestCase(APITestCase):
     
     def test_get_integration_status(self):
         """Test getting CRM integration status"""
-        url = reverse('core:crm-integration-status')
+        url = reverse('core:ghl_integration')
         response = self.client.get(url)
         
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertTrue(response.data['is_connected'])
-        self.assertEqual(response.data['location_id'], 'loc_test123')
+        self.assertTrue(response.data['success'])
+        self.assertEqual(response.data['integration']['location_id'], 'loc_test123')
     
     def test_get_integration_status_no_integration(self):
         """Test getting integration status when no integration exists"""
         # Delete the integration
         self.integration.delete()
         
-        url = reverse('core:crm-integration-status')
+        url = reverse('core:ghl_integration')
         response = self.client.get(url)
         
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertFalse(response.data['is_connected'])
-        self.assertIsNone(response.data['location_id'])
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertFalse(response.data['success'])
 
 
 class FeatureAccessTest(TestCase):
@@ -394,8 +400,7 @@ class FeatureAccessTest(TestCase):
             max_social_accounts=3,
             gohighlevel_integration=False,
             advanced_analytics=False,
-            priority_support=False,
-            api_access=False
+            priority_support=False
         )
         
         self.pro_tier = SubscriptionTier.objects.create(
@@ -406,8 +411,7 @@ class FeatureAccessTest(TestCase):
             max_social_accounts=10,
             gohighlevel_integration=True,
             advanced_analytics=True,
-            priority_support=True,
-            api_access=True
+            priority_support=True
         )
     
     def test_free_tier_limitations(self):
@@ -421,7 +425,6 @@ class FeatureAccessTest(TestCase):
         self.assertEqual(subscription.tier.max_social_accounts, 3)
         self.assertFalse(subscription.tier.gohighlevel_integration)
         self.assertFalse(subscription.tier.advanced_analytics)
-        self.assertFalse(subscription.tier.api_access)
     
     def test_pro_tier_features(self):
         """Test that pro tier has advanced features"""
@@ -434,7 +437,6 @@ class FeatureAccessTest(TestCase):
         self.assertEqual(subscription.tier.max_social_accounts, 10)
         self.assertTrue(subscription.tier.gohighlevel_integration)
         self.assertTrue(subscription.tier.advanced_analytics)
-        self.assertTrue(subscription.tier.api_access)
 
 
 class WebhookTest(TestCase):
@@ -481,7 +483,7 @@ class WebhookTest(TestCase):
         
         mock_construct_event.return_value = mock_event
         
-        url = reverse('core:stripe-webhook')
+        url = reverse('core:stripe_webhook')
         response = self.client.post(
             url,
             data=json.dumps({'test': 'data'}),

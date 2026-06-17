@@ -67,7 +67,8 @@ class AutomatedMessage(models.Model):
 
     class Meta:
         db_table = "automated_messages"
-        unique_together = ["user", "platform", "trigger"]
+        ordering = ["-created_at"]
+        unique_together = [["user", "platform", "trigger"]]
 
     def __str__(self):
         return f"Automated message for {self.trigger} on {self.platform}"

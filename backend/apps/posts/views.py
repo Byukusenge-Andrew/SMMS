@@ -536,6 +536,7 @@ def ai_content_suggestions(request):
     try:
         platform = request.data.get("platform", "instagram")
         agent_id = request.data.get("agent_id")
+        content = request.data.get("content", "")
 
         agent = None
         if agent_id:
@@ -567,10 +568,14 @@ def ai_content_suggestions(request):
 
         ai_service = AIService()
 
-        suggestions = ai_service.generate_content_suggestions_based_on_analytics(analytics_data, platform, agent=agent)
+        suggestions = ai_service.generate_content_suggestions_based_on_analytics(
+            analytics_data, platform, agent=agent, content=content
+        )
 
         # Also get general suggestions
-        general_suggestions = ai_service.generate_post_suggestions(request.user, platform, agent=agent)
+        general_suggestions = ai_service.generate_post_suggestions(
+            request.user, platform, agent=agent, content=content
+        )
 
         return Response({
             "success": True,

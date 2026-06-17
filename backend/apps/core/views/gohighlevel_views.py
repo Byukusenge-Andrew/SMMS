@@ -49,7 +49,7 @@ logger = logging.getLogger(__name__)
     summary="Setup GoHighLevel integration",
     description="Setup or update GoHighLevel CRM integration settings"
 )
-@api_view(['POST'])
+@api_view(['POST', 'PUT'])
 @permission_classes([permissions.IsAuthenticated])
 def setup_gohighlevel_integration(request):
     """Setup GoHighLevel integration for the user"""
@@ -113,6 +113,53 @@ def setup_gohighlevel_integration(request):
         return Response({
             'success': False,
             'error': 'Failed to setup integration'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@extend_schema(
+    operation_id="test_gohighlevel_connection",
+    request={
+        'application/json': {
+            'type': 'object',
+            'properties': {
+                'api_key': {'type': 'string', 'description': 'GoHighLevel API key'},
+                'location_id': {'type': 'string', 'description': 'GoHighLevel location ID'},
+            },
+            'required': ['api_key', 'location_id']
+        }
+    },
+    responses={
+        200: OpenApiResponse(description="Connection test result"),
+        400: OpenApiResponse(description="Invalid request data"),
+    },
+    summary="Test GoHighLevel connection",
+    description="Test GoHighLevel CRM integration settings without saving"
+)
+@api_view(['POST'])
+@permission_classes([permissions.IsAuthenticated])
+def test_gohighlevel_connection(request):
+    """Test GoHighLevel integration connection"""
+    try:
+        data = request.data
+        api_key = data.get('api_key')
+        location_id = data.get('location_id')
+        
+        if not api_key or not location_id:
+            return Response({
+                'success': False,
+                'error': 'api_key and location_id are required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        ghl_service = GoHighLevelService(api_key=api_key, location_id=location_id)
+        connection_test = ghl_service.test_connection()
+        
+        return Response(connection_test)
+        
+    except Exception as e:
+        logger.error(f"Error testing GoHighLevel connection: {e}")
+        return Response({
+            'success': False,
+            'error': 'Failed to test connection'
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
@@ -312,7 +359,9 @@ def get_crm_contacts(request):
         return Response({
             'success': True,
             'contacts': contact_data,
+            'results': contact_data,
             'total_count': total_count,
+            'count': total_count,
             'has_more': offset + limit < total_count
         })
         

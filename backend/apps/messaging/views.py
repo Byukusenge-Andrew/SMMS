@@ -48,7 +48,7 @@ class AutomatedMessageListCreateView(generics.ListCreateAPIView):
 
     def get_queryset(self):
         # Extra safety: ensure we only ever return records for the authenticated user
-        return AutomatedMessage.objects.filter(user=self.request.user)
+        return AutomatedMessage.objects.filter(user=self.request.user).order_by("-created_at")
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
@@ -97,25 +97,28 @@ def send_message_now(request):
         return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 
-    @api_view(["POST"])
-    @permission_classes([permissions.IsAuthenticated])
-    def share_calendar(request: Request):
-        """Share calendar to Slack channels / emails.
+@api_view(["POST"])
+@permission_classes([permissions.IsAuthenticated])
+@authentication_classes([TokenAuthentication])
+def share_calendar(request):
+    """Share calendar to Slack channels / emails.
 
-        Body: { entries: [{platform, scheduled_time, title, status}], slack_recipients: ["#channel"|"@user"], emails: ["user@example.com"] }
-        """
-        data = request.data or {}
-        entries = data.get("entries", [])
-        slack_recipients = data.get("slack_recipients", [])
-        emails = data.get("emails", [])
-        if not entries:
-            return Response({"error": "entries required"}, status=400)
-        # Fire async tasks
-        if slack_recipients:
-            share_calendar_slack.delay(request.user.id, entries, slack_recipients)
-        if emails:
-            share_calendar_email.delay(request.user.id, entries, emails)
-        return Response({"queued": True, "slack": len(slack_recipients), "emails": len(emails)})
+    Body: { entries: [{platform, scheduled_time, title, status}], slack_recipients: ["#channel"|"@user"], emails: ["user@example.com"] }
+    """
+    data = request.data or {}
+    entries = data.get("entries", [])
+    slack_recipients = data.get("slack_recipients", [])
+    emails = data.get("emails", [])
+    if not entries:
+        return Response({"error": "entries required"}, status=400)
+    # Fire async tasks
+    if slack_recipients:
+        share_calendar_slack.delay(request.user.id, entries, slack_recipients)
+    if emails:
+        share_calendar_email.delay(request.user.id, entries, emails)
+    return Response({"queued": True, "slack": len(slack_recipients), "emails": len(emails)})
+
+
 @api_view(["POST"])
 @permission_classes([permissions.IsAuthenticated])
 @authentication_classes([TokenAuthentication])
@@ -198,13 +201,13 @@ def test_automated_message(request, message_id):
         if not test_recipient:
             return Response({"error": "Test recipient is required"}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Create a test message
+        # Create a test message (message_type must be a valid TYPE_CHOICES value)
         test_message = Message.objects.create(
             user=request.user,
             platform=automated_msg.platform,
             recipient=test_recipient,
             content=f"[TEST] {automated_msg.content_template}",
-            message_type="test",
+            message_type="direct",
             priority="normal",
         )
 

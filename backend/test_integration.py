@@ -23,7 +23,7 @@ import uuid
 
 def test_payment_models():
     """Test payment models creation and functionality"""
-    print("🧪 Testing Payment Models...")
+    print("[TEST] Testing Payment Models...")
     
     # Test SubscriptionTier creation (get or create to avoid duplicates)
     free_tier, created = SubscriptionTier.objects.get_or_create(
@@ -45,9 +45,9 @@ def test_payment_models():
         }
     )
     if created:
-        print(f"✅ Created Free Tier: {free_tier.display_name}")
+        print(f"[PASS] Created Free Tier: {free_tier.display_name}")
     else:
-        print(f"✅ Using existing Free Tier: {free_tier.display_name}")
+        print(f"[PASS] Using existing Free Tier: {free_tier.display_name}")
     
     basic_tier, created = SubscriptionTier.objects.get_or_create(
         name='basic',
@@ -68,9 +68,9 @@ def test_payment_models():
         }
     )
     if created:
-        print(f"✅ Created Basic Tier: {basic_tier.display_name}")
+        print(f"[PASS] Created Basic Tier: {basic_tier.display_name}")
     else:
-        print(f"✅ Using existing Basic Tier: {basic_tier.display_name}")
+        print(f"[PASS] Using existing Basic Tier: {basic_tier.display_name}")
     
     # Test user creation and subscription
     test_user, created = User.objects.get_or_create(
@@ -82,9 +82,9 @@ def test_payment_models():
     if created:
         test_user.set_password('testpassword')
         test_user.save()
-        print(f"✅ Created Test User: {test_user.username}")
+        print(f"[PASS] Created Test User: {test_user.username}")
     else:
-        print(f"✅ Using existing Test User: {test_user.username}")
+        print(f"[PASS] Using existing Test User: {test_user.username}")
     
     # Try to get existing subscription or create new one
     user_subscription, created = UserSubscription.objects.get_or_create(
@@ -98,9 +98,9 @@ def test_payment_models():
         }
     )
     if created:
-        print(f"✅ Created User Subscription: {user_subscription.tier.display_name}")
+        print(f"[PASS] Created User Subscription: {user_subscription.tier.display_name}")
     else:
-        print(f"✅ Using existing User Subscription: {user_subscription.tier.display_name}")
+        print(f"[PASS] Using existing User Subscription: {user_subscription.tier.display_name}")
     
     # Test payment history (create with unique payment intent ID)
     from django.utils import timezone
@@ -114,13 +114,13 @@ def test_payment_models():
         stripe_payment_intent_id=payment_intent_id,
         payment_date=timezone.now()
     )
-    print(f"✅ Created Payment History: ${payment.amount} {payment.currency}")
+    print(f"[PASS] Created Payment History: ${payment.amount} {payment.currency}")
     
     return True
 
 def test_crm_models():
     """Test CRM models creation and functionality"""
-    print("\n🧪 Testing CRM Models...")
+    print("\n[TEST] Testing CRM Models...")
     
     # Get or create test user
     test_user, created = User.objects.get_or_create(
@@ -128,9 +128,9 @@ def test_crm_models():
         defaults={'email': 'crm@example.com'}
     )
     if created:
-        print(f"✅ Created CRM Test User: {test_user.username}")
+        print(f"[PASS] Created CRM Test User: {test_user.username}")
     else:
-        print(f"✅ Using existing CRM Test User: {test_user.username}")
+        print(f"[PASS] Using existing CRM Test User: {test_user.username}")
     
     # Test GoHighLevel Integration
     ghl_integration, created = GoHighLevelIntegration.objects.get_or_create(
@@ -145,9 +145,9 @@ def test_crm_models():
         }
     )
     if created:
-        print(f"✅ Created GoHighLevel Integration for: {ghl_integration.user.username}")
+        print(f"[PASS] Created GoHighLevel Integration for: {ghl_integration.user.username}")
     else:
-        print(f"✅ Using existing GoHighLevel Integration for: {ghl_integration.user.username}")
+        print(f"[PASS] Using existing GoHighLevel Integration for: {ghl_integration.user.username}")
     
     # Test CRM Contact (create with unique GHL contact ID)
     ghl_contact_id = f'ghl_contact_{uuid.uuid4().hex[:8]}'
@@ -164,61 +164,61 @@ def test_crm_models():
         custom_fields={'source': 'website', 'interest': 'social_media'},
         social_media_profiles={'twitter': '@johndoe', 'linkedin': 'johndoe'}
     )
-    print(f"✅ Created CRM Contact: {crm_contact.full_name}")
+    print(f"[PASS] Created CRM Contact: {crm_contact.full_name}")
     
     return True
 
 def test_api_imports():
     """Test that all our API modules can be imported"""
-    print("\n🧪 Testing API Imports...")
+    print("\n[TEST] Testing API Imports...")
     
     try:
         from apps.core.services.stripe_service import StripePaymentService
-        print("✅ Successfully imported StripePaymentService")
+        print("[PASS] Successfully imported StripePaymentService")
         
         from apps.core.services.gohighlevel_service import GoHighLevelService  
-        print("✅ Successfully imported GoHighLevelService")
+        print("[PASS] Successfully imported GoHighLevelService")
         
         from apps.core.views.payment_views import get_subscription_tiers
-        print("✅ Successfully imported payment views")
+        print("[PASS] Successfully imported payment views")
         
         from apps.core.views.gohighlevel_views import setup_gohighlevel_integration
-        print("✅ Successfully imported CRM views")
+        print("[PASS] Successfully imported CRM views")
         
         return True
     except ImportError as e:
-        print(f"❌ Import error: {e}")
+        print(f"[FAIL] Import error: {e}")
         return False
 
 def test_database_queries():
     """Test database queries and model relationships"""
-    print("\n🧪 Testing Database Queries...")
+    print("\n[TEST] Testing Database Queries...")
     
     # Test tier queries
     tiers = SubscriptionTier.objects.filter(is_active=True)
-    print(f"✅ Found {tiers.count()} active subscription tiers")
+    print(f"[PASS] Found {tiers.count()} active subscription tiers")
     
     # Test user subscriptions
     subscriptions = UserSubscription.objects.select_related('tier', 'user')
-    print(f"✅ Found {subscriptions.count()} user subscriptions")
+    print(f"[PASS] Found {subscriptions.count()} user subscriptions")
     
     # Test payment history
     payments = PaymentHistory.objects.select_related('user', 'subscription')
-    print(f"✅ Found {payments.count()} payment records")
+    print(f"[PASS] Found {payments.count()} payment records")
     
     # Test CRM integrations
     integrations = GoHighLevelIntegration.objects.select_related('user')
-    print(f"✅ Found {integrations.count()} GoHighLevel integrations")
+    print(f"[PASS] Found {integrations.count()} GoHighLevel integrations")
     
     # Test CRM contacts
     contacts = CRMContact.objects.select_related('user')
-    print(f"✅ Found {contacts.count()} CRM contacts")
+    print(f"[PASS] Found {contacts.count()} CRM contacts")
     
     return True
 
 def main():
     """Main test function"""
-    print("🚀 Starting Payment and CRM Integration Tests\n")
+    print("[START] Starting Payment and CRM Integration Tests\n")
     
     tests_passed = 0
     total_tests = 4
@@ -237,17 +237,17 @@ def main():
             tests_passed += 1
             
     except Exception as e:
-        print(f"❌ Test failed with error: {e}")
+        print(f"[FAIL] Test failed with error: {e}")
         import traceback
         traceback.print_exc()
     
-    print(f"\n📊 Test Results: {tests_passed}/{total_tests} tests passed")
+    print(f"\n[RESULT] Test Results: {tests_passed}/{total_tests} tests passed")
     
     if tests_passed == total_tests:
-        print("🎉 All tests passed! Payment and CRM integration is working correctly.")
+        print("[SUCCESS] All tests passed! Payment and CRM integration is working correctly.")
         return True
     else:
-        print("⚠️  Some tests failed. Please check the errors above.")
+        print("[WARNING] Some tests failed. Please check the errors above.")
         return False
 
 if __name__ == "__main__":

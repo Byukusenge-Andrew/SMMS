@@ -26,6 +26,7 @@ from .views.gohighlevel_views import (
     get_crm_contacts,
     create_gohighlevel_contact,
     gohighlevel_webhook,
+    test_gohighlevel_connection,
     # CRM contact management
     create_crm_contact,
     update_crm_contact,
@@ -57,6 +58,7 @@ urlpatterns = [
     path('ghl/contacts/', get_crm_contacts, name='ghl_contacts'),
     path('ghl/contacts/create/', create_gohighlevel_contact, name='ghl_create_contact'),
     path('ghl/webhook/', gohighlevel_webhook, name='ghl_webhook'),
+    path('ghl/test-connection/', test_gohighlevel_connection, name='ghl_test_connection'),
     
     # CRM contact management
     path('contacts/', get_crm_contacts, name='get_contacts'),

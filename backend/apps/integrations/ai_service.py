@@ -396,11 +396,11 @@ class AIService:
         return round(score, 1)
 
     def generate_content_suggestions_based_on_analytics(
-        self, analytics_data: List[Dict], platform: str, agent=None
+        self, analytics_data: List[Dict], platform: str, agent=None, content: str = None
     ) -> List[Dict[str, Any]]:
         """Generate content suggestions based on analytics performance"""
         if not analytics_data:
-            return self.generate_post_suggestions(None, platform, agent=agent)
+            return self.generate_post_suggestions(None, platform, agent=agent, content=content)
 
         # Try Gemini API if key is available
         if os.getenv("GEMINI_API_KEY"):
@@ -420,13 +420,14 @@ class AIService:
             else:
                 system_instruction = "You are an expert Social Media AI Planner."
 
+            content_str = f" based on the user's draft/prompt: \"{content}\"" if content else ""
             prompt = f"""
-            Analyze the following analytics summary of a user's performance and generate exactly 4 actionable content creation suggestions tailored for {platform}.{tone_str}
+            Analyze the following analytics summary of a user's performance and generate exactly 4 ready-to-publish, high-performing post suggestions tailored for {platform}{content_str}.{tone_str}
             
             Performance Summary: {analytics_summary}
             
             Provide the response in raw JSON format as a list of objects, where each object has:
-            - "content": The suggestion text (e.g. "Create more posts about tips because they get 30% higher engagement").
+            - "content": The full post text (make sure it is a complete, publish-ready post containing engaging body copy, emojis, and hashtags where appropriate, not just a recommendation or one-sentence suggestion).
             - "confidence": A float between 0.5 and 0.99.
             - "reason": A brief reason identifier (e.g. "based_on_high_engagement", "optimal_timing").
             
@@ -459,10 +460,37 @@ class AIService:
         # If we have high-performing content, suggest similar
         if high_performing:
             content_themes = self._extract_themes(high_performing)
+            theme_posts = [
+                (
+                    "motivation",
+                    "🔥 Success doesn't happen overnight — it's built one consistent action at a time.\n\nWhether you're just starting out or scaling up, the key is to stay focused, keep learning, and never stop showing up. Your audience is watching, and your story matters more than you think.\n\n💬 Drop a comment below: What's the ONE habit that changed everything for you?\n\n#Motivation #GrowthMindset #SuccessStory #Consistency #Entrepreneurship"
+                ),
+                (
+                    "tips",
+                    "✅ 5 quick wins to level up your content game this week:\n\n1️⃣ Post at peak hours when your audience is most active\n2️⃣ Use a strong hook in your first line — make them stop scrolling\n3️⃣ Add a clear call-to-action at the end of every post\n4️⃣ Engage with comments within the first 30 minutes of posting\n5️⃣ Repurpose your best-performing content across platforms\n\nWhich of these are you already doing? Let us know 👇\n\n#SocialMediaTips #ContentStrategy #DigitalMarketing #GrowthHacks"
+                ),
+                (
+                    "behind-the-scenes",
+                    "👀 Ever wonder what goes on behind the scenes?\n\nWe're pulling back the curtain today! From brainstorming ideas at 7am to scheduling posts and analysing performance, building a strong social media presence takes real work — and we love every minute of it.\n\nHere's what our typical content day looks like 👇\n🕖 Morning: Research & ideation\n🕛 Noon: Content creation & design\n🕒 Afternoon: Scheduling & engagement\n🕕 Evening: Analytics review\n\nWhat does YOUR content routine look like? Share below! 💡\n\n#BehindTheScenes #ContentCreation #DayInTheLife #SocialMediaManager"
+                ),
+                (
+                    "team",
+                    "🤝 Great content starts with great people.\n\nOur team is the secret sauce behind everything we do. From designers and writers to strategists and analysts — every role matters, and every voice shapes our brand.\n\nThis week, we're celebrating the unsung heroes who make the magic happen behind every post, every campaign, every milestone.\n\n💬 Tag a teammate who goes above and beyond! ⬇️\n\n#TeamWork #CompanyCulture #PeopleFirst #BehindTheBrand #Gratitude"
+                ),
+                (
+                    "innovation",
+                    "🚀 The future belongs to those who adapt.\n\nIn a world where platforms change overnight and trends shift by the hour, the brands that win are those willing to experiment, learn fast, and pivot without fear.\n\nHere's what we've been testing this quarter:\n✅ AI-assisted content drafts\n✅ Cross-platform scheduling automation\n✅ Audience sentiment analysis\n\nThe results? Game-changing. 📊\n\nWhat innovations are YOU exploring in your social strategy? Drop your thoughts below 👇\n\n#Innovation #AIMarketing #FutureOfSocial #DigitalStrategy #Automation"
+                ),
+                (
+                    "community",
+                    "💙 This community is what drives everything we do.\n\nEvery like, comment, share, and DM reminds us why we show up every single day. You're not just followers — you're partners in this journey.\n\nWe started with a simple idea: make meaningful connections online. And thanks to each of you, that idea has grown into something far bigger than we ever imagined.\n\nThank you. Truly. 🙏\n\nWhat's been your favourite thing about being part of this community? Tell us below 💬\n\n#CommunityFirst #Grateful #ThankYou #BuildingTogether #SocialMedia"
+                ),
+            ]
             for theme in content_themes[:3]:
+                post_text = next((p for t, p in theme_posts if t == theme), theme_posts[0][1])
                 suggestions.append(
                     {
-                        "content": f"Create more content about {theme} - it resonates well with your audience!",
+                        "content": post_text,
                         "confidence": 0.85,
                         "reason": "based_on_high_engagement",
                         "theme": theme,
@@ -475,7 +503,17 @@ class AIService:
 
         suggestions.append(
             {
-                "content": f"Schedule your next post around {best_hour}:00 for optimal engagement",
+                "content": (
+                    f"⏰ Timing is EVERYTHING on social media.\n\n"
+                    f"Our analytics show that posting around {best_hour}:00 consistently delivers the highest engagement for our audience — more eyes, more clicks, more conversations.\n\n"
+                    f"Are you posting at the right time? Here's a quick checklist:\n"
+                    f"✅ Know your audience's timezone\n"
+                    f"✅ Test different posting windows weekly\n"
+                    f"✅ Use scheduling tools so you never miss peak hours\n"
+                    f"✅ Review your analytics monthly and adjust\n\n"
+                    f"💬 What time of day gets the best response for YOU? Drop it in the comments!\n\n"
+                    f"#SocialMediaStrategy #Timing #ContentPlanning #Analytics #GrowthTips"
+                ),
                 "confidence": 0.8,
                 "reason": "optimal_timing",
                 "timing": best_hour,
@@ -499,36 +537,94 @@ class AIService:
         optimization_tips = {
             "twitter": [
                 {
-                    "content": "Try posting polls - they typically get 2x more engagement",
+                    "content": (
+                        "📊 Did you know Twitter polls can get up to 2x more engagement than a regular tweet?\n\n"
+                        "We decided to put it to the test this week, and the results blew us away. People LOVE sharing their opinions — and it's one of the easiest ways to spark a conversation with your audience.\n\n"
+                        "🗳️ Here's a quick poll for you:\n"
+                        "What type of content do you enjoy most?\n"
+                        "A) Tips & tutorials\n"
+                        "B) Behind-the-scenes\n"
+                        "C) Industry news\n"
+                        "D) Memes & humor\n\n"
+                        "Vote below and let us know! 👇 #TwitterMarketing #ContentStrategy #Engagement"
+                    ),
                     "confidence": 0.8,
                     "reason": "platform_optimization",
                 },
                 {
-                    "content": "Use trending hashtags to increase discoverability",
+                    "content": (
+                        "🔥 Trending now — and here's why it matters for YOUR brand.\n\n"
+                        "Jumping on trending hashtags isn't just about visibility. It's about showing up where the conversation already is — meeting your audience in the moment they're most engaged.\n\n"
+                        "Here's how to do it without looking out of place:\n"
+                        "✅ Make sure the trend is relevant to your niche\n"
+                        "✅ Add genuine value — don't just slap a hashtag and go\n"
+                        "✅ Act fast — trending windows are short on Twitter\n"
+                        "✅ Engage with others using the same tag\n\n"
+                        "Are you using trending hashtags strategically? 🤔 #TwitterGrowth #HashtagStrategy #SocialMediaTips"
+                    ),
                     "confidence": 0.75,
                     "reason": "platform_optimization",
                 },
             ],
             "instagram": [
                 {
-                    "content": "Post carousel content - it gets 3x more reach than single images",
+                    "content": (
+                        "🎠 Carousels are having a MOMENT on Instagram — and your brand should be riding the wave.\n\n"
+                        "Studies show carousel posts get up to 3x more reach than single images. Why? Because every swipe is a new chance to hook your audience — and the algorithm rewards the extra time people spend on your content.\n\n"
+                        "Here's a carousel formula that works every time:\n"
+                        "Slide 1️⃣: Bold hook or question\n"
+                        "Slides 2–5️⃣: Value-packed tips or story beats\n"
+                        "Last slide: Clear CTA (save, share, comment, follow)\n\n"
+                        "Are you using carousels yet? Drop a 🔥 in the comments if you want us to break this down further!\n\n"
+                        "#InstagramGrowth #CarouselPost #ContentStrategy #InstagramTips #Reels"
+                    ),
                     "confidence": 0.85,
                     "reason": "platform_optimization",
                 },
                 {
-                    "content": "Use all 30 hashtags for maximum reach potential",
+                    "content": (
+                        "#️⃣ Let's talk hashtags — because most people are using them WRONG on Instagram.\n\n"
+                        "The platform allows up to 30 hashtags per post, but it's not just about quantity. It's about relevance, reach, and rotation.\n\n"
+                        "Here's the winning formula we recommend:\n"
+                        "🔹 5 niche-specific hashtags (small, loyal communities)\n"
+                        "🔹 10 mid-range hashtags (100K–500K posts)\n"
+                        "🔹 10 broad hashtags (trending, high-volume)\n"
+                        "🔹 5 branded or campaign-specific hashtags\n\n"
+                        "Rotate your sets weekly to avoid shadowban risk and keep discovery fresh.\n\n"
+                        "Save this post for your next upload! 💾 #InstagramHashtags #ReachMore #IGStrategy #ContentCreator"
+                    ),
                     "confidence": 0.7,
                     "reason": "platform_optimization",
                 },
             ],
             "linkedin": [
                 {
-                    "content": "Share industry insights and professional achievements",
+                    "content": (
+                        "💼 The posts that perform best on LinkedIn aren't the polished press releases — they're the honest, human stories.\n\n"
+                        "Share what you've learned. Share what you've failed at. Share what surprised you this quarter. Industry insights and real professional experiences resonate far more than corporate speak.\n\n"
+                        "Here's a simple format that consistently outperforms on LinkedIn:\n"
+                        "📌 Open with a bold statement or counterintuitive opinion\n"
+                        "📌 Share your personal experience or data point\n"
+                        "📌 Give your audience 3 actionable takeaways\n"
+                        "📌 End with a question to drive comments\n\n"
+                        "What's the best professional lesson you've learned this year? Share below 👇\n\n"
+                        "#LinkedIn #ThoughtLeadership #ProfessionalGrowth #B2BMarketing #Networking"
+                    ),
                     "confidence": 0.8,
                     "reason": "platform_optimization",
                 },
                 {
-                    "content": "Post native videos for 5x more engagement",
+                    "content": (
+                        "🎥 Native video on LinkedIn gets 5x more engagement than any other content type — and most brands are still sleeping on it.\n\n"
+                        "You don't need a production crew. You don't need a studio. You need a clear message, a phone camera, and 60–90 seconds of your time.\n\n"
+                        "Here's what makes LinkedIn video WORK:\n"
+                        "✅ Always add subtitles (85% of viewers watch on mute)\n"
+                        "✅ Front-load your key message in the first 5 seconds\n"
+                        "✅ Upload directly to LinkedIn — don't link from YouTube\n"
+                        "✅ End with a genuine question to spark discussion\n\n"
+                        "Have you tried native LinkedIn video yet? What was your experience? 💬\n\n"
+                        "#LinkedInVideo #VideoMarketing #LinkedInGrowth #ContentMarketing #B2B"
+                    ),
                     "confidence": 0.85,
                     "reason": "platform_optimization",
                 },
@@ -559,7 +655,7 @@ class AIService:
     # ──────────────────────────────────────────────────────────────────────
     #  Main dispatcher
     # ──────────────────────────────────────────────────────────────────────
-    def generate_post_suggestions(self, user, platform: str, agent=None) -> List[Dict[str, Any]]:
+    def generate_post_suggestions(self, user, platform: str, agent=None, content: str = None) -> List[Dict[str, Any]]:
         """Generate content suggestions based on platform and user context.
 
         When a custom **AIAgent** is provided the method runs the *deliberative*
@@ -572,7 +668,7 @@ class AIService:
         # Deliberative mode when a custom agent is attached
         if agent:
             try:
-                result = self._generate_post_suggestions_deliberative(platform, agent)
+                result = self._generate_post_suggestions_deliberative(platform, agent, content=content)
                 if result:
                     return result
                 logging.warning("Deliberative pipeline returned empty — falling back to reactive.")
@@ -580,12 +676,12 @@ class AIService:
                 logging.error(f"Deliberative pipeline failed: {e} — falling back to reactive.")
 
         # Default reactive single-call path
-        return self._generate_post_suggestions_reactive(platform, agent)
+        return self._generate_post_suggestions_reactive(platform, agent, content=content)
 
     # ──────────────────────────────────────────────────────────────────────
     #  Reactive (single-step) generation
     # ──────────────────────────────────────────────────────────────────────
-    def _generate_post_suggestions_reactive(self, platform: str, agent=None) -> List[Dict[str, Any]]:
+    def _generate_post_suggestions_reactive(self, platform: str, agent=None, content: str = None) -> List[Dict[str, Any]]:
         """Single Gemini call — fast, good-enough suggestions."""
         system_instruction = "You are a social media copywriter."
         temp = None
@@ -595,12 +691,19 @@ class AIService:
             temp = agent.temperature
             tone_str = f" Ensure they reflect a '{agent.tone}' tone and match the agent instructions."
 
+        base_prompt = ""
+        if content:
+            base_prompt = f"based on this draft/idea: \"{content}\""
+        else:
+            base_prompt = "general posts"
+
         prompt = f"""
-        Generate 3 creative, engaging, and high-performing posts tailored for {platform}.{tone_str}
+        Generate 3 creative, engaging, and high-performing posts tailored for {platform} {base_prompt}.{tone_str}
         Ensure they match the platform tone and styling conventions.
+        Each post must be a complete, fully-written, publish-ready social media post (do NOT return just a single sentence suggestion or recommendation, but write a whole post with hooks, body text, emojis, and call-to-actions where appropriate).
 
         Provide the response in raw JSON format as a list of objects, where each object has:
-        - "content": The post content (use emojis where appropriate).
+        - "content": The full post content (use emojis where appropriate).
         - "confidence": A float between 0.7 and 0.99.
 
         Do not include any markdown formatting like ```json in the output. Return only raw valid JSON list.
@@ -615,7 +718,7 @@ class AIService:
     # ──────────────────────────────────────────────────────────────────────
     #  Deliberative (Plan → Write → Review) pipeline
     # ──────────────────────────────────────────────────────────────────────
-    def _generate_post_suggestions_deliberative(self, platform: str, agent) -> List[Dict[str, Any]]:
+    def _generate_post_suggestions_deliberative(self, platform: str, agent, content: str = None) -> List[Dict[str, Any]]:
         """Multi-step agent pipeline inspired by ReAct / Google ADK patterns.
 
         Step 1 – **Plan**: Generate a structured content plan (topics, hooks, CTA)
@@ -632,8 +735,14 @@ class AIService:
             "Your job is to create a structured content plan that will guide the writing of 3 social media posts."
         )
 
+        base_plan_prompt = ""
+        if content:
+            base_plan_prompt = f"based on the following content draft/idea: \"{content}\""
+        else:
+            base_plan_prompt = "high-performing posts"
+
         plan_prompt = f"""
-Create a content plan for 3 high-performing {platform} posts.
+Create a content plan for 3 high-performing {platform} posts {base_plan_prompt}.
 
 For each post idea, provide:
 - "topic": A concise topic / angle
@@ -696,7 +805,7 @@ Requirements:
 - Use emojis where appropriate for {platform}.
 - Include relevant hashtags based on the hashtag strategy.
 - Respect {platform} character limits and conventions.
-- Make each post unique and engaging.
+- Make each post unique, complete, and engaging (not a brief suggestion, but the full content of the post).
 
 Return a JSON list of objects:
 [
@@ -738,7 +847,8 @@ Review these {platform} post drafts and improve them. For each post:
 2. Ensure the hook is strong and attention-grabbing.
 3. Verify the CTA drives engagement.
 4. Optimize for {platform} best practices.
-5. Assign a final confidence score (0.7 - 0.99) based on expected performance.
+5. Ensure each draft is expanded into a complete, ready-to-publish post (NOT a single sentence recommendation).
+6. Assign a final confidence score (0.7 - 0.99) based on expected performance.
 
 === DRAFT POSTS ===
 {drafts_json}
@@ -813,47 +923,47 @@ Return only raw valid JSON, no markdown fences.
         """Return canned suggestions when Gemini API is unavailable."""
         platform_suggestions = {
             "twitter": [
-                {"content": "Just had an amazing coffee ☕ What's everyone drinking today?", "confidence": 0.85},
-                {"content": "Monday motivation: Every expert was once a beginner! 💪 #MondayMotivation", "confidence": 0.78},
+                {"content": "Just had an amazing coffee at our favorite local spot ☕ What's everyone drinking to power through their Tuesday? Drop your go-to cup in the comments! 👇", "confidence": 0.85},
+                {"content": "Tuesday motivation: Every expert was once a beginner! 💪 Keep pushing, stay focused, and remember that growth takes time. What goals are you working on today?", "confidence": 0.78},
                 {
-                    "content": "Quick tip: Take a 5-minute break every hour. Your productivity will thank you! ⏰",
+                    "content": "Quick tip: Take a 5-minute break every hour. Your productivity will thank you, and it's a great way to clear your head! ⏰ Try it out and let us know if it helps.",
                     "confidence": 0.82,
                 },
-                {"content": "What's the best advice you've received this week? Drop it below! 👇", "confidence": 0.75},
+                {"content": "Reflecting on the best advice I've received this week: 'Focus on progress, not perfection.' 📈 What is the best piece of wisdom you heard recently? Let's chat below! 👇", "confidence": 0.75},
             ],
             "instagram": [
-                {"content": "Behind the scenes of our latest project! 📸 #BTS #Creative", "confidence": 0.88},
-                {"content": "Sunset vibes from today's photoshoot 🌅 #Photography #Golden Hour", "confidence": 0.84},
-                {"content": "Team collaboration at its finest! When great minds work together ✨", "confidence": 0.79},
-                {"content": "Friday feeling! Ready for an amazing weekend ahead 🎉", "confidence": 0.81},
+                {"content": "Behind the scenes of our latest project! 📸 We have been working hard to bring this to life, and we cannot wait to share the final result with you all. Stay tuned for updates! ✨ #BTS #Creative #BehindTheScenes #WorkInProgress", "confidence": 0.88},
+                {"content": "Golden hour vibes from today's photoshoot 🌅 There is something truly magical about catching the perfect light! Which shot is your favorite? Let us know in the comments! #Photography #GoldenHour #Inspiration #Vibes", "confidence": 0.84},
+                {"content": "Team collaboration at its finest! When great minds work together, amazing ideas turn into reality. So grateful for this hardworking and passionate crew. 💼✨ #Teamwork #Collaboration #CompanyCulture #OfficeVibes", "confidence": 0.79},
+                {"content": "Friday feeling! Ready for an amazing weekend ahead to recharge, relax, and spend quality time with loved ones. What are your plans for the weekend? 🎉 #FridayVibes #WeekendReady #Recharge #Weekend", "confidence": 0.81},
             ],
             "linkedin": [
                 {
-                    "content": "Thrilled to share insights from our latest industry report. Key trends everyone should know about.",
+                    "content": "Thrilled to share key insights from our latest industry report. Digital transformation is accelerating faster than ever, and automation is leading the way in operational efficiency. How is your team adapting to these changes? Let's discuss in the comments below. #DigitalTransformation #BusinessStrategy #Innovation #TechTrends",
                     "confidence": 0.87,
                 },
                 {
-                    "content": "Reflecting on this week's achievements and lessons learned. Growth happens outside comfort zones.",
+                    "content": "Reflecting on this week's achievements and lessons learned. Growth always happens outside of your comfort zone, even when it feels challenging. Keep pushing forward! What was your biggest professional win this week? #ProfessionalGrowth #Leadership #CareerDevelopment #Mentorship",
                     "confidence": 0.83,
                 },
                 {
-                    "content": "Looking for talented professionals to join our growing team. Exciting opportunities ahead!",
+                    "content": "Looking for talented professionals to join our growing team! We're hiring for several key roles across engineering, product, and design. If you're passionate about innovation and want to make an impact, check out our careers page or DM me directly. 🚀 #Hiring #CareerOpportunities #JobOpening #TechJobs",
                     "confidence": 0.85,
                 },
                 {
-                    "content": "Just completed an inspiring workshop on digital transformation. Knowledge sharing is powerful.",
+                    "content": "Just completed an inspiring workshop on digital leadership. Knowledge sharing is one of the most powerful tools we have for growth. Here's to learning, adapting, and growing together! #ContinuousLearning #LeadershipDevelopment #B2B #Networking",
                     "confidence": 0.80,
                 },
             ],
             "facebook": [
                 {
-                    "content": "Celebrating our community milestone! Thank you to everyone who's been part of this journey 🎉",
+                    "content": "Celebrating an incredible community milestone today! Thank you to everyone who has been part of this journey — your support means the absolute world to us. Here's to many more milestones together! 🎉❤️ #Community #Milestone #ThankYou #Grateful",
                     "confidence": 0.86,
                 },
-                {"content": "Weekend plans sorted! Time to recharge and spend time with loved ones ❤️", "confidence": 0.78},
-                {"content": "Sharing some insights from today's industry event. The future looks bright!", "confidence": 0.82},
+                {"content": "Weekend plans sorted! Time to completely unplug, recharge, and spend quality time with family. How are you spending your weekend? Let us know below! ❤️ #WeekendVibes #FamilyTime #Unplug #Recharge", "confidence": 0.78},
+                {"content": "Sharing some exciting insights and key takeaways from today's industry event. The future of our industry looks incredibly bright, and we are thrilled to be at the forefront of this evolution! #Networking #IndustryInsights #FutureOfTech #Evolution", "confidence": 0.82},
                 {
-                    "content": "Grateful for the amazing feedback on our latest product launch. You all are incredible! 🙏",
+                    "content": "Incredibly grateful for the amazing feedback on our latest product launch! You all are absolute rockstars and we couldn't do this without you. Keep the feedback coming! 🙏✨ #ProductLaunch #CustomerFeedback #Grateful #Innovation",
                     "confidence": 0.84,
                 },
             ],
@@ -1367,31 +1477,165 @@ Return only raw valid JSON, no markdown fences.
                 except Exception as e:
                     logging.error(f"Failed to parse Gemini content ideas: {str(e)}")
 
-        idea_templates = {
-            "tips": f"5 essential tips for {topic} that everyone should know",
-            "behind_scenes": f"Behind the scenes: How we approach {topic}",
-            "trends": f"Latest trends in {topic} you can't ignore",
-            "mistakes": f"Common {topic} mistakes and how to avoid them",
-            "tools": f"Best tools and resources for {topic}",
-            "guide": f"Complete beginner's guide to {topic}",
-            "case_study": f"Real {topic} success story and key takeaways",
-            "myths": f"Debunking popular {topic} myths",
-            "future": f"The future of {topic}: What to expect",
-            "comparison": f"Comparing different approaches to {topic}",
-        }
+        idea_templates = [
+            {
+                "type": "tips",
+                "content": (
+                    f"✅ 5 essential tips for {topic} that everyone should know:\n\n"
+                    f"1️⃣ Start with a clear goal — know what success looks like before you begin\n"
+                    f"2️⃣ Invest time in research — understanding your audience changes everything\n"
+                    f"3️⃣ Be consistent — small, regular actions outperform big, sporadic ones\n"
+                    f"4️⃣ Measure what matters — track the metrics that align with your goals\n"
+                    f"5️⃣ Never stop learning — {topic} evolves fast, and so should you\n\n"
+                    f"Which of these resonates most with you? 💬 Drop your answer below!\n\n"
+                    f"#{topic.replace(' ', '')} #Tips #GrowthHacks #Strategy"
+                ),
+                "estimated_engagement": "High",
+            },
+            {
+                "type": "behind_scenes",
+                "content": (
+                    f"👀 Behind the scenes: How we approach {topic}\n\n"
+                    f"People often ask us what our process looks like — so today, we're pulling back the curtain entirely.\n\n"
+                    f"It starts with research 🔍, moves into strategy 🗺️, then execution ⚙️, and finally analysis 📊. "
+                    f"Every step in the {topic} workflow is intentional, tested, and constantly refined based on real data.\n\n"
+                    f"The biggest lesson we've learned? There's no shortcut — but there IS a smarter path. And we'd love to show you.\n\n"
+                    f"💬 Comment 'GUIDE' below and we'll share our full framework with you!\n\n"
+                    f"#BehindTheScenes #{topic.replace(' ', '')} #Process #HowWeWork"
+                ),
+                "estimated_engagement": "High",
+            },
+            {
+                "type": "trends",
+                "content": (
+                    f"🔥 Latest {topic} trends you absolutely cannot ignore in 2025:\n\n"
+                    f"The landscape is shifting fast — and the brands that adapt now will be miles ahead of the competition by year end.\n\n"
+                    f"Here's what's reshaping {topic} right now:\n"
+                    f"📌 AI-powered automation is changing the speed of execution\n"
+                    f"📌 Personalisation at scale is no longer optional — it's expected\n"
+                    f"📌 Short-form content continues to dominate attention and reach\n"
+                    f"📌 Community-led growth is overtaking traditional ad-driven funnels\n\n"
+                    f"Which trend do you think will have the biggest impact? 🤔 Vote in the comments!\n\n"
+                    f"#{topic.replace(' ', '')} #Trends2025 #FutureOfMarketing #StayAhead"
+                ),
+                "estimated_engagement": "High",
+            },
+            {
+                "type": "mistakes",
+                "content": (
+                    f"⚠️ Common {topic} mistakes that are quietly killing your results — and how to fix them:\n\n"
+                    f"❌ Mistake 1: Skipping the strategy phase and jumping straight to execution\n"
+                    f"✅ Fix: Spend 20% of your time planning — it saves 80% later\n\n"
+                    f"❌ Mistake 2: Chasing vanity metrics instead of meaningful KPIs\n"
+                    f"✅ Fix: Define 2–3 core metrics that directly tie to business outcomes\n\n"
+                    f"❌ Mistake 3: Treating every platform the same\n"
+                    f"✅ Fix: Tailor your content format and tone to each platform's audience\n\n"
+                    f"❌ Mistake 4: Ignoring audience feedback and engagement signals\n"
+                    f"✅ Fix: Review comments and DMs weekly — your audience is telling you what they want\n\n"
+                    f"Save this post — you'll want to revisit it! 💾\n\n"
+                    f"#{topic.replace(' ', '')} #Mistakes #ContentStrategy #Lessons"
+                ),
+                "estimated_engagement": "Medium",
+            },
+            {
+                "type": "tools",
+                "content": (
+                    f"🛠️ The best tools and resources for {topic} in 2025 (our honest recommendations):\n\n"
+                    f"After years of testing dozens of platforms and workflows, these are the ones we keep coming back to:\n\n"
+                    f"📌 For planning & scheduling — save time with smart automation\n"
+                    f"📌 For analytics & reporting — track what actually matters\n"
+                    f"📌 For content creation — produce high-quality assets at speed\n"
+                    f"📌 For audience research — understand your community deeply\n"
+                    f"📌 For collaboration — keep your team aligned and efficient\n\n"
+                    f"💬 What tools are YOU using for {topic}? Drop your favourites below — we might feature them next! 👇\n\n"
+                    f"#{topic.replace(' ', '')} #Tools #Productivity #ResourceGuide"
+                ),
+                "estimated_engagement": "Medium",
+            },
+            {
+                "type": "guide",
+                "content": (
+                    f"📖 Complete beginner's guide to {topic} — everything you need to get started today:\n\n"
+                    f"If you're new to {topic}, this is for you. We've broken it down into the simplest possible steps so you can go from zero to confident fast.\n\n"
+                    f"Step 1️⃣: Understand the fundamentals — build a solid foundation before diving in\n"
+                    f"Step 2️⃣: Set clear, measurable goals — vague intentions lead to vague results\n"
+                    f"Step 3️⃣: Choose the right tools — don't overcomplicate it at the start\n"
+                    f"Step 4️⃣: Take consistent action — progress beats perfection every time\n"
+                    f"Step 5️⃣: Review and refine — the best practitioners are always iterating\n\n"
+                    f"📌 Save this guide and share it with someone who needs it!\n\n"
+                    f"#{topic.replace(' ', '')} #BeginnerGuide #LearnSomethingNew #GetStarted"
+                ),
+                "estimated_engagement": "High",
+            },
+            {
+                "type": "case_study",
+                "content": (
+                    f"📈 A real {topic} success story — and the key takeaways you can apply today:\n\n"
+                    f"We started with a challenge that felt impossible: limited resources, a tight timeline, and a highly competitive space. But by applying a focused, data-driven {topic} strategy, the results exceeded every expectation.\n\n"
+                    f"🔑 Here's what made the difference:\n"
+                    f"✅ We focused on ONE primary goal instead of spreading thin\n"
+                    f"✅ We let data guide every creative decision\n"
+                    f"✅ We tested, learned, and iterated rapidly\n"
+                    f"✅ We engaged authentically with our audience at every step\n\n"
+                    f"The result? Measurable growth, a stronger community, and a repeatable playbook.\n\n"
+                    f"💬 What would YOU do differently with a proven {topic} playbook? Tell us below!\n\n"
+                    f"#{topic.replace(' ', '')} #CaseStudy #SuccessStory #Results #Strategy"
+                ),
+                "estimated_engagement": "High",
+            },
+            {
+                "type": "myths",
+                "content": (
+                    f"🚫 Let's debunk the most popular {topic} myths — because bad advice is everywhere:\n\n"
+                    f"Myth 1: 'You need a huge budget to see results'\n"
+                    f"Truth: Strategy and consistency beat budget almost every time 💡\n\n"
+                    f"Myth 2: 'More content always means more growth'\n"
+                    f"Truth: Quality and relevance outperform volume — always 🎯\n\n"
+                    f"Myth 3: 'You need to be on every platform'\n"
+                    f"Truth: Dominate 1–2 platforms first before spreading your efforts 🏆\n\n"
+                    f"Myth 4: 'Results happen overnight'\n"
+                    f"Truth: Sustainable growth takes time, testing, and patience ⏳\n\n"
+                    f"Which of these myths have you believed? Be honest! 👇\n\n"
+                    f"#{topic.replace(' ', '')} #MythVsFact #MarketingTruths #DebunkingMyths"
+                ),
+                "estimated_engagement": "Medium",
+            },
+            {
+                "type": "future",
+                "content": (
+                    f"🔮 The future of {topic} — what to expect in the next 12–24 months:\n\n"
+                    f"The pace of change in {topic} is accelerating. What worked last year might already be outdated — and the brands preparing NOW will have a massive advantage.\n\n"
+                    f"Here's what we see coming:\n"
+                    f"🤖 AI will handle more of the execution — humans will focus on strategy & creativity\n"
+                    f"📊 Data literacy will become a non-negotiable skill for every marketer\n"
+                    f"🌍 Hyper-localisation will replace one-size-fits-all campaigns\n"
+                    f"🎥 Video (especially short-form) will continue to dominate all platforms\n"
+                    f"🤝 Community and trust will be the most valuable currency\n\n"
+                    f"Are you prepared for what's coming? 💬 Tell us your biggest prediction below!\n\n"
+                    f"#{topic.replace(' ', '')} #FutureTrends #Innovation #Predictions2025"
+                ),
+                "estimated_engagement": "High",
+            },
+            {
+                "type": "comparison",
+                "content": (
+                    f"⚖️ Comparing the top approaches to {topic} — which one is right for you?\n\n"
+                    f"There's no single 'best' way to tackle {topic}. The right approach depends entirely on your goals, audience, and resources. Here's a clear breakdown:\n\n"
+                    f"🔹 Approach A (DIY / Organic): Lower cost, higher time investment, great for building authentic connections. Best for startups and personal brands.\n\n"
+                    f"🔹 Approach B (Paid / Boosted): Faster results, requires budget, excellent for scaling proven content. Best for established businesses ready to grow.\n\n"
+                    f"🔹 Approach C (Hybrid): Combines organic consistency with strategic paid amplification. Best for brands balancing growth and sustainability.\n\n"
+                    f"💬 Which approach are you currently using for {topic}? And which are you considering? Let's discuss!\n\n"
+                    f"#{topic.replace(' ', '')} #Strategy #Comparison #MarketingApproach #GrowthPlan"
+                ),
+                "estimated_engagement": "Medium",
+            },
+        ]
 
         ideas = []
-        templates = list(idea_templates.values())
-
-        for i in range(min(count, len(templates))):
-            ideas.append(
-                {
-                    "content": templates[i],
-                    "type": list(idea_templates.keys())[i],
-                    "confidence": round(random.uniform(0.7, 0.9), 2),
-                    "estimated_engagement": random.choice(["High", "Medium", "Low"]),
-                }
-            )
+        for i in range(min(count, len(idea_templates))):
+            item = idea_templates[i].copy()
+            item["confidence"] = round(random.uniform(0.7, 0.9), 2)
+            ideas.append(item)
 
         return ideas
 
