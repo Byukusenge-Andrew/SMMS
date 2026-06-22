@@ -504,6 +504,94 @@ class LinkedInIntegrator(SocialMediaIntegrator):
         except Exception as e:
             return {"success": False, "error": str(e)}
 
+    def get_recent_posts(self, person_urn, access_token, count=10):
+        """Fetch recent UGC posts authored by the authenticated user."""
+        try:
+            headers = {
+                "Authorization": f"Bearer {access_token}",
+                "X-Restli-Protocol-Version": "2.0.0",
+                "User-Agent": "SMMS/1.0",
+            }
+
+            # LinkedIn UGC Posts endpoint filtered by author
+            url = (
+                "https://api.linkedin.com/v2/ugcPosts"
+                f"?q=authors&authors=List({person_urn})"
+                f"&count={count}"
+                "&sortBy=LAST_MODIFIED"
+            )
+
+            response = requests.get(url, headers=headers, timeout=30)
+
+            if response.status_code == 200:
+                data = response.json()
+                posts = data.get("elements", [])
+                return {"success": True, "posts": posts}
+            else:
+                return {"success": False, "error": f"LinkedIn API error ({response.status_code}): {response.text}"}
+
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    def get_comments(self, post_urn, access_token):
+        """Fetch comments on a LinkedIn UGC post."""
+        try:
+            headers = {
+                "Authorization": f"Bearer {access_token}",
+                "X-Restli-Protocol-Version": "2.0.0",
+                "User-Agent": "SMMS/1.0",
+            }
+
+            url = (
+                "https://api.linkedin.com/v2/socialActions"
+                f"/{post_urn}/comments"
+            )
+
+            response = requests.get(url, headers=headers, timeout=30)
+
+            if response.status_code == 200:
+                data = response.json()
+                comments = data.get("elements", [])
+                return {"success": True, "comments": comments}
+            else:
+                return {"success": False, "error": f"LinkedIn API error ({response.status_code}): {response.text}"}
+
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    def create_comment(self, post_urn, person_urn, text, access_token):
+        """Post a comment reply on a LinkedIn UGC post."""
+        try:
+            headers = {
+                "Authorization": f"Bearer {access_token}",
+                "Content-Type": "application/json",
+                "X-Restli-Protocol-Version": "2.0.0",
+                "User-Agent": "SMMS/1.0",
+            }
+
+            url = (
+                "https://api.linkedin.com/v2/socialActions"
+                f"/{post_urn}/comments"
+            )
+
+            payload = {
+                "actor": person_urn,
+                "message": {
+                    "text": text,
+                },
+            }
+
+            response = requests.post(url, headers=headers, json=payload, timeout=30)
+
+            if response.status_code in (200, 201):
+                comment_data = response.json()
+                return {"success": True, "comment": comment_data}
+            else:
+                return {"success": False, "error": f"LinkedIn API error ({response.status_code}): {response.text}"}
+
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
     def verify_account(self, access_token):
         """Verify LinkedIn account and get basic info"""
         return self.get_profile(access_token)

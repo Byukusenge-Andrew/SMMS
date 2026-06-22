@@ -19,4 +19,6 @@ urlpatterns = [
     path("automated/<uuid:pk>/", views.AutomatedMessageDetailView.as_view(), name="automated-message-detail"),
     path("automated/<uuid:message_id>/toggle/", views.toggle_automated_message, name="toggle-automated-message"),
     path("automated/<uuid:message_id>/test/", views.test_automated_message, name="test-automated-message"),
+    # LinkedIn real-time automation
+    path("automated/linkedin/sync/", views.sync_linkedin_automation, name="sync-linkedin-automation"),
 ]

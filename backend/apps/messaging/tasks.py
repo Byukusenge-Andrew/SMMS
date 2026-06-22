@@ -294,3 +294,168 @@ def process_message_template(template, data):
     except Exception as e:
         logger.error(f"Error processing template: {str(e)}")
         return template
+
+
+def sync_linkedin_comments_and_reply(user_id):
+    """Sync LinkedIn comments and post automated replies.
+
+    This function:
+    1. Fetches the user's active LinkedIn accounts.
+    2. Retrieves recent posts for each account.
+    3. For each post, retrieves comments.
+    4. Filters out self-comments and already-replied comments.
+    5. Applies the user's active 'comment' automation template.
+    6. Posts the reply via the LinkedIn API.
+    7. Logs each action in the Message table.
+
+    Returns a summary dict with counts and details.
+    """
+    from django.contrib.auth.models import User
+    from apps.integrations.models import SocialMediaAccount, SocialMediaPlatform
+    from apps.integrations.social_media_integrator import LinkedInIntegrator
+    from .models import AutomatedMessage, Message
+
+    summary = {
+        "accounts_checked": 0,
+        "posts_scanned": 0,
+        "comments_found": 0,
+        "replies_sent": 0,
+        "errors": [],
+    }
+
+    try:
+        user = User.objects.get(id=user_id)
+    except User.DoesNotExist:
+        summary["errors"].append(f"User {user_id} not found")
+        return summary
+
+    # Get the user's active comment automation template for LinkedIn
+    automation = AutomatedMessage.objects.filter(
+        user=user,
+        platform="linkedin",
+        trigger="comment",
+        active=True,
+    ).first()
+
+    if not automation:
+        summary["errors"].append("No active LinkedIn 'comment' automation template found. Create one first.")
+        return summary
+
+    # Get all active LinkedIn accounts for this user
+    linkedin_accounts = SocialMediaAccount.objects.filter(
+        user=user,
+        platform=SocialMediaPlatform.LINKEDIN,
+        is_active=True,
+    )
+
+    if not linkedin_accounts.exists():
+        summary["errors"].append("No active LinkedIn accounts connected.")
+        return summary
+
+    integrator = LinkedInIntegrator()
+
+    for account in linkedin_accounts:
+        summary["accounts_checked"] += 1
+
+        if not account.access_token:
+            summary["errors"].append(f"Account {account.username}: missing access token")
+            continue
+
+        # Get profile to resolve person URN
+        profile_result = integrator.get_profile(account.access_token)
+        if not profile_result.get("success"):
+            summary["errors"].append(f"Account {account.username}: failed to get profile - {profile_result.get('error', 'unknown')}")
+            continue
+
+        person_id = profile_result["profile"]["id"]
+        person_urn = f"urn:li:person:{person_id}"
+
+        # Fetch recent posts
+        posts_result = integrator.get_recent_posts(person_urn, account.access_token, count=10)
+        if not posts_result.get("success"):
+            summary["errors"].append(f"Account {account.username}: failed to fetch posts - {posts_result.get('error', 'unknown')}")
+            continue
+
+        posts = posts_result.get("posts", [])
+
+        for post in posts:
+            summary["posts_scanned"] += 1
+            post_urn = post.get("id", "")
+
+            if not post_urn:
+                continue
+
+            # Fetch comments on this post
+            comments_result = integrator.get_comments(post_urn, account.access_token)
+            if not comments_result.get("success"):
+                logger.warning(f"Failed to fetch comments for post {post_urn}: {comments_result.get('error')}")
+                continue
+
+            comments = comments_result.get("comments", [])
+
+            for comment in comments:
+                summary["comments_found"] += 1
+
+                commenter_urn = comment.get("actor", "")
+                comment_text = comment.get("message", {}).get("text", "")
+                comment_id = comment.get("$URN", "") or comment.get("id", "")
+
+                # Skip self-comments
+                if commenter_urn == person_urn:
+                    continue
+
+                # Check if we already replied to this comment (prevent duplicates)
+                # We use a unique reference in the recipient field: "linkedin-reply:{comment_id}"
+                reply_ref = f"linkedin-reply:{comment_id}"
+                already_replied = Message.objects.filter(
+                    user=user,
+                    recipient=reply_ref,
+                    platform="linkedin",
+                ).exists()
+
+                if already_replied:
+                    continue
+
+                # Extract commenter name from URN (best-effort)
+                commenter_name = commenter_urn.split(":")[-1] if commenter_urn else "there"
+
+                # Build template context
+                template_data = {
+                    "username": commenter_name,
+                    "comment": comment_text,
+                    "platform": "LinkedIn",
+                    "post_id": post_urn,
+                }
+
+                reply_text = process_message_template(automation.content_template, template_data)
+
+                # Post the reply via LinkedIn API
+                reply_result = integrator.create_comment(
+                    post_urn=post_urn,
+                    person_urn=person_urn,
+                    text=reply_text,
+                    access_token=account.access_token,
+                )
+
+                # Log in Message table
+                msg_status = "sent" if reply_result.get("success") else "failed"
+                Message.objects.create(
+                    user=user,
+                    platform="linkedin",
+                    recipient=reply_ref,
+                    content=reply_text,
+                    status=msg_status,
+                    message_type="automated",
+                    priority="normal",
+                )
+
+                if reply_result.get("success"):
+                    summary["replies_sent"] += 1
+                    logger.info(f"Replied to LinkedIn comment {comment_id} on post {post_urn}")
+                else:
+                    error_msg = reply_result.get("error", "unknown")
+                    summary["errors"].append(f"Failed to reply to comment {comment_id}: {error_msg}")
+                    logger.error(f"Failed to reply to LinkedIn comment {comment_id}: {error_msg}")
+
+    return summary
+

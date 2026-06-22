@@ -8,7 +8,7 @@ from .tasks import share_calendar_slack, share_calendar_email
 
 from .models import AutomatedMessage, Message
 from .serializers import AutomatedMessageSerializer, MessageSerializer
-from .tasks import send_message
+from .tasks import send_message, sync_linkedin_comments_and_reply
 
 
 class MessageListCreateView(generics.ListCreateAPIView):
@@ -226,3 +226,46 @@ def test_automated_message(request, message_id):
         return Response({"error": "Automated message not found"}, status=status.HTTP_404_NOT_FOUND)
     except Exception as e:
         return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(["POST"])
+@permission_classes([permissions.IsAuthenticated])
+@authentication_classes([TokenAuthentication])
+def sync_linkedin_automation(request):
+    """Sync LinkedIn comments and post automated replies.
+
+    Scans the user's recent LinkedIn posts for new comments and
+    automatically replies using the active LinkedIn 'comment' automation
+    template. Returns a summary of actions taken.
+    """
+    try:
+        summary = sync_linkedin_comments_and_reply(request.user.id)
+
+        has_errors = len(summary.get("errors", [])) > 0
+        has_replies = summary.get("replies_sent", 0) > 0
+
+        if has_errors and not has_replies:
+            return Response(
+                {
+                    "success": False,
+                    "summary": summary,
+                    "message": f"Sync completed with errors: {'; '.join(summary['errors'][:3])}",
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        return Response(
+            {
+                "success": True,
+                "summary": summary,
+                "message": (
+                    f"Scanned {summary['posts_scanned']} posts, "
+                    f"found {summary['comments_found']} comments, "
+                    f"sent {summary['replies_sent']} replies."
+                ),
+            }
+        )
+
+    except Exception as e:
+        return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
