@@ -32,6 +32,14 @@ from .gohighlevel_views import (
     gohighlevel_webhook,
 )
 
+from .logs_views import (
+    log_viewer_html,
+    log_list_api,
+    log_content_api,
+    log_clear_api,
+    log_download_api,
+)
+
 __all__ = [
     # Rate limiting views
     'RateLimitDashboardView',
@@ -57,4 +65,10 @@ __all__ = [
     'get_crm_contacts',
     'create_gohighlevel_contact',
     'gohighlevel_webhook',
+    # Log visualizer views
+    'log_viewer_html',
+    'log_list_api',
+    'log_content_api',
+    'log_clear_api',
+    'log_download_api',
 ]

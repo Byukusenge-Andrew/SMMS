@@ -493,3 +493,143 @@ class WebhookTest(TestCase):
         
         # Should return 200 even if processing fails (to prevent retries)
         self.assertEqual(response.status_code, 200)
+
+
+class LogVisualizerTestCase(TestCase):
+    """Test Log Visualizer views and security controls"""
+
+    def setUp(self):
+        self.client = Client()
+        # Normal user
+        self.user = User.objects.create_user(
+            username="normaluser",
+            email="normal@example.com",
+            password="password123"
+        )
+        # Staff user
+        self.staff_user = User.objects.create_user(
+            username="staffuser",
+            email="staff@example.com",
+            password="password123",
+            is_staff=True
+        )
+        # Create a dummy log file to test with
+        from apps.core.views.logs_views import LOGS_DIR, ALLOWED_LOG_FILES
+        os.makedirs(LOGS_DIR, exist_ok=True)
+        self.test_log_filename = "django.log"
+        self.test_log_path = os.path.join(LOGS_DIR, self.test_log_filename)
+        with open(self.test_log_path, 'w', encoding='utf-8') as f:
+            f.write("2026-06-24 10:45:15 INFO Simple log line 1\n")
+            f.write("2026-06-24 10:46:20 WARNING Warning log line 2\n")
+            f.write("2026-06-24 10:47:30 ERROR Error log line 3\n")
+
+    def test_anonymous_redirected(self):
+        """Test that anonymous users are redirected to login"""
+        # Test HTML page
+        url = reverse('core:log-viewer-html')
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('/admin/login/', response.url)
+
+        # Test list API
+        url = reverse('core:log-list-api')
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 302)
+
+        # Test content API
+        url = reverse('core:log-content-api', args=[self.test_log_filename])
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 302)
+
+    def test_normal_user_redirected(self):
+        """Test that authenticated non-staff users are redirected/blocked"""
+        self.client.force_login(self.user)
+        
+        # Test HTML page
+        url = reverse('core:log-viewer-html')
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 302)
+
+        # Test content API
+        url = reverse('core:log-content-api', args=[self.test_log_filename])
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 302)
+
+    def test_staff_user_access_html(self):
+        """Test that staff members can access the log visualizer page"""
+        self.client.force_login(self.staff_user)
+        url = reverse('core:log-viewer-html')
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, "core/logs_visualizer.html")
+
+    def test_staff_user_access_list_api(self):
+        """Test that staff members can list logs"""
+        self.client.force_login(self.staff_user)
+        url = reverse('core:log-list-api')
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data['success'])
+        self.assertTrue(any(log['name'] == self.test_log_filename for log in data['logs']))
+
+    def test_staff_user_access_content_api(self):
+        """Test fetching log content with level and search filters"""
+        self.client.force_login(self.staff_user)
+        
+        # Basic content fetch
+        url = reverse('core:log-content-api', args=[self.test_log_filename])
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data['success'])
+        self.assertEqual(len(data['lines']), 3)
+
+        # Filter by ERROR level
+        response = self.client.get(url, {'level': 'ERROR'})
+        data = response.json()
+        self.assertEqual(len(data['lines']), 1)
+        self.assertIn("Error log line 3", data['lines'][0])
+
+        # Filter by search string
+        response = self.client.get(url, {'search': 'Warning'})
+        data = response.json()
+        self.assertEqual(len(data['lines']), 1)
+        self.assertIn("Warning log line 2", data['lines'][0])
+
+    def test_path_traversal_blocked(self):
+        """Test that directory traversal in log filename parameters is blocked"""
+        self.client.force_login(self.staff_user)
+        # Attempt traversal
+        url = reverse('core:log-content-api', args=["../../manage.py"])
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(response.json()['success'])
+
+    def test_clear_log_api(self):
+        """Test clearing a log file"""
+        self.client.force_login(self.staff_user)
+        url = reverse('core:log-clear-api', args=[self.test_log_filename])
+        
+        # Must be POST
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 405)
+        
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()['success'])
+        
+        # Verify file is empty
+        with open(self.test_log_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+        self.assertEqual(content, "")
+
+    def test_download_log_api(self):
+        """Test downloading a log file"""
+        self.client.force_login(self.staff_user)
+        url = reverse('core:log-download-api', args=[self.test_log_filename])
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response['Content-Type'], 'text/plain')
+        self.assertIn('attachment', response['Content-Disposition'])
+

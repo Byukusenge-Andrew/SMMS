@@ -1,0 +1,16 @@
+{% extends "admin/index.html" %}
+
+{% block sidebar %}
+    <div id="content-related" style="margin-bottom: 20px;">
+        <div class="module">
+            <h2>System Utilities</h2>
+            <ul style="list-style-type: none; padding-left: 10px; margin: 10px 0;">
+                <li style="margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+                    <span style="font-size: 14px;">📊</span>
+                    <a href="{% url 'core:log-viewer-html' %}" style="font-weight: bold; font-size: 13px;">Log Visualizer</a>
+                </li>
+            </ul>
+        </div>
+    </div>
+    {{ block.super }}
+{% endblock %}

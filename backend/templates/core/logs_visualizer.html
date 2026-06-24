@@ -1,0 +1,1111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Backend Log Visualizer | Admin</title>
+    <!-- Google Fonts Inter for standard text, Fira Code or JetBrains Mono for monospaced logs -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --bg-color: #f8fafc;
+            --card-bg: #ffffff;
+            --border-color: #e2e8f0;
+            --text-color: #1e293b;
+            --text-muted: #64748b;
+            
+            --primary: #4f46e5;
+            --primary-hover: #4338ca;
+            --primary-light: #e0e7ff;
+            
+            --success: #16a34a;
+            --success-bg: #f0fdf4;
+            --success-border: #bbf7d0;
+            
+            --warning: #d97706;
+            --warning-bg: #fffbeb;
+            --warning-border: #fef3c7;
+            
+            --danger: #dc2626;
+            --danger-hover: #b91c1c;
+            --danger-bg: #fef2f2;
+            --danger-border: #fee2e2;
+            
+            --info: #0284c7;
+            --info-bg: #f0f9ff;
+            --info-border: #e0f2fe;
+
+            --terminal-bg: #ffffff;
+            --terminal-border: #cbd5e1;
+            --terminal-text: #0f172a;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            line-height: 1.5;
+            padding: 24px;
+            min-height: 100vh;
+        }
+
+        /* Header styles */
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .header-title h1 {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--text-color);
+            letter-spacing: -0.025em;
+        }
+
+        .header-title p {
+            font-size: 14px;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+
+        .header-meta {
+            display: flex;
+            gap: 16px;
+            font-size: 13px;
+        }
+
+        .meta-pill {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            padding: 6px 12px;
+            border-radius: 9999px;
+            font-weight: 500;
+            color: var(--text-muted);
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+        }
+
+        .meta-pill strong {
+            color: var(--text-color);
+        }
+
+        /* Layout Grid */
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: 280px 1fr;
+            gap: 24px;
+            align-items: start;
+        }
+
+        /* Sidebar Styles */
+        .sidebar {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 16px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+
+        .sidebar h2 {
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
+            margin-bottom: 12px;
+            font-weight: 600;
+        }
+
+        .log-file-list {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .log-file-item {
+            display: flex;
+            flex-direction: column;
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            background-color: #fafafa;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .log-file-item:hover {
+            border-color: var(--primary);
+            background-color: var(--bg-color);
+            transform: translateY(-1px);
+        }
+
+        .log-file-item.active {
+            background-color: var(--primary-light);
+            border-color: var(--primary);
+            color: var(--primary-hover);
+        }
+
+        .log-file-item .file-name {
+            font-weight: 600;
+            font-size: 14px;
+            word-break: break-all;
+        }
+
+        .log-file-item .file-info {
+            display: flex;
+            justify-content: space-between;
+            font-size: 11px;
+            color: var(--text-muted);
+            margin-top: 6px;
+        }
+
+        .log-file-item.active .file-info {
+            color: #6366f1;
+        }
+
+        /* Main View Panel */
+        .main-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        /* Controls Panel */
+        .controls-card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 16px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+
+        .controls-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+            align-items: center;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .control-group label {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.025em;
+        }
+
+        /* Form elements */
+        .form-select, .form-input {
+            height: 36px;
+            padding: 0 12px;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+            background-color: var(--bg-color);
+            font-size: 13px;
+            font-family: inherit;
+            color: var(--text-color);
+            outline: none;
+            transition: border-color 0.2s ease;
+        }
+
+        .form-select:focus, .form-input:focus {
+            border-color: var(--primary);
+            background-color: #fff;
+        }
+
+        .form-input {
+            min-width: 200px;
+            flex-grow: 1;
+        }
+
+        .toggle-switch-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            user-select: none;
+            cursor: pointer;
+            height: 36px;
+            padding: 0 4px;
+        }
+
+        .toggle-switch-group input {
+            cursor: pointer;
+        }
+
+        .toggle-label {
+            font-size: 13px;
+            font-weight: 500;
+        }
+
+        /* Buttons styling */
+        .actions-group {
+            display: flex;
+            gap: 8px;
+            margin-left: auto;
+        }
+
+        .btn {
+            height: 36px;
+            padding: 0 16px;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            border: 1px solid var(--border-color);
+            background-color: #fff;
+            color: var(--text-color);
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s ease;
+            user-select: none;
+        }
+
+        .btn:hover {
+            background-color: var(--bg-color);
+            border-color: #cbd5e1;
+        }
+
+        .btn-primary {
+            background-color: var(--primary);
+            border-color: var(--primary);
+            color: #fff;
+        }
+
+        .btn-primary:hover {
+            background-color: var(--primary-hover);
+            border-color: var(--primary-hover);
+        }
+
+        .btn-danger {
+            background-color: #fff;
+            border-color: var(--danger-border);
+            color: var(--danger);
+        }
+
+        .btn-danger:hover {
+            background-color: var(--danger-bg);
+            border-color: var(--danger);
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        /* Terminal Container */
+        .terminal-card {
+            background-color: var(--terminal-bg);
+            border: 1px solid var(--terminal-border);
+            border-radius: 12px;
+            display: flex;
+            flex-direction: column;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.02), 0 4px 6px -1px rgba(0,0,0,0.05);
+            overflow: hidden;
+            height: 600px;
+        }
+
+        .terminal-header {
+            background-color: #f1f5f9;
+            border-bottom: 1px solid var(--terminal-border);
+            padding: 8px 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 12px;
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+
+        .terminal-actions {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .status-dot {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: #cbd5e1;
+            margin-right: 4px;
+        }
+
+        .status-dot.active {
+            background-color: var(--success);
+            box-shadow: 0 0 8px var(--success);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(0.95); opacity: 0.5; }
+            50% { transform: scale(1.1); opacity: 1; }
+            100% { transform: scale(0.95); opacity: 0.5; }
+        }
+
+        .terminal-body {
+            flex-grow: 1;
+            overflow-y: auto;
+            padding: 16px;
+            font-family: 'Fira Code', 'JetBrains Mono', 'Courier New', monospace;
+            font-size: 13px;
+            color: var(--terminal-text);
+            line-height: 1.6;
+            background-color: #ffffff;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+
+        /* Custom Scrollbar for Terminal */
+        .terminal-body::-webkit-scrollbar {
+            width: 10px;
+        }
+        .terminal-body::-webkit-scrollbar-track {
+            background: #f8fafc;
+            border-left: 1px solid var(--border-color);
+        }
+        .terminal-body::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 5px;
+            border: 2px solid #f8fafc;
+        }
+        .terminal-body::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+
+        /* Log Line Styling */
+        .log-line {
+            display: flex;
+            border-radius: 4px;
+            padding: 2px 8px;
+            margin-bottom: 2px;
+            transition: background-color 0.15s ease;
+        }
+
+        .log-line:hover {
+            background-color: #f1f5f9;
+        }
+
+        .log-line-num {
+            color: #94a3b8;
+            width: 45px;
+            min-width: 45px;
+            user-select: none;
+            text-align: right;
+            margin-right: 16px;
+            font-size: 11px;
+            border-right: 1px solid #e2e8f0;
+            padding-right: 8px;
+        }
+
+        .log-line-content {
+            flex-grow: 1;
+        }
+
+        /* Highlight classes by level */
+        .log-info {
+            color: #1e293b;
+        }
+        .log-info .log-badge {
+            background-color: var(--info-bg);
+            color: var(--info);
+            border: 1px solid var(--info-border);
+        }
+        
+        .log-warning {
+            background-color: #fefaf0;
+            color: #9a3412;
+        }
+        .log-warning .log-badge {
+            background-color: var(--warning-bg);
+            color: var(--warning);
+            border: 1px solid var(--warning-border);
+        }
+
+        .log-error, .log-critical {
+            background-color: #fef2f2;
+            color: #991b1b;
+            font-weight: 500;
+        }
+        .log-error .log-badge, .log-critical .log-badge {
+            background-color: var(--danger-bg);
+            color: var(--danger);
+            border: 1px solid var(--danger-border);
+        }
+
+        .log-debug {
+            color: #64748b;
+        }
+        .log-debug .log-badge {
+            background-color: #f8fafc;
+            color: #64748b;
+            border: 1px solid #e2e8f0;
+        }
+
+        .log-badge {
+            display: inline-block;
+            font-size: 10px;
+            font-weight: 600;
+            padding: 1px 6px;
+            border-radius: 4px;
+            margin-right: 8px;
+            text-transform: uppercase;
+            user-select: none;
+        }
+
+        .log-timestamp {
+            color: #0284c7;
+            font-weight: 500;
+            margin-right: 8px;
+        }
+
+        /* Loading / Error Indicators */
+        .terminal-placeholder {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: var(--text-muted);
+            text-align: center;
+            gap: 12px;
+        }
+
+        .spinner {
+            width: 32px;
+            height: 32px;
+            border: 3px solid var(--border-color);
+            border-top: 3px solid var(--primary);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .match-highlight {
+            background-color: #fef08a;
+            color: #000000;
+            font-weight: 600;
+            padding: 0 2px;
+            border-radius: 2px;
+        }
+
+        /* Modal dialog overlay */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(15, 23, 42, 0.4);
+            backdrop-filter: blur(2px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s ease;
+            z-index: 1000;
+        }
+
+        .modal-overlay.open {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .modal {
+            background-color: var(--card-bg);
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            width: 100%;
+            max-width: 440px;
+            padding: 24px;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+            transform: scale(0.95);
+            transition: transform 0.2s ease;
+        }
+
+        .modal-overlay.open .modal {
+            transform: scale(1);
+        }
+
+        .modal-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text-color);
+            margin-bottom: 8px;
+        }
+
+        .modal-body {
+            font-size: 14px;
+            color: var(--text-muted);
+            margin-bottom: 20px;
+        }
+
+        .modal-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+        }
+
+        /* Toast notification */
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            background-color: var(--text-color);
+            color: #ffffff;
+            padding: 12px 18px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 500;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            transform: translateY(100px);
+            opacity: 0;
+            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            z-index: 2000;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .toast.show {
+            transform: translateY(0);
+            opacity: 1;
+        }
+
+        .toast-success {
+            border-left: 4px solid var(--success);
+        }
+
+        .toast-error {
+            border-left: 4px solid var(--danger);
+        }
+    </style>
+</head>
+<body>
+    <!-- CSRF Token rendered securely -->
+    {% csrf_token %}
+
+    <header>
+        <div class="header-title">
+            <h1>Backend Log Visualizer</h1>
+            <p>View, stream, and analyze server log files in real-time</p>
+        </div>
+        <div class="header-meta" style="align-items: center;">
+            <a href="/admin/" style="display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 9999px; border: 1px solid var(--primary); background-color: var(--primary-light); color: var(--primary-hover); font-size: 13px; font-weight: 600; text-decoration: none; transition: all 0.2s ease;" onmouseover="this.style.backgroundColor='var(--primary)'; this.style.color='#ffffff';" onmouseout="this.style.backgroundColor='var(--primary-light)'; this.style.color='var(--primary-hover)';">
+                &larr; Back to Admin
+            </a>
+            <div class="meta-pill">Server Time: <strong id="server-time">Loading...</strong></div>
+            <div class="meta-pill">Role: <strong>Administrator</strong></div>
+        </div>
+    </header>
+
+    <div class="dashboard-grid">
+        <!-- Sidebar with file list -->
+        <aside class="sidebar">
+            <h2>Log Files</h2>
+            <ul class="log-file-list" id="file-list">
+                <div style="padding: 12px; text-align: center; color: var(--text-muted); font-size: 13px;">
+                    Loading log files...
+                </div>
+            </ul>
+        </aside>
+
+        <!-- Main View Panel -->
+        <main class="main-panel">
+            <!-- Controls Card -->
+            <section class="controls-card">
+                <div class="controls-row">
+                    <div class="control-group">
+                        <label for="limit-select">Lines</label>
+                        <select id="limit-select" class="form-select">
+                            <option value="100">100</option>
+                            <option value="500" selected>500</option>
+                            <option value="1000">1,000</option>
+                            <option value="2000">2,000</option>
+                        </select>
+                    </div>
+
+                    <div class="control-group">
+                        <label for="level-select">Level</label>
+                        <select id="level-select" class="form-select">
+                            <option value="">ALL LEVELS</option>
+                            <option value="INFO">INFO</option>
+                            <option value="WARNING">WARNING</option>
+                            <option value="ERROR">ERROR</option>
+                            <option value="DEBUG">DEBUG</option>
+                        </select>
+                    </div>
+
+                    <div class="control-group" style="flex-grow: 1;">
+                        <label for="search-input">Search / Filter text</label>
+                        <input type="text" id="search-input" class="form-input" placeholder="Filter lines matching text (e.g. GET /api/auth/)...">
+                    </div>
+
+                    <div class="toggle-switch-group" id="tail-toggle-group">
+                        <input type="checkbox" id="tail-checkbox" checked>
+                        <label for="tail-checkbox" class="toggle-label">Auto-tail (3s)</label>
+                    </div>
+
+                    <div class="toggle-switch-group" id="scroll-toggle-group">
+                        <input type="checkbox" id="scroll-checkbox" checked>
+                        <label for="scroll-checkbox" class="toggle-label">Auto-scroll</label>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Terminal Card -->
+            <section class="terminal-card">
+                <div class="terminal-header">
+                    <div id="active-file-label">Select a file...</div>
+                    <div class="terminal-actions">
+                        <span id="tail-status-dot" class="status-dot"></span>
+                        <span id="terminal-stats-label">Lines: 0</span>
+                    </div>
+                </div>
+                <div class="terminal-body" id="terminal-body">
+                    <div class="terminal-placeholder">
+                        <div class="spinner"></div>
+                        <p>Loading logs...</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Bottom Actions -->
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <button class="btn btn-danger" id="clear-btn" disabled>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18m-2 0v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6m3 0V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path></svg>
+                    Clear Log File
+                </button>
+                <div class="actions-group">
+                    <button class="btn" id="refresh-btn">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"></path></svg>
+                        Refresh
+                    </button>
+                    <button class="btn btn-primary" id="download-btn" disabled>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4m4-5 5 5 5-5m-5 5V3"></path></svg>
+                        Download Log
+                    </button>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Confirm Clear Modal -->
+    <div class="modal-overlay" id="confirm-modal">
+        <div class="modal">
+            <div class="modal-title">Clear Log File</div>
+            <div class="modal-body">
+                Are you sure you want to permanently clear all contents of <strong id="modal-filename"></strong>? This action cannot be undone.
+            </div>
+            <div class="modal-actions">
+                <button class="btn" id="modal-cancel-btn">Cancel</button>
+                <button class="btn btn-primary" style="background-color: var(--danger); border-color: var(--danger);" id="modal-confirm-btn">Yes, Clear</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div class="toast" id="toast-notify"></div>
+
+    <script>
+        // State variables
+        let selectedFile = "";
+        let logFiles = [];
+        let autoTailTimer = null;
+        let isFetching = false;
+        let lastLogLinesJoined = ""; // To prevent visual refresh if content has not changed
+
+        // DOM elements
+        const fileListEl = document.getElementById("file-list");
+        const activeFileLabel = document.getElementById("active-file-label");
+        const terminalBody = document.getElementById("terminal-body");
+        const terminalStatsLabel = document.getElementById("terminal-stats-label");
+        
+        const limitSelect = document.getElementById("limit-select");
+        const levelSelect = document.getElementById("level-select");
+        const searchInput = document.getElementById("search-input");
+        const tailCheckbox = document.getElementById("tail-checkbox");
+        const scrollCheckbox = document.getElementById("scroll-checkbox");
+        const tailStatusDot = document.getElementById("tail-status-dot");
+        
+        const refreshBtn = document.getElementById("refresh-btn");
+        const downloadBtn = document.getElementById("download-btn");
+        const clearBtn = document.getElementById("clear-btn");
+        
+        const confirmModal = document.getElementById("confirm-modal");
+        const modalFilename = document.getElementById("modal-filename");
+        const modalCancelBtn = document.getElementById("modal-cancel-btn");
+        const modalConfirmBtn = document.getElementById("modal-confirm-btn");
+        const toastNotify = document.getElementById("toast-notify");
+
+        // CSRF Token logic
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+        // Initialize clock
+        function updateClock() {
+            const now = new Date();
+            document.getElementById("server-time").innerText = now.toLocaleTimeString() + " " + now.toLocaleDateString();
+        }
+        setInterval(updateClock, 1000);
+        updateClock();
+
+        // Helper: Show Toast Notification
+        function showToast(message, type = "success") {
+            toastNotify.className = `toast show toast-${type}`;
+            toastNotify.innerText = message;
+            setTimeout(() => {
+                toastNotify.classList.remove("show");
+            }, 3000);
+        }
+
+        // Fetch list of files
+        async function fetchLogList() {
+            try {
+                const response = await fetch("/api/core/logs/api/list/");
+                const data = await response.json();
+                if (data.success) {
+                    logFiles = data.logs;
+                    renderFileList();
+                    
+                    // Auto-select first file if none selected
+                    if (!selectedFile && logFiles.length > 0) {
+                        const firstAvailable = logFiles.find(l => l.exists);
+                        if (firstAvailable) {
+                            selectFile(firstAvailable.name);
+                        } else {
+                            selectFile(logFiles[0].name);
+                        }
+                    }
+                } else {
+                    showToast("Failed to load log file list", "error");
+                }
+            } catch (err) {
+                console.error("Error listing logs:", err);
+                showToast("Connection error listing logs", "error");
+            }
+        }
+
+        // Render file list in sidebar
+        function renderFileList() {
+            fileListEl.innerHTML = "";
+            logFiles.forEach(file => {
+                const li = document.createElement("li");
+                li.className = `log-file-item ${file.name === selectedFile ? 'active' : ''}`;
+                
+                const timeFormatted = file.modified_at ? new Date(file.modified_at).toLocaleTimeString() : 'N/A';
+                const fileState = file.exists ? file.size_formatted : 'Not found';
+
+                li.innerHTML = `
+                    <span class="file-name">${file.name}</span>
+                    <div class="file-info">
+                        <span>${fileState}</span>
+                        <span>${timeFormatted}</span>
+                    </div>
+                `;
+                li.onclick = () => selectFile(file.name);
+                fileListEl.appendChild(li);
+            });
+        }
+
+        // Select file action
+        function selectFile(filename) {
+            if (selectedFile === filename) return;
+            selectedFile = filename;
+            
+            // Update UI elements
+            document.querySelectorAll(".log-file-item").forEach(item => {
+                if (item.querySelector(".file-name").innerText === filename) {
+                    item.classList.add("active");
+                } else {
+                    item.classList.remove("active");
+                }
+            });
+            
+            activeFileLabel.innerText = filename;
+            
+            // Enable/disable buttons based on whether file exists
+            const fileObj = logFiles.find(f => f.name === filename);
+            const exists = fileObj ? fileObj.exists : false;
+            
+            downloadBtn.disabled = !exists;
+            clearBtn.disabled = !exists;
+
+            // Reset cache and reload
+            lastLogLinesJoined = "";
+            reloadLogs(true);
+        }
+
+        // Parse log lines and highlight keywords
+        function highlightLogContent(line, index, searchQuery) {
+            if (!line) return "";
+            
+            // Determine severity class and badge
+            let levelClass = "log-info";
+            let levelBadge = "INFO";
+            let lineLower = line.lower ? line.lower() : line.toLowerCase();
+            
+            if (lineLower.includes("error") || lineLower.includes("exception") || lineLower.includes("failed")) {
+                levelClass = "log-error";
+                levelBadge = "ERROR";
+            } else if (lineLower.includes("warn")) {
+                levelClass = "log-warning";
+                levelBadge = "WARN";
+            } else if (lineLower.includes("critical") || lineLower.includes("fatal")) {
+                levelClass = "log-critical";
+                levelBadge = "CRIT";
+            } else if (lineLower.includes("debug")) {
+                levelClass = "log-debug";
+                levelBadge = "DEBUG";
+            }
+
+            // Extract timestamp if present (e.g. [2026-06-24 10:45:15] or 2026-06-24T10:45:15)
+            // Replace time segments with styled span
+            let contentHtml = escapeHTML(line);
+            
+            // Try to highlight timestamps
+            const dateRegex = /(\d{4}-\d{2}-\d{2}[T\s]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:[+-]\d{2}:?\d{2}|Z)?)/g;
+            contentHtml = contentHtml.replace(dateRegex, '<span class="log-timestamp">$1</span>');
+
+            // Highlight search query matches
+            if (searchQuery) {
+                try {
+                    const searchRegex = new RegExp(`(${escapeRegExp(searchQuery)})`, "gi");
+                    contentHtml = contentHtml.replace(searchRegex, '<span class="match-highlight">$1</span>');
+                } catch (e) {
+                    console.error("Highlight regex error:", e);
+                }
+            }
+
+            return `
+                <div class="log-line ${levelClass}">
+                    <span class="log-line-num">${index}</span>
+                    <div class="log-line-content">
+                        <span class="log-badge">${levelBadge}</span>
+                        ${contentHtml}
+                    </div>
+                </div>
+            `;
+        }
+
+        // Escape helper for HTML rendering
+        function escapeHTML(str) {
+            return str
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
+        // Escape query helper for Regexp
+        function escapeRegExp(string) {
+            return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        }
+
+        // Fetch and reload logs
+        async function reloadLogs(showLoading = false) {
+            if (!selectedFile) return;
+            if (isFetching) return;
+
+            isFetching = true;
+            
+            if (showLoading) {
+                terminalBody.innerHTML = `
+                    <div class="terminal-placeholder">
+                        <div class="spinner"></div>
+                        <p>Fetching logs from ${selectedFile}...</p>
+                    </div>
+                `;
+            }
+
+            const limit = limitSelect.value;
+            const level = levelSelect.value;
+            const search = searchInput.value;
+            
+            try {
+                const response = await fetch(`/api/core/logs/api/content/${selectedFile}/?limit=${limit}&level=${level}&search=${encodeURIComponent(search)}`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    const lines = data.lines || [];
+                    const linesJoined = lines.join("\n");
+                    
+                    // Only update DOM if lines changed (avoids flickering during tailing)
+                    if (linesJoined !== lastLogLinesJoined) {
+                        lastLogLinesJoined = linesJoined;
+                        
+                        if (lines.length === 0) {
+                            terminalBody.innerHTML = `
+                                <div class="terminal-placeholder">
+                                    <p>No log entries matching the criteria found.</p>
+                                </div>
+                            `;
+                            terminalStatsLabel.innerText = "Lines: 0";
+                        } else {
+                            let logsHtml = "";
+                            lines.forEach((line, index) => {
+                                logsHtml += highlightLogContent(line, index + 1, search);
+                            });
+                            terminalBody.innerHTML = logsHtml;
+                            terminalStatsLabel.innerText = `Lines: ${lines.length}`;
+                            
+                            // Auto-scroll logic
+                            if (scrollCheckbox.checked) {
+                                terminalBody.scrollTop = terminalBody.scrollHeight;
+                            }
+                        }
+                    }
+                } else {
+                    if (showLoading) {
+                        terminalBody.innerHTML = `
+                            <div class="terminal-placeholder" style="color: var(--danger);">
+                                <p>Failed to load logs: ${data.error || 'Unknown error'}</p>
+                            </div>
+                        `;
+                    }
+                }
+            } catch (err) {
+                console.error("Error fetching log content:", err);
+                if (showLoading) {
+                    terminalBody.innerHTML = `
+                        <div class="terminal-placeholder" style="color: var(--danger);">
+                            <p>Failed to load logs due to network error.</p>
+                        </div>
+                    `;
+                }
+            } finally {
+                isFetching = false;
+            }
+        }
+
+        // Tailing logic
+        function configureAutoTail() {
+            if (tailCheckbox.checked) {
+                tailStatusDot.classList.add("active");
+                if (!autoTailTimer) {
+                    autoTailTimer = setInterval(() => {
+                        reloadLogs(false);
+                    }, 3000);
+                }
+            } else {
+                tailStatusDot.classList.remove("active");
+                if (autoTailTimer) {
+                    clearInterval(autoTailTimer);
+                    autoTailTimer = null;
+                }
+            }
+        }
+
+        // Clear log file action
+        async function clearLogFile() {
+            if (!selectedFile) return;
+            
+            try {
+                const response = await fetch(`/api/core/logs/api/clear/${selectedFile}/`, {
+                    method: "POST",
+                    headers: {
+                        "X-CSRFToken": csrfToken,
+                        "Content-Type": "application/json"
+                    }
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    showToast(data.message || "Log cleared successfully");
+                    lastLogLinesJoined = "";
+                    reloadLogs(true);
+                    fetchLogList(); // Refresh metadata sizes
+                } else {
+                    showToast("Failed to clear log: " + (data.error || "Unknown error"), "error");
+                }
+            } catch (err) {
+                console.error("Error clearing logs:", err);
+                showToast("Network error clearing logs", "error");
+            }
+        }
+
+        // Direct Download trigger
+        function downloadLogFile() {
+            if (!selectedFile) return;
+            window.location.href = `/api/core/logs/api/download/${selectedFile}/`;
+        }
+
+        // Modal triggers
+        clearBtn.onclick = () => {
+            modalFilename.innerText = selectedFile;
+            confirmModal.classList.add("open");
+        };
+        modalCancelBtn.onclick = () => confirmModal.classList.remove("open");
+        modalConfirmBtn.onclick = () => {
+            confirmModal.classList.remove("open");
+            clearLogFile();
+        };
+
+        // Event listeners for filters
+        limitSelect.onchange = () => {
+            lastLogLinesJoined = "";
+            reloadLogs(true);
+        };
+        levelSelect.onchange = () => {
+            lastLogLinesJoined = "";
+            reloadLogs(true);
+        };
+        
+        // Search filter with debounce
+        let searchTimeout = null;
+        searchInput.oninput = () => {
+            if (searchTimeout) clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => {
+                lastLogLinesJoined = "";
+                reloadLogs(true);
+            }, 300);
+        };
+
+        tailCheckbox.onchange = configureAutoTail;
+        refreshBtn.onclick = () => {
+            lastLogLinesJoined = "";
+            reloadLogs(true);
+            fetchLogList(); // Reload sizes too
+        };
+        downloadBtn.onclick = downloadLogFile;
+
+        // Click outside modal to close it
+        confirmModal.onclick = (e) => {
+            if (e.target === confirmModal) {
+                confirmModal.classList.remove("open");
+            }
+        };
+
+        // Initial setup
+        fetchLogList();
+        configureAutoTail();
+        
+        // Refresh log file sizes periodically
+        setInterval(fetchLogList, 15000);
+    </script>
+</body>
+</html>
