@@ -5,8 +5,12 @@ import os
 import requests
 import random
 import re
+import hashlib
+import time
 from datetime import datetime, timedelta
 from typing import Any, Dict, List
+from django.core.cache import cache
+
 
 # AI model imports with better error handling
 try:
@@ -46,7 +50,20 @@ except ImportError:
     TEXTBLOB_AVAILABLE = False
 
 
+# Module-level singleton — initialized once, reused across requests
+_ai_service_instance = None
+
+
+def get_ai_service() -> "AIService":
+    """Return a shared AIService singleton (thread-safe via GIL)."""
+    global _ai_service_instance
+    if _ai_service_instance is None:
+        _ai_service_instance = AIService()
+    return _ai_service_instance
+
+
 class AIService:
+
     """AI service for content generation and analysis"""
 
     def __init__(self):
@@ -95,14 +112,52 @@ class AIService:
             logging.error(f"Failed to initialize AI sentiment model: {str(e)}")
             self.sentiment_analyzer = None
 
-    def _call_gemini(self, prompt: str, system_instruction: str = None, json_mode: bool = False, temperature: float = None) -> str:
-        """Call the Google Gemini API using raw HTTP requests"""
+    def _call_gemini(
+        self,
+        prompt: str,
+        system_instruction: str = None,
+        json_mode: bool = False,
+        temperature: float = None,
+        user_id = None,
+        feature: str = None,
+        platform: str = "",
+        agent_id = None,
+        method: str = "reactive",
+    ) -> str:
+        """Call the Google Gemini API using raw HTTP requests with caching, retries, and logging"""
+        # Build cache key from parameters
+        cache_key_data = f"{prompt}|{system_instruction}|{json_mode}|{temperature}"
+        cache_key = f"gemini:{hashlib.md5(cache_key_data.encode()).hexdigest()}"
+
+        # Check cache first (5-minute TTL)
+        cached = cache.get(cache_key)
+        if cached is not None:
+            logging.info("Gemini cache HIT")
+            # Log cache usage if user context is available
+            if user_id and feature:
+                try:
+                    from apps.integrations.models import AIUsageLog
+                    AIUsageLog.objects.create(
+                        user_id=user_id,
+                        feature=feature,
+                        platform=platform,
+                        agent_id=agent_id,
+                        model_used="gemini-2.5-flash",
+                        api_calls_made=0,
+                        method=f"{method}_cache",
+                        latency_ms=0,
+                        success=True,
+                    )
+                except Exception as log_err:
+                    logging.error(f"Failed to save cache AIUsageLog: {log_err}")
+            return cached
+
+        max_retries = 3
         api_key = os.getenv("GEMINI_API_KEY")
         if not api_key:
             logging.warning("GEMINI_API_KEY not found in environment, skipping Gemini API call.")
             return ""
 
-        # Using gemini-2.5-flash which is a free model with active quotas
         url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
 
         contents = {
@@ -129,19 +184,79 @@ class AIService:
         if generation_config:
             payload["generationConfig"] = generation_config
 
-        try:
-            logging.info("Sending request to Gemini API...")
-            response = requests.post(url, json=payload, timeout=25)
-            if response.status_code == 200:
-                res_json = response.json()
-                text = res_json["candidates"][0]["content"]["parts"][0]["text"]
-                return text
-            else:
-                logging.error(f"Gemini API returned error {response.status_code}: {response.text}")
-                return ""
-        except Exception as e:
-            logging.error(f"Error calling Gemini API: {str(e)}")
-            return ""
+        start_time = time.monotonic()
+        success = False
+        text = ""
+        error_msg = ""
+        input_tokens = None
+        output_tokens = None
+        api_calls_made = 0
+
+        for attempt in range(max_retries):
+            api_calls_made += 1
+            try:
+                logging.info(f"Sending request to Gemini API (attempt {attempt + 1})...")
+                timeout = 25 if attempt == 0 else 40
+                response = requests.post(url, json=payload, timeout=timeout)
+                
+                if response.status_code == 200:
+                    res_json = response.json()
+                    text = res_json["candidates"][0]["content"]["parts"][0]["text"]
+                    
+                    # Extract usage metadata
+                    usage = res_json.get("usageMetadata", {})
+                    input_tokens = usage.get("promptTokenCount")
+                    output_tokens = usage.get("candidatesTokenCount")
+                    
+                    success = True
+                    break
+                elif response.status_code in (429, 500, 503) and attempt < max_retries - 1:
+                    wait_time = (2 ** attempt) + random.uniform(0, 1)
+                    logging.warning(f"Gemini API status {response.status_code}. Retrying in {wait_time:.2f}s...")
+                    time.sleep(wait_time)
+                else:
+                    error_msg = f"HTTP {response.status_code}: {response.text}"
+                    logging.error(f"Gemini API returned error: {error_msg}")
+                    break
+            except Exception as e:
+                error_msg = str(e)
+                if attempt < max_retries - 1:
+                    wait_time = (2 ** attempt) + random.uniform(0, 1)
+                    logging.warning(f"Gemini API failed: {error_msg}. Retrying in {wait_time:.2f}s...")
+                    time.sleep(wait_time)
+                else:
+                    logging.error(f"Gemini API failed after {max_retries} attempts: {error_msg}")
+                    break
+
+        latency = int((time.monotonic() - start_time) * 1000)
+
+        # Cache on success
+        if success and text:
+            cache.set(cache_key, text, timeout=300)
+
+        # Write usage log
+        if user_id and feature:
+            try:
+                from apps.integrations.models import AIUsageLog
+                AIUsageLog.objects.create(
+                    user_id=user_id,
+                    feature=feature,
+                    platform=platform,
+                    agent_id=agent_id,
+                    model_used="gemini-2.5-flash",
+                    api_calls_made=api_calls_made,
+                    method=method,
+                    latency_ms=latency,
+                    success=success,
+                    error_message=error_msg,
+                    input_tokens=input_tokens,
+                    output_tokens=output_tokens,
+                )
+            except Exception as log_err:
+                logging.error(f"Failed to save AIUsageLog: {log_err}")
+
+        return text
+
 
     def analyze_performance_data(self, analytics_data: List[Dict], user_context: Dict = None) -> Dict[str, Any]:
         """Analyze performance data and provide AI insights"""
@@ -160,6 +275,40 @@ class AIService:
         insights = self._generate_insights(analytics_data, avg_engagement_rate)
         recommendations = self._generate_recommendations(analytics_data, trends, user_context)
 
+        # Enhance with Gemini if available
+        if os.getenv("GEMINI_API_KEY") and analytics_data:
+            try:
+                summary_text = (
+                    f"Platform data: {len(analytics_data)} records. "
+                    f"Engagement rate: {round(avg_engagement_rate, 2)}%. "
+                    f"Trend: {trends.get('trend_direction', 'unknown')}. "
+                    f"Growth rate: {trends.get('growth_rate', 0)}%. "
+                    f"Best posting hour: {trends.get('best_posting_hour', 'unknown')}."
+                )
+                if user_context:
+                    summary_text += f" Followers: {user_context.get('total_followers', 'unknown')}."
+
+                prompt = f"""Analyze this social media performance summary and provide 
+                2-3 specific, actionable insights a social media manager should act on:
+                
+                {summary_text}
+                
+                Return JSON in this format: {{"ai_insights": [{{"type": "positive/improvement/strategy", "title": "...", "description": "...", "confidence": 0.9, "action_items": ["...", "..."]}}]}}"""
+
+                ai_text = self._call_gemini(
+                    prompt, 
+                    json_mode=True, 
+                    temperature=0.3,
+                    user_id=user_context.get("user_id") if user_context else None,
+                    feature="analytics_insights",
+                    method="analytics_insight"
+                )
+                ai_data = self._parse_json_response(ai_text)
+                if ai_data and "ai_insights" in ai_data:
+                    insights.extend(ai_data["ai_insights"])
+            except Exception as e:
+                logging.warning(f"Gemini analytics enhancement failed: {e}")
+
         return {
             "insights": insights,
             "recommendations": recommendations,
@@ -171,6 +320,7 @@ class AIService:
                 "performance_score": self._calculate_performance_score(analytics_data),
             },
         }
+
 
     def _analyze_trends(self, analytics_data: List[Dict]) -> Dict[str, Any]:
         """Analyze trends in analytics data"""
@@ -396,11 +546,11 @@ class AIService:
         return round(score, 1)
 
     def generate_content_suggestions_based_on_analytics(
-        self, analytics_data: List[Dict], platform: str, agent=None, content: str = None
+        self, analytics_data: List[Dict], platform: str, agent=None, content: str = None, user_id=None
     ) -> List[Dict[str, Any]]:
         """Generate content suggestions based on analytics performance"""
         if not analytics_data:
-            return self.generate_post_suggestions(None, platform, agent=agent, content=content)
+            return self.generate_post_suggestions(user_id, platform, agent=agent, content=content)
 
         # Try Gemini API if key is available
         if os.getenv("GEMINI_API_KEY"):
@@ -412,19 +562,20 @@ class AIService:
             
             system_instruction = None
             temp = None
-            tone_str = ""
             if agent:
                 system_instruction = agent.persona
                 temp = agent.temperature
                 tone_str = f" Ensure the suggestions reflect a '{agent.tone}' tone."
             else:
-                system_instruction = "You are an expert Social Media AI Planner."
+                tone_str = " Ensure the suggestions are engaging and fit platform best practices."
 
-            content_str = f" based on the user's draft/prompt: \"{content}\"" if content else ""
             prompt = f"""
-            Analyze the following analytics summary of a user's performance and generate exactly 4 ready-to-publish, high-performing post suggestions tailored for {platform}{content_str}.{tone_str}
+            You are a social media growth expert.
+            Analyze this user's historical performance data summary:
+            "{analytics_summary}"
             
-            Performance Summary: {analytics_summary}
+            Based on this, generate exactly 5 content suggestions for {platform} posts.{tone_str}
+            Each suggestion should be tailored to perform well.
             
             Provide the response in raw JSON format as a list of objects, where each object has:
             - "content": The full post text (make sure it is a complete, publish-ready post containing engaging body copy, emojis, and hashtags where appropriate, not just a recommendation or one-sentence suggestion).
@@ -434,15 +585,20 @@ class AIService:
             Do not include any markdown formatting like ```json in the output. Return only raw valid JSON list.
             """
             
-            res_text = self._call_gemini(prompt, system_instruction=system_instruction, json_mode=True, temperature=temp)
+            res_text = self._call_gemini(
+                prompt,
+                system_instruction=system_instruction,
+                json_mode=True,
+                temperature=temp,
+                user_id=user_id,
+                feature="analytics_content_suggestions",
+                platform=platform,
+                agent_id=agent.id if agent else None,
+                method="reactive"
+            )
             if res_text:
                 try:
-                    res_text = res_text.strip()
-                    if res_text.startswith("```json"):
-                        res_text = res_text.split("```json")[1].split("```")[0].strip()
-                    elif res_text.startswith("```"):
-                        res_text = res_text.split("```")[1].split("```")[0].strip()
-                    data = json.loads(res_text)
+                    data = self._parse_json_response(res_text)
                     if isinstance(data, list):
                         return data[:5]
                 except Exception as e:
@@ -655,20 +811,27 @@ class AIService:
     # ──────────────────────────────────────────────────────────────────────
     #  Main dispatcher
     # ──────────────────────────────────────────────────────────────────────
-    def generate_post_suggestions(self, user, platform: str, agent=None, content: str = None) -> List[Dict[str, Any]]:
+    def generate_post_suggestions(self, user, platform: str, agent=None, content: str = None, progress_callback=None) -> List[Dict[str, Any]]:
         """Generate content suggestions based on platform and user context.
 
         When a custom **AIAgent** is provided the method runs the *deliberative*
         pipeline (Plan → Write → Review) for higher-quality output.  Otherwise
         the fast *reactive* single-step path is used.
         """
+        user_id = user.id if hasattr(user, "id") else user
         if not os.getenv("GEMINI_API_KEY"):
             return self._fallback_post_suggestions(platform)
 
         # Deliberative mode when a custom agent is attached
         if agent:
             try:
-                result = self._generate_post_suggestions_deliberative(platform, agent, content=content)
+                result = self._generate_post_suggestions_deliberative(
+                    platform, 
+                    agent, 
+                    content=content, 
+                    progress_callback=progress_callback,
+                    user_id=user_id
+                )
                 if result:
                     return result
                 logging.warning("Deliberative pipeline returned empty — falling back to reactive.")
@@ -676,12 +839,12 @@ class AIService:
                 logging.error(f"Deliberative pipeline failed: {e} — falling back to reactive.")
 
         # Default reactive single-call path
-        return self._generate_post_suggestions_reactive(platform, agent, content=content)
+        return self._generate_post_suggestions_reactive(platform, agent, content=content, user_id=user_id)
 
     # ──────────────────────────────────────────────────────────────────────
     #  Reactive (single-step) generation
     # ──────────────────────────────────────────────────────────────────────
-    def _generate_post_suggestions_reactive(self, platform: str, agent=None, content: str = None) -> List[Dict[str, Any]]:
+    def _generate_post_suggestions_reactive(self, platform: str, agent=None, content: str = None, user_id=None) -> List[Dict[str, Any]]:
         """Single Gemini call — fast, good-enough suggestions."""
         system_instruction = "You are a social media copywriter."
         temp = None
@@ -708,7 +871,17 @@ class AIService:
 
         Do not include any markdown formatting like ```json in the output. Return only raw valid JSON list.
         """
-        res_text = self._call_gemini(prompt, system_instruction=system_instruction, json_mode=True, temperature=temp)
+        res_text = self._call_gemini(
+            prompt,
+            system_instruction=system_instruction,
+            json_mode=True,
+            temperature=temp,
+            user_id=user_id,
+            feature="content_suggestions",
+            platform=platform,
+            agent_id=agent.id if agent else None,
+            method="reactive"
+        )
         data = self._parse_json_response(res_text)
         if isinstance(data, list) and data:
             return data[:3]
@@ -718,7 +891,7 @@ class AIService:
     # ──────────────────────────────────────────────────────────────────────
     #  Deliberative (Plan → Write → Review) pipeline
     # ──────────────────────────────────────────────────────────────────────
-    def _generate_post_suggestions_deliberative(self, platform: str, agent, content: str = None) -> List[Dict[str, Any]]:
+    def _generate_post_suggestions_deliberative(self, platform: str, agent, content: str = None, progress_callback=None, user_id=None) -> List[Dict[str, Any]]:
         """Multi-step agent pipeline inspired by ReAct / Google ADK patterns.
 
         Step 1 – **Plan**: Generate a structured content plan (topics, hooks, CTA)
@@ -728,6 +901,9 @@ class AIService:
         logging.info(f"🤖 Deliberative Agent [{agent.name}] — starting pipeline for {platform}")
 
         # ── Step 1: PLAN ────────────────────────────────────────────────
+        if progress_callback:
+            progress_callback("planning", "Creating content plan...")
+
         plan_system = (
             f"You are '{agent.name}', a planning specialist. "
             f"Your persona: {agent.persona}\n"
@@ -774,6 +950,11 @@ Return only raw valid JSON, no markdown fences.
             system_instruction=plan_system,
             json_mode=True,
             temperature=max(0.3, (agent.temperature or 0.7) - 0.2),  # slightly lower temp for planning
+            user_id=user_id,
+            feature="content_suggestions_plan",
+            platform=platform,
+            agent_id=agent.id,
+            method="deliberative",
         )
         plan_data = self._parse_json_response(plan_text)
 
@@ -785,6 +966,9 @@ Return only raw valid JSON, no markdown fences.
         logging.info(f"🤖 Deliberative Agent [{agent.name}] — Plan created: {len(plan_items)} topics")
 
         # ── Step 2: WRITE ───────────────────────────────────────────────
+        if progress_callback:
+            progress_callback("writing", "Drafting posts...")
+
         write_system = (
             f"You are '{agent.name}', a content writer. "
             f"Your persona: {agent.persona}\n"
@@ -823,6 +1007,11 @@ Return only raw valid JSON, no markdown fences.
             system_instruction=write_system,
             json_mode=True,
             temperature=agent.temperature or 0.7,
+            user_id=user_id,
+            feature="content_suggestions_write",
+            platform=platform,
+            agent_id=agent.id,
+            method="deliberative",
         )
         drafts = self._parse_json_response(write_text)
 
@@ -833,6 +1022,9 @@ Return only raw valid JSON, no markdown fences.
         logging.info(f"🤖 Deliberative Agent [{agent.name}] — Drafts written: {len(drafts)} posts")
 
         # ── Step 3: REVIEW ──────────────────────────────────────────────
+        if progress_callback:
+            progress_callback("reviewing", "Polishing content...")
+
         review_system = (
             f"You are '{agent.name}', acting as a senior content editor and quality reviewer. "
             f"Your persona: {agent.persona}\n"
@@ -872,6 +1064,11 @@ Return only raw valid JSON, no markdown fences.
             system_instruction=review_system,
             json_mode=True,
             temperature=max(0.2, (agent.temperature or 0.7) - 0.3),  # lower temp for editing
+            user_id=user_id,
+            feature="content_suggestions_review",
+            platform=platform,
+            agent_id=agent.id,
+            method="deliberative",
         )
         final_posts = self._parse_json_response(review_text)
 
@@ -915,6 +1112,7 @@ Return only raw valid JSON, no markdown fences.
             f"🤖 Deliberative Agent [{agent.name}] — Review complete: {len(final_posts)} polished posts"
         )
         return final_posts[:3]
+
 
     # ──────────────────────────────────────────────────────────────────────
     #  Static fallback suggestions (no API key / offline)
@@ -972,7 +1170,7 @@ Return only raw valid JSON, no markdown fences.
         suggestions = platform_suggestions.get(platform.lower(), platform_suggestions["twitter"])
         return random.sample(suggestions, min(3, len(suggestions)))
 
-    def generate_hashtags(self, content: str, platform: str) -> List[str]:
+    def generate_hashtags(self, content: str, platform: str, user_id=None) -> List[str]:
         """Generate relevant hashtags for content"""
         if os.getenv("GEMINI_API_KEY"):
             prompt = f"""
@@ -985,19 +1183,21 @@ Return only raw valid JSON, no markdown fences.
             
             Do not include any markdown formatting like ```json in the output. Return only raw valid JSON list.
             """
-            res_text = self._call_gemini(prompt, json_mode=True)
+            res_text = self._call_gemini(
+                prompt,
+                json_mode=True,
+                user_id=user_id,
+                feature="hashtags",
+                platform=platform
+            )
             if res_text:
                 try:
-                    res_text = res_text.strip()
-                    if res_text.startswith("```json"):
-                        res_text = res_text.split("```json")[1].split("```")[0].strip()
-                    elif res_text.startswith("```"):
-                        res_text = res_text.split("```")[1].split("```")[0].strip()
-                    data = json.loads(res_text)
+                    data = self._parse_json_response(res_text)
                     if isinstance(data, list):
                         return [tag if tag.startswith('#') else f"#{tag}" for tag in data[:6]]
                 except Exception as e:
                     logging.error(f"Failed to parse Gemini hashtags: {str(e)}")
+
 
         # Extract key words from content
         words = re.findall(r"\b\w{4,}\b", content.lower())
@@ -1018,7 +1218,7 @@ Return only raw valid JSON, no markdown fences.
         all_hashtags = content_hashtags + base_hashtags
         return list(dict.fromkeys(all_hashtags))[:6]  # Remove duplicates and limit to 6
 
-    def analyze_sentiment(self, text: str) -> Dict[str, Any]:
+    def analyze_sentiment(self, text: str, user_id=None) -> Dict[str, Any]:
         """Analyze sentiment of text content using AI models"""
         if not text or not text.strip():
             return {
@@ -1044,15 +1244,15 @@ Return only raw valid JSON, no markdown fences.
             
             Do not include any markdown formatting like ```json in the output. Return only raw valid JSON.
             """
-            res_text = self._call_gemini(prompt, json_mode=True)
+            res_text = self._call_gemini(
+                prompt,
+                json_mode=True,
+                user_id=user_id,
+                feature="sentiment_analysis"
+            )
             if res_text:
                 try:
-                    res_text = res_text.strip()
-                    if res_text.startswith("```json"):
-                        res_text = res_text.split("```json")[1].split("```")[0].strip()
-                    elif res_text.startswith("```"):
-                        res_text = res_text.split("```")[1].split("```")[0].strip()
-                    data = json.loads(res_text)
+                    data = self._parse_json_response(res_text)
                     return {
                         "sentiment": data.get("sentiment", "neutral"),
                         "confidence": round(data.get("confidence", 0.8), 2),
@@ -1061,6 +1261,7 @@ Return only raw valid JSON, no markdown fences.
                     }
                 except Exception as e:
                     logging.error(f"Failed to parse Gemini sentiment response: {str(e)}")
+
 
         # Try AI model first
         if self.sentiment_analyzer and TRANSFORMERS_AVAILABLE:
@@ -1238,7 +1439,7 @@ Return only raw valid JSON, no markdown fences.
             "neutral_words": neutral_score,
         }
 
-    def analyze_comments_sentiment(self, comments: List[str]) -> Dict[str, Any]:
+    def analyze_comments_sentiment(self, comments: List[str], user_id=None) -> Dict[str, Any]:
         """Analyze sentiment for multiple comments and provide aggregate insights"""
         if not comments:
             return {
@@ -1255,7 +1456,8 @@ Return only raw valid JSON, no markdown fences.
 
         for comment in comments:
             if comment and comment.strip():
-                result = self.analyze_sentiment(comment)
+                result = self.analyze_sentiment(comment, user_id=user_id)
+
                 comment_results.append(
                     {
                         "comment": comment[:100] + "..." if len(comment) > 100 else comment,
@@ -1360,7 +1562,7 @@ Return only raw valid JSON, no markdown fences.
 
         return insights
 
-    def optimize_content_for_platform(self, content: str, platform: str) -> Dict[str, Any]:
+    def optimize_content_for_platform(self, content: str, platform: str, user_id=None) -> Dict[str, Any]:
         """Optimize content for specific platform requirements"""
         optimizations = {
             "twitter": {
@@ -1404,15 +1606,16 @@ Return only raw valid JSON, no markdown fences.
             
             Do not include any markdown formatting like ```json in the output. Return only raw valid JSON.
             """
-            res_text = self._call_gemini(prompt, json_mode=True)
+            res_text = self._call_gemini(
+                prompt,
+                json_mode=True,
+                user_id=user_id,
+                feature="optimize_content",
+                platform=platform
+            )
             if res_text:
                 try:
-                    res_text = res_text.strip()
-                    if res_text.startswith("```json"):
-                        res_text = res_text.split("```json")[1].split("```")[0].strip()
-                    elif res_text.startswith("```"):
-                        res_text = res_text.split("```")[1].split("```")[0].strip()
-                    data = json.loads(res_text)
+                    data = self._parse_json_response(res_text)
                     opt_content = data.get("optimized_content", content)
                     return {
                         "platform": platform,
@@ -1427,6 +1630,7 @@ Return only raw valid JSON, no markdown fences.
                     }
                 except Exception as e:
                     logging.error(f"Failed to parse Gemini optimize content response: {str(e)}")
+
 
         is_optimized = content_length <= platform_info["max_length"]
 
@@ -1447,7 +1651,7 @@ Return only raw valid JSON, no markdown fences.
 
         return result
 
-    def generate_content_ideas(self, topic: str, platform: str, count: int = 5) -> List[Dict[str, Any]]:
+    def generate_content_ideas(self, topic: str, platform: str, count: int = 5, user_id=None) -> List[Dict[str, Any]]:
         """Generate content ideas around a specific topic"""
         if os.getenv("GEMINI_API_KEY"):
             prompt = f"""
@@ -1463,19 +1667,21 @@ Return only raw valid JSON, no markdown fences.
             
             Do not include any markdown formatting like ```json in the output. Return only raw valid JSON list.
             """
-            res_text = self._call_gemini(prompt, json_mode=True)
+            res_text = self._call_gemini(
+                prompt,
+                json_mode=True,
+                user_id=user_id,
+                feature="content_ideas",
+                platform=platform
+            )
             if res_text:
                 try:
-                    res_text = res_text.strip()
-                    if res_text.startswith("```json"):
-                        res_text = res_text.split("```json")[1].split("```")[0].strip()
-                    elif res_text.startswith("```"):
-                        res_text = res_text.split("```")[1].split("```")[0].strip()
-                    data = json.loads(res_text)
+                    data = self._parse_json_response(res_text)
                     if isinstance(data, list):
                         return data[:count]
                 except Exception as e:
                     logging.error(f"Failed to parse Gemini content ideas: {str(e)}")
+
 
         idea_templates = [
             {

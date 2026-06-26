@@ -335,21 +335,34 @@ def analyze_post_comments_sentiment_background(post_id, comments):
         post = Post.objects.get(id=post_id)
 
         # Initialize AI service
-        from apps.integrations.ai_service import AIService
+        from apps.integrations.ai_service import get_ai_service
+        ai_service = get_ai_service()
 
-        ai_service = AIService()
-
-        # Analyze comments sentiment
-        sentiment_analysis = ai_service.analyze_comments_sentiment(comments)
+        # Analyze comments sentiment, passing the user_id for usage logging
+        sentiment_analysis = ai_service.analyze_comments_sentiment(comments, user_id=post.user_id)
 
         # Add metadata
         sentiment_analysis["post_id"] = str(post.id)
         sentiment_analysis["analysis_timestamp"] = timezone.now().isoformat()
         sentiment_analysis["task_type"] = "background_analysis"
 
-        # Here you could save results to a database model if needed
-        # For now, just log the results
-        logger.info(f"Background sentiment analysis completed for post {post_id}")
+        # Persist results to CommentAnalytics database model
+        from apps.analytics.models import CommentAnalytics
+        for i, result in enumerate(sentiment_analysis.get("individual_results", [])):
+            CommentAnalytics.objects.update_or_create(
+                post=post,
+                comment_id=f"batch_{post_id}_{i}",
+                defaults={
+                    "comment_text": result["comment"],
+                    "author_username": "unknown",
+                    "sentiment": result["sentiment"],
+                    "sentiment_score": result["scores"].get(result["sentiment"], 0.0),
+                    "confidence_score": result["confidence"],
+                    "created_at": timezone.now(),
+                },
+            )
+
+        logger.info(f"Background sentiment analysis completed and saved for post {post_id}")
         logger.info(
             f"Results: {sentiment_analysis['overall_sentiment']} sentiment, "
             f"{sentiment_analysis['comments_analyzed']} comments analyzed"
@@ -379,23 +392,33 @@ def analyze_user_posts_sentiment_trends(user_id, days=30):
             logger.info(f"No recent posts found for user {user_id}")
             return {"message": "No recent posts to analyze"}
 
-        # Initialize AI service
-        from apps.integrations.ai_service import AIService
+        # Query CommentAnalytics for the posts found
+        from apps.analytics.models import CommentAnalytics
+        comments_analytics = CommentAnalytics.objects.filter(post__in=user_posts)
 
-        ai_service = AIService()
+        total_comments = comments_analytics.count()
+        sentiment_counts = {"positive": 0, "negative": 0, "neutral": 0}
+        
+        for comment_item in comments_analytics:
+            if comment_item.sentiment in sentiment_counts:
+                sentiment_counts[comment_item.sentiment] += 1
 
-        # This is a placeholder - in a real implementation, you'd need to:
-        # 1. Fetch actual comments from social media APIs
-        # 2. Store comment data in your database
-        # 3. Analyze real comment sentiment
+        overall_sentiment = "neutral"
+        if total_comments > 0:
+            overall_sentiment = max(sentiment_counts.keys(), key=lambda k: sentiment_counts[k])
 
-        # For now, we'll return a summary structure
         sentiment_trends = {
             "user_id": user_id,
             "analysis_period": f"{days} days",
             "posts_analyzed": user_posts.count(),
+            "comments_analyzed": total_comments,
+            "overall_sentiment": overall_sentiment,
+            "sentiment_counts": sentiment_counts,
+            "sentiment_distribution": {
+                k: round(v / total_comments * 100, 1) if total_comments > 0 else 0
+                for k, v in sentiment_counts.items()
+            },
             "analysis_timestamp": timezone.now().isoformat(),
-            "message": "Sentiment trends analysis framework ready - integrate with social media APIs for real data",
         }
 
         logger.info(f"Sentiment trends analysis completed for user {user_id}")

@@ -739,3 +739,46 @@ class AIAgent(models.Model):
     def __str__(self):
         return f"{self.name} ({self.user.username})"
 
+
+class AIUsageLog(models.Model):
+    """Track AI feature usage for analytics and cost monitoring."""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='ai_usage_logs')
+    feature = models.CharField(max_length=50, db_index=True)
+    # e.g., "content_suggestions", "sentiment_analysis", "hashtags"
+    
+    platform = models.CharField(max_length=20, blank=True)
+    agent = models.ForeignKey('AIAgent', null=True, blank=True, on_delete=models.SET_NULL)
+    
+    # Gemini API tracking
+    model_used = models.CharField(max_length=50, default="gemini-2.5-flash")
+    api_calls_made = models.IntegerField(default=1)  # 3 for deliberative
+    method = models.CharField(max_length=30)  # "reactive", "deliberative", "fallback"
+    
+    # Performance
+    latency_ms = models.IntegerField()
+    success = models.BooleanField(default=True)
+    error_message = models.TextField(blank=True)
+    
+    # Cost estimation (Gemini tokens)
+    input_tokens = models.IntegerField(null=True, blank=True)
+    output_tokens = models.IntegerField(null=True, blank=True)
+    
+    # Feedback tracking for A/B testing
+    feedback_action = models.CharField(max_length=20, blank=True)  # "copied", "used", "dismissed"
+    feedback_metadata = models.JSONField(null=True, blank=True)
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "ai_usage_logs"
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["user", "created_at"]),
+            models.Index(fields=["feature", "created_at"]),
+        ]
+
+    def __str__(self):
+        return f"{self.user.username} - {self.feature} - {self.method} ({self.created_at})"
+
+

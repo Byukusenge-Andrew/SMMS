@@ -574,7 +574,7 @@ def generate_ai_insights(user_id, days=30):
     try:
         from django.contrib.auth.models import User
 
-        from apps.integrations.ai_service import AIService
+        from apps.integrations.ai_service import get_ai_service
 
         user = User.objects.get(id=user_id)
 
@@ -603,13 +603,14 @@ def generate_ai_insights(user_id, days=30):
 
         # Get user context
         user_context = {
+            "user_id": user.id,
             "total_followers": sum(user.social_accounts.values_list("follower_count", flat=True)),
             "account_age_days": (timezone.now().date() - user.date_joined.date()).days,
             "platforms": list(user.social_accounts.values_list("platform", flat=True)),
         }
 
         # Generate insights
-        ai_service = AIService()
+        ai_service = get_ai_service()
         insights = ai_service.analyze_performance_data(ai_data, user_context)
 
         # Create an AnalyticsInsight record
@@ -638,11 +639,11 @@ def generate_weekly_ai_recommendations():
     try:
         from django.contrib.auth.models import User
 
-        from apps.integrations.ai_service import AIService
+        from apps.integrations.ai_service import get_ai_service
 
         active_users = User.objects.filter(social_accounts__isnull=False, is_active=True).distinct()
 
-        ai_service = AIService()
+        ai_service = get_ai_service()
         recommendations_count = 0
 
         for user in active_users:
@@ -736,7 +737,7 @@ def analyze_content_performance_trends(user_id):
                 post_performance[post_id]["impressions"] += item["value"]
 
         # Analyze trends
-        ai_service = AIService()
+        ai_service = get_ai_service()
         trends_analysis = {
             "high_performing_content": [],
             "content_type_analysis": {},

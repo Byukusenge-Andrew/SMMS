@@ -1,10 +1,12 @@
 from django.conf import settings
 
 from rest_framework import permissions, status
-from rest_framework.decorators import api_view, permission_classes, parser_classes
+from rest_framework.decorators import api_view, permission_classes, parser_classes, throttle_classes
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.response import Response
 from rest_framework.request import Request
+from apps.core.throttles import AIEndpointThrottle
+from apps.integrations.ai_service import get_ai_service
 
 from .slack_service import SlackService
 from .models import IntegrationConnection, IntegrationProvider
@@ -210,15 +212,15 @@ def zapier_integration(request):
 
 @api_view(["POST"])
 @permission_classes([permissions.IsAuthenticated])
+@throttle_classes([AIEndpointThrottle])
 def hashtag_suggestions(request: Request):
     """Return AI-generated hashtag suggestions for given content/platform."""
     content = request.data.get("content", "")
     platform = request.data.get("platform", "instagram")
     if not content:
         return Response({"error": "content required"}, status=400)
-    from apps.integrations.ai_service import AIService
-    ai = AIService()
-    hashtags = ai.generate_hashtags(content, platform)
+    ai = get_ai_service()
+    hashtags = ai.generate_hashtags(content, platform, user_id=request.user.id)
     return Response({"hashtags": hashtags})
 
 

@@ -213,3 +213,27 @@ class BurstProtectionThrottle(BaseThrottle):
 
     def wait(self):
         return 10  # Wait 10 seconds for burst protection
+
+
+class AIEndpointThrottle(SMMSCustomThrottle):
+    """Stricter rate limits for AI-powered endpoints (Gemini API calls)."""
+
+    RATE_LIMITS = {
+        "anonymous": {
+            "token_bucket": {"capacity": 0, "refill_rate": 0},      # No AI for anon
+            "sliding_window": {"max_requests": 0, "window_size": 3600},
+        },
+        "authenticated": {
+            "token_bucket": {"capacity": 10, "refill_rate": 0.05},   # 10 burst, ~3/min refill
+            "sliding_window": {"max_requests": 30, "window_size": 3600},  # 30/hour
+        },
+        "premium": {
+            "token_bucket": {"capacity": 30, "refill_rate": 0.17},   # 30 burst, ~10/min
+            "sliding_window": {"max_requests": 200, "window_size": 3600}, # 200/hour
+        },
+        "admin": {
+            "token_bucket": {"capacity": 100, "refill_rate": 1.0},
+            "sliding_window": {"max_requests": 1000, "window_size": 3600},
+        },
+    }
+

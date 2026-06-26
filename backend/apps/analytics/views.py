@@ -5,10 +5,10 @@ from django.db import models
 from django.utils import timezone
 
 from rest_framework import permissions, status
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, throttle_classes
 from rest_framework.response import Response
-
-from apps.integrations.ai_service import AIService
+from apps.core.throttles import AIEndpointThrottle
+from apps.integrations.ai_service import get_ai_service
 from .real_analytics_collector import RealAnalyticsCollector
 
 from .models import AnalyticsData, BestPerformingPost, PerformanceReport, PlatformAverage
@@ -580,6 +580,7 @@ def yearly_report(request):
 
 @api_view(["GET"])
 @permission_classes([permissions.IsAuthenticated])
+@throttle_classes([AIEndpointThrottle])
 def ai_insights(request):
     """Get AI-powered insights based on analytics data"""
     try:
@@ -615,13 +616,14 @@ def ai_insights(request):
         # Get user context using our helper function
         social_data = get_user_social_accounts(user)
         user_context = {
+            "user_id": user.id,
             "total_followers": social_data['total_followers'],
             "account_age_days": (timezone.now().date() - user.date_joined.date()).days,
             "platforms": social_data['platforms'],
         }
 
         # Generate AI insights
-        ai_service = AIService()
+        ai_service = get_ai_service()
         insights = ai_service.analyze_performance_data(analytics_data, user_context)
 
         return Response(
@@ -635,6 +637,7 @@ def ai_insights(request):
 
 @api_view(["GET"])
 @permission_classes([permissions.IsAuthenticated])
+@throttle_classes([AIEndpointThrottle])
 def ai_recommendations(request):
     """Get AI-powered content and strategy recommendations"""
     try:
@@ -663,13 +666,13 @@ def ai_recommendations(request):
                 }
             )
 
-        ai_service = AIService()
+        ai_service = get_ai_service()
 
         # Get performance analysis for recommendations
         performance_analysis = ai_service.analyze_performance_data(analytics_data)
 
         # Get content suggestions based on analytics
-        content_suggestions = ai_service.generate_content_suggestions_based_on_analytics(analytics_data, platform)
+        content_suggestions = ai_service.generate_content_suggestions_based_on_analytics(analytics_data, platform, user_id=request.user.id)
 
         return Response(
             {
@@ -776,6 +779,7 @@ def analyze_competitor(request):
 
 @api_view(["GET"])
 @permission_classes([permissions.IsAuthenticated])
+@throttle_classes([AIEndpointThrottle])
 def predict_performance(request):
     """Predict content performance using AI"""
     try:
@@ -797,13 +801,13 @@ def predict_performance(request):
         avg_reach = historical_data.filter(metric_type="reach").aggregate(avg=models.Avg("value"))["avg"] or 0
 
         # Simple AI prediction based on content analysis
-        ai_service = AIService()
+        ai_service = get_ai_service()
 
         # Analyze content sentiment
-        sentiment = ai_service.analyze_sentiment(content)
+        sentiment = ai_service.analyze_sentiment(content, user_id=request.user.id)
 
         # Generate hashtags
-        hashtags = ai_service.generate_hashtags(content, platform)
+        hashtags = ai_service.generate_hashtags(content, platform, user_id=request.user.id)
 
         # Predict performance factors
         prediction_factors = {

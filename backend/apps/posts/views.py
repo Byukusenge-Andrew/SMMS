@@ -8,10 +8,13 @@ from django.shortcuts import get_object_or_404
 from django.utils import timezone
 
 from rest_framework import permissions, status
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, throttle_classes
 from rest_framework.generics import ListCreateAPIView, RetrieveUpdateDestroyAPIView
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from apps.core.throttles import AIEndpointThrottle
+from apps.integrations.ai_service import get_ai_service
+
 
 # Import for analytics
 from apps.analytics.models import AnalyticsData
@@ -531,6 +534,7 @@ def extract_hashtags(content):
 
 @api_view(["POST"])
 @permission_classes([permissions.IsAuthenticated])
+@throttle_classes([AIEndpointThrottle])
 def ai_content_suggestions(request):
     """Get AI-powered content suggestions based on analytics"""
     try:
@@ -564,12 +568,10 @@ def ai_content_suggestions(request):
             )
 
         # Generate AI suggestions
-        from apps.integrations.ai_service import AIService
-
-        ai_service = AIService()
+        ai_service = get_ai_service()
 
         suggestions = ai_service.generate_content_suggestions_based_on_analytics(
-            analytics_data, platform, agent=agent, content=content
+            analytics_data, platform, agent=agent, content=content, user_id=request.user.id
         )
 
         # Also get general suggestions
@@ -594,6 +596,104 @@ def ai_content_suggestions(request):
 
 @api_view(["POST"])
 @permission_classes([permissions.IsAuthenticated])
+@throttle_classes([AIEndpointThrottle])
+def ai_content_suggestions_stream(request):
+    """Stream deliberative pipeline progress via Server-Sent Events."""
+    platform = request.data.get("platform", "instagram")
+    agent_id = request.data.get("agent_id")
+    content = request.data.get("content", "")
+
+    from django.http import StreamingHttpResponse
+    import json
+    import queue
+    import threading
+
+    def event_stream():
+        ai_service = get_ai_service()
+        agent = None
+        if agent_id:
+            from apps.integrations.models import AIAgent
+            agent = AIAgent.objects.filter(id=agent_id, user=request.user).first()
+
+        if not agent:
+            # Reactive path - stream only done suggestion
+            yield f"data: {json.dumps({'step': 'planning', 'message': 'Generating reactive suggestions...'})}\n\n"
+            suggestions = ai_service.generate_post_suggestions(request.user, platform, content=content)
+            yield f"data: {json.dumps({'step': 'done', 'suggestions': suggestions})}\n\n"
+            return
+
+        # Deliberative path - stream progress of steps
+        q = queue.Queue()
+
+        def progress_callback(step, message):
+            q.put({'step': step, 'message': message})
+
+        def run_suggestions():
+            try:
+                suggestions = ai_service.generate_post_suggestions(
+                    request.user, platform, agent=agent, content=content, progress_callback=progress_callback
+                )
+                q.put({'step': 'done', 'suggestions': suggestions})
+            except Exception as thread_err:
+                q.put({'step': 'error', 'message': str(thread_err)})
+
+        thread = threading.Thread(target=run_suggestions)
+        thread.start()
+
+        while thread.is_alive() or not q.empty():
+            try:
+                item = q.get(timeout=0.5)
+                yield f"data: {json.dumps(item)}\n\n"
+            except queue.Empty:
+                continue
+
+    response = StreamingHttpResponse(event_stream(), content_type='text/event-stream')
+    response['Cache-Control'] = 'no-cache'
+    response['X-Accel-Buffering'] = 'no'  # Disable buffering for Nginx
+    return response
+
+
+@api_view(["POST"])
+@permission_classes([permissions.IsAuthenticated])
+def ai_suggestion_feedback(request):
+    """Log feedback for AI suggestions (copied, used, dismissed) to track quality."""
+    try:
+        content = request.data.get("content", "")
+        generation_method = request.data.get("generation_method", "reactive")
+        action = request.data.get("action")  # "copied", "used", "dismissed"
+        agent_id = request.data.get("agent_id")
+        platform = request.data.get("platform", "")
+
+        if not action:
+            return Response({"error": "action parameter is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Create tracking log entry
+        from apps.integrations.models import AIUsageLog
+        AIUsageLog.objects.create(
+            user=request.user,
+            feature="suggestion_feedback",
+            platform=platform,
+            agent_id=agent_id,
+            method=generation_method,
+            latency_ms=0,
+            success=True,
+            feedback_action=action,
+            feedback_metadata={
+                "content_preview": content[:100] if content else "",
+                "timestamp": timezone.now().isoformat()
+            }
+        )
+
+        return Response({"success": True, "message": "Feedback recorded successfully"})
+    except Exception as e:
+        logger.error(f"Error recording AI suggestion feedback: {str(e)}")
+        return Response({"error": "Failed to record feedback"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+
+@api_view(["POST"])
+@permission_classes([permissions.IsAuthenticated])
+@throttle_classes([AIEndpointThrottle])
 def analyze_content_performance(request):
     """Analyze content performance and get suggestions"""
     try:
@@ -603,14 +703,12 @@ def analyze_content_performance(request):
         if not content:
             return Response({"error": "content is required"}, status=status.HTTP_400_BAD_REQUEST)
 
-        from apps.integrations.ai_service import AIService
-
-        ai_service = AIService()
+        ai_service = get_ai_service()
 
         # Analyze content
-        sentiment = ai_service.analyze_sentiment(content)
-        hashtags = ai_service.generate_hashtags(content, platform)
-        optimized_content = ai_service.optimize_content_for_platform(content, platform)
+        sentiment = ai_service.analyze_sentiment(content, user_id=request.user.id)
+        hashtags = ai_service.generate_hashtags(content, platform, user_id=request.user.id)
+        optimized_content = ai_service.optimize_content_for_platform(content, platform, user_id=request.user.id)
 
         # Get user's historical performance for comparison
         from apps.analytics.models import AnalyticsData
@@ -750,6 +848,7 @@ def trigger_ai_insights(request):
 
 @api_view(["POST"])
 @permission_classes([permissions.IsAuthenticated])
+@throttle_classes([AIEndpointThrottle])
 def analyze_comment_sentiment(request, post_id):
     """Analyze sentiment of comments on a specific post using AI models"""
     try:
@@ -766,12 +865,10 @@ def analyze_comment_sentiment(request, post_id):
             return Response({"error": "Comments must be provided as a list"}, status=status.HTTP_400_BAD_REQUEST)
 
         # Initialize AI service
-        from apps.integrations.ai_service import AIService
-
-        ai_service = AIService()
+        ai_service = get_ai_service()
 
         # Analyze comments sentiment
-        sentiment_analysis = ai_service.analyze_comments_sentiment(comments)
+        sentiment_analysis = ai_service.analyze_comments_sentiment(comments, user_id=request.user.id)
 
         # Add post information to response
         sentiment_analysis["post_id"] = str(post.id)
@@ -792,6 +889,7 @@ def analyze_comment_sentiment(request, post_id):
 
 @api_view(["POST"])
 @permission_classes([permissions.IsAuthenticated])
+@throttle_classes([AIEndpointThrottle])
 def analyze_single_comment_sentiment(request):
     """Analyze sentiment of a single comment using AI models"""
     try:
@@ -801,12 +899,10 @@ def analyze_single_comment_sentiment(request):
             return Response({"error": "Comment text is required"}, status=status.HTTP_400_BAD_REQUEST)
 
         # Initialize AI service
-        from apps.integrations.ai_service import AIService
-
-        ai_service = AIService()
+        ai_service = get_ai_service()
 
         # Analyze single comment sentiment
-        sentiment_result = ai_service.analyze_sentiment(comment_text)
+        sentiment_result = ai_service.analyze_sentiment(comment_text, user_id=request.user.id)
 
         # Add metadata
         sentiment_result["comment"] = comment_text[:200] + "..." if len(comment_text) > 200 else comment_text
@@ -823,6 +919,7 @@ def analyze_single_comment_sentiment(request):
 
 @api_view(["POST"])
 @permission_classes([permissions.IsAuthenticated])
+@throttle_classes([AIEndpointThrottle])
 def batch_analyze_post_comments(request):
     """Analyze sentiment for comments across multiple posts"""
     try:
@@ -832,9 +929,7 @@ def batch_analyze_post_comments(request):
             return Response({"error": "Post comments data is required"}, status=status.HTTP_400_BAD_REQUEST)
 
         # Initialize AI service
-        from apps.integrations.ai_service import AIService
-
-        ai_service = AIService()
+        ai_service = get_ai_service()
 
         results = []
         overall_stats = {
@@ -850,6 +945,7 @@ def batch_analyze_post_comments(request):
             if not post_id or not comments:
                 continue
 
+
             # Verify post ownership
             try:
                 post = get_object_or_404(Post, id=post_id, user=request.user)
@@ -857,7 +953,7 @@ def batch_analyze_post_comments(request):
                 continue
 
             # Analyze comments for this post
-            sentiment_analysis = ai_service.analyze_comments_sentiment(comments)
+            sentiment_analysis = ai_service.analyze_comments_sentiment(comments, user_id=request.user.id)
 
             # Add post info
             sentiment_analysis["post_id"] = str(post_id)
