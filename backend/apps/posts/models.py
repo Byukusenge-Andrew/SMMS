@@ -2,6 +2,7 @@ import uuid
 
 from django.contrib.auth.models import User
 from django.db import models
+from django.conf import settings
 
 from apps.authentication.models import SocialMediaAccount
 from apps.core.storage import SupabaseStorage
@@ -170,3 +171,16 @@ class PostSuggestion(models.Model):
 
     def __str__(self):
         return f"{self.user.username} - {self.suggestion_type} - {self.platform}"
+
+
+class AIGenerationLog(models.Model):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="ai_generations")
+    prompt = models.TextField()
+    platform = models.CharField(max_length=50, choices=[('twitter', 'Twitter/X'), ('facebook', 'Facebook'), ('linkedin', 'LinkedIn'), ('instagram', 'Instagram')])
+    tone = models.CharField(max_length=50, default='professional')
+    generated_text = models.TextField()
+    tokens_used = models.IntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
