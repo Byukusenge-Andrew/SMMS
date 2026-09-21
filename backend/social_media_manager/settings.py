@@ -255,7 +255,13 @@ CORS_ALLOW_CREDENTIALS = True
 
 # CSRF settings for production
 CSRF_TRUSTED_ORIGINS = CORS_ALLOWED_ORIGINS.copy()
-CSRF_TRUSTED_ORIGINS.append("https://*.vercel.app")
+CSRF_TRUSTED_ORIGINS.extend([
+    "https://*.vercel.app",
+    "https://smms-api-keativ.chilecentral.cloudapp.azure.com",
+    "http://smms-api-keativ.chilecentral.cloudapp.azure.com",
+    "http://68.211.120.41",
+    "https://68.211.120.41",
+])
 # Add Render domain
 if RENDER_EXTERNAL_HOSTNAME:
     CSRF_TRUSTED_ORIGINS.append(f"https://{RENDER_EXTERNAL_HOSTNAME}")

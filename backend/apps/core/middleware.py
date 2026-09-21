@@ -23,20 +23,20 @@ class RateLimitMiddleware(MiddlewareMixin):
     # Rate limits for different user types
     RATE_LIMITS = {
         "anonymous": {
-            "token_bucket": {"capacity": 10, "refill_rate": 0.1},  # 10 requests, refill 1 per 10 seconds
-            "sliding_window": {"max_requests": 20, "window_size": 3600},  # 20 requests per hour
+            "token_bucket": {"capacity": 60, "refill_rate": 1.0},
+            "sliding_window": {"max_requests": 600, "window_size": 3600},
         },
         "authenticated": {
-            "token_bucket": {"capacity": 100, "refill_rate": 1.0},  # 100 requests, refill 1 per second
-            "sliding_window": {"max_requests": 1000, "window_size": 3600},  # 1000 requests per hour
+            "token_bucket": {"capacity": 300, "refill_rate": 5.0},
+            "sliding_window": {"max_requests": 5000, "window_size": 3600},
         },
         "premium": {
-            "token_bucket": {"capacity": 500, "refill_rate": 5.0},  # 500 requests, refill 5 per second
-            "sliding_window": {"max_requests": 10000, "window_size": 3600},  # 10000 requests per hour
+            "token_bucket": {"capacity": 1000, "refill_rate": 10.0},
+            "sliding_window": {"max_requests": 20000, "window_size": 3600},
         },
         "admin": {
-            "token_bucket": {"capacity": 1000, "refill_rate": 10.0},  # 1000 requests, refill 10 per second
-            "sliding_window": {"max_requests": 50000, "window_size": 3600},  # 50000 requests per hour
+            "token_bucket": {"capacity": 5000, "refill_rate": 50.0},
+            "sliding_window": {"max_requests": 100000, "window_size": 3600},
         },
     }
 
@@ -44,8 +44,25 @@ class RateLimitMiddleware(MiddlewareMixin):
         self.get_response = get_response
         super().__init__(get_response)
 
+    def _authenticate_drf_token(self, request):
+        """Ensure DRF token-authenticated users are recognized in Django middleware"""
+        if hasattr(request, 'user') and request.user.is_authenticated:
+            return request.user
+        auth_header = request.META.get("HTTP_AUTHORIZATION", "")
+        if auth_header.startswith("Token "):
+            token_key = auth_header.split(" ")[1].strip()
+            try:
+                from rest_framework.authtoken.models import Token
+                token = Token.objects.select_related('user').get(key=token_key)
+                request.user = token.user
+                return token.user
+            except Exception:
+                pass
+        return getattr(request, 'user', None)
+
     def process_request(self, request):
         """Process incoming request for rate limiting"""
+        self._authenticate_drf_token(request)
 
         # Get client IP
         ip_address = self._get_client_ip(request)
@@ -269,8 +286,26 @@ class BurstProtectionMiddleware(MiddlewareMixin):
         self.get_response = get_response
         super().__init__(get_response)
 
+    def _authenticate_drf_token(self, request):
+        """Ensure DRF token-authenticated users are recognized in Django middleware"""
+        if hasattr(request, 'user') and request.user.is_authenticated:
+            return request.user
+        auth_header = request.META.get("HTTP_AUTHORIZATION", "")
+        if auth_header.startswith("Token "):
+            token_key = auth_header.split(" ")[1].strip()
+            try:
+                from rest_framework.authtoken.models import Token
+                token = Token.objects.select_related('user').get(key=token_key)
+                request.user = token.user
+                return token.user
+            except Exception:
+                pass
+        return getattr(request, 'user', None)
+
     def process_request(self, request):
         """Apply burst protection"""
+        self._authenticate_drf_token(request)
+
         # Skip for health checks, schema, and documentation
         skip_prefixes = ["/health/", "/api/health/", "/api/schema/", "/api/docs/", "/api/redoc/", "/static/", "/favicon.ico"]
         if any(request.path.startswith(prefix) for prefix in skip_prefixes):
@@ -291,8 +326,8 @@ class BurstProtectionMiddleware(MiddlewareMixin):
         # Remove requests older than 10 seconds
         request_times = [t for t in request_times if current_time - t < 10]
 
-        # Check if too many requests in short time (allow up to 35 requests in 10s for SPA burst loading)
-        if len(request_times) >= 35:
+        # Check if too many requests in short time (allow up to 120 requests in 10s for SPA parallel dashboard loads)
+        if len(request_times) >= 120:
             self._log_burst_protection(request, ip_address)
 
             return JsonResponse(
