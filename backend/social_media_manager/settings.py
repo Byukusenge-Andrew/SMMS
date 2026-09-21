@@ -235,10 +235,15 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:8081",  # React Native
     "http://localhost:5173",  # Vite default port
     "http://127.0.0.1:5173",
+    "https://keativapp.vercel.app",
+]
+
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r"^https://.*\.vercel\.app$",
 ]
 
 # Add production frontend URL if available
-FRONTEND_URL = config("FRONTEND_URL", default="http://localhost:3000")
+FRONTEND_URL = config("FRONTEND_URL", default="https://keativapp.vercel.app")
 if FRONTEND_URL and FRONTEND_URL not in CORS_ALLOWED_ORIGINS:
     CORS_ALLOWED_ORIGINS.append(FRONTEND_URL)
 
@@ -250,6 +255,7 @@ CORS_ALLOW_CREDENTIALS = True
 
 # CSRF settings for production
 CSRF_TRUSTED_ORIGINS = CORS_ALLOWED_ORIGINS.copy()
+CSRF_TRUSTED_ORIGINS.append("https://*.vercel.app")
 # Add Render domain
 if RENDER_EXTERNAL_HOSTNAME:
     CSRF_TRUSTED_ORIGINS.append(f"https://{RENDER_EXTERNAL_HOSTNAME}")
@@ -449,7 +455,6 @@ STRIPE_SECRET_KEY = config("STRIPE_SECRET_KEY", default="sk_test_51S2qAwJGjEytaW
 STRIPE_WEBHOOK_SECRET = config("STRIPE_WEBHOOK_SECRET", default="")
 
 # Frontend URLs for Stripe redirects
-FRONTEND_URL = config("FRONTEND_URL", default="http://localhost:3000")
 FRONTEND_SUCCESS_URL = config("FRONTEND_SUCCESS_URL", default=f"{FRONTEND_URL}/billing/success")
 FRONTEND_CANCEL_URL = config("FRONTEND_CANCEL_URL", default=f"{FRONTEND_URL}/billing")
 
@@ -581,9 +586,6 @@ if not DEBUG:
         traces_sample_rate=0.1,
         send_default_pii=True,
     )
-
-# Frontend URL for email verification links
-FRONTEND_URL = config("FRONTEND_URL", default="http://localhost:3000")
 
 # Twitter OAuth 2.0 configuration (use python-decouple to read from .env)
 TWITTER_CLIENT_ID = config('TWITTER_CLIENT_ID', default='')
