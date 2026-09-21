@@ -413,3 +413,89 @@ def sync_twitter_profile(user_id):
             'success': False,
             'error': str(e)
         }
+
+
+@shared_task
+def refresh_expiring_social_tokens():
+    """
+    Proactively refresh social media OAuth tokens that expire within the next 48 hours.
+    Prevents scheduled post failures due to expired credentials.
+    """
+    from datetime import timedelta
+    import requests
+    from django.conf import settings
+    from .models import SocialMediaAccount, SocialMediaPlatform
+
+    now = timezone.now()
+    threshold = now + timedelta(hours=48)
+    
+    # Query active accounts with expiring tokens
+    expiring_accounts = SocialMediaAccount.objects.filter(
+        is_active=True,
+        token_expires_at__lte=threshold
+    )
+
+    refreshed_count = 0
+    failed_count = 0
+
+    for account in expiring_accounts:
+        try:
+            if account.platform == SocialMediaPlatform.TWITTER:
+                client_id = getattr(settings, 'TWITTER_CLIENT_ID', '')
+                client_secret = getattr(settings, 'TWITTER_CLIENT_SECRET', '')
+                if not client_id or not account.refresh_token:
+                    continue
+
+                token_url = "https://api.twitter.com/2/oauth2/token"
+                data = {
+                    'grant_type': 'refresh_token',
+                    'refresh_token': account.refresh_token,
+                    'client_id': client_id,
+                }
+                auth = (client_id, client_secret) if client_secret else None
+                resp = requests.post(token_url, data=data, auth=auth, timeout=15)
+                if resp.status_code == 200:
+                    token_data = resp.json()
+                    account.access_token = token_data.get('access_token', account.access_token)
+                    if token_data.get('refresh_token'):
+                        account.refresh_token = token_data['refresh_token']
+                    expires_in = token_data.get('expires_in')
+                    if expires_in:
+                        account.set_token_expiry_from_expires_in(expires_in)
+                    account.save(update_fields=['access_token', 'refresh_token', 'token_expires_at', 'last_updated'])
+                    refreshed_count += 1
+                    logger.info(f"Refreshed Twitter token for account {account.username} ({account.id})")
+                else:
+                    logger.warning(f"Failed to refresh Twitter token for {account.id}: {resp.text}")
+                    failed_count += 1
+
+            elif account.platform == SocialMediaPlatform.FACEBOOK:
+                app_id = getattr(settings, 'FACEBOOK_APP_ID', '')
+                app_secret = getattr(settings, 'FACEBOOK_APP_SECRET', '')
+                if app_id and app_secret and account.access_token:
+                    url = "https://graph.facebook.com/v18.0/oauth/access_token"
+                    params = {
+                        'grant_type': 'fb_exchange_token',
+                        'client_id': app_id,
+                        'client_secret': app_secret,
+                        'fb_exchange_token': account.access_token,
+                    }
+                    resp = requests.get(url, params=params, timeout=15)
+                    if resp.status_code == 200:
+                        token_data = resp.json()
+                        account.access_token = token_data.get('access_token', account.access_token)
+                        expires_in = token_data.get('expires_in', 5184000)  # Default 60 days
+                        account.set_token_expiry_from_expires_in(expires_in)
+                        account.save(update_fields=['access_token', 'token_expires_at', 'last_updated'])
+                        refreshed_count += 1
+                        logger.info(f"Refreshed Facebook long-lived token for account {account.username} ({account.id})")
+                    else:
+                        failed_count += 1
+
+        except Exception as e:
+            logger.error(f"Exception refreshing token for account {account.id} ({account.platform}): {e}")
+            failed_count += 1
+
+    logger.info(f"Token refresh job completed. Refreshed: {refreshed_count}, Failed: {failed_count}")
+    return {'refreshed': refreshed_count, 'failed': failed_count}
+

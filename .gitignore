@@ -80,3 +80,5 @@ backend/test/
 # Ignore specific directories
 Requirements.pdf
 backend/prompt.txt
+AUDIT_BADLY_IMPLEMENTED_AND_MISSING_FEATURES.md
+backend/smms-backend-vm_key.pem

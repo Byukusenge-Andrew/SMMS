@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import Holiday, Post, PostSuggestion, PostTemplate, SocialSet
+from .models import Holiday, Post, PostSuggestion, PostTemplate, SocialSet, PostingScheduleSlot
 
 
 class SocialSetSerializer(serializers.ModelSerializer):
@@ -21,6 +21,7 @@ class PostSerializer(serializers.ModelSerializer):
     hashtags_list = serializers.SerializerMethodField()
     tagged_users_list = serializers.SerializerMethodField()
     can_edit = serializers.SerializerMethodField()
+    approval_reviewer_name = serializers.SerializerMethodField()
 
     class Meta:
         model = Post
@@ -47,6 +48,17 @@ class PostSerializer(serializers.ModelSerializer):
             "tagged_users_list",
             "is_locked",
             "is_template",
+            "is_evergreen",
+            "recycle_interval_days",
+            "recycle_count",
+            "max_recycle_count",
+            "last_recycled_at",
+            "original_post",
+            "approval_reviewer",
+            "approval_reviewer_name",
+            "approval_feedback",
+            "submitted_for_approval_at",
+            "reviewed_at",
             "external_post_id",
             "published_at",
             "error_message",
@@ -54,7 +66,12 @@ class PostSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
         ]
-        read_only_fields = ["id", "external_post_id", "published_at", "error_message", "created_at", "updated_at"]
+        read_only_fields = [
+            "id", "external_post_id", "published_at", "error_message", 
+            "recycle_count", "last_recycled_at", "original_post",
+            "approval_reviewer", "submitted_for_approval_at", "reviewed_at", 
+            "created_at", "updated_at"
+        ]
 
     def get_hashtags_list(self, obj):
         return obj.get_hashtags_list()
@@ -64,6 +81,54 @@ class PostSerializer(serializers.ModelSerializer):
 
     def get_can_edit(self, obj):
         return obj.can_edit()
+
+    def get_approval_reviewer_name(self, obj):
+        if obj.approval_reviewer:
+            return obj.approval_reviewer.get_full_name() or obj.approval_reviewer.username
+        return None
+
+
+class PostingScheduleSlotSerializer(serializers.ModelSerializer):
+    day_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = PostingScheduleSlot
+        fields = [
+            "id",
+            "platform",
+            "day_of_week",
+            "day_name",
+            "time",
+            "timezone",
+            "is_active",
+            "created_at",
+        ]
+        read_only_fields = ["id", "created_at"]
+
+    def get_day_name(self, obj):
+        return dict(PostingScheduleSlot.DAY_OF_WEEK_CHOICES).get(obj.day_of_week, str(obj.day_of_week))
+
+
+class BulkPostingScheduleSlotSerializer(serializers.Serializer):
+    days_of_week = serializers.ListField(
+        child=serializers.IntegerField(min_value=0, max_value=6),
+        help_text="List of day integers (0=Monday, 6=Sunday)"
+    )
+    times = serializers.ListField(
+        child=serializers.TimeField(),
+        help_text="List of time strings (e.g. ['10:00:00', '15:00:00'])"
+    )
+    platform = serializers.CharField(required=False, allow_blank=True, default="")
+    timezone = serializers.CharField(required=False, default="UTC")
+
+
+class QueueNextSlotRequestSerializer(serializers.Serializer):
+    platform = serializers.CharField(required=False, allow_blank=True, default="")
+    after_time = serializers.DateTimeField(required=False, allow_null=True)
+
+
+class PostApprovalActionSerializer(serializers.Serializer):
+    feedback = serializers.CharField(required=False, allow_blank=True, default="")
 
     def validate_scheduled_time(self, value):
         # Only enforce future time when explicitly scheduling

@@ -98,28 +98,13 @@ class UserProfile(models.Model):
         return self.subscription_tier
     
     def has_paid_subscription(self):
-        """Check if user has an active paid subscription"""
+        """Check if user has an active paid subscription based on local DB records kept in sync via webhooks"""
         try:
             from apps.core.models.payment_models import UserSubscription
-            subscription = UserSubscription.objects.filter(
+            return UserSubscription.objects.filter(
                 user=self.user, 
                 status__in=['active', 'trialing']
-            ).first()
-            
-            if subscription and subscription.stripe_subscription_id:
-                # Verify with Stripe that subscription is actually active
-                try:
-                    import stripe
-                    from django.conf import settings
-                    stripe.api_key = settings.STRIPE_SECRET_KEY
-                    
-                    stripe_subscription = stripe.Subscription.retrieve(subscription.stripe_subscription_id)
-                    return stripe_subscription.status in ['active', 'trialing']
-                except Exception:
-                    # If Stripe call fails, fall back to local status
-                    return subscription.status == 'active'
-            
-            return False
+            ).exists()
         except Exception:
             return False
 

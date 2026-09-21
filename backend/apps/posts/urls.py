@@ -12,9 +12,19 @@ urlpatterns = [
     # Posts
     path("", views.PostListCreateView.as_view(), name="post-list-create"),
     path("<uuid:pk>/", views.PostDetailView.as_view(), name="post-detail"),
+    path("<uuid:post_id>/submit-approval/", views.submit_post_for_approval, name="post-submit-approval"),
+    path("<uuid:post_id>/approve/", views.approve_post, name="post-approve"),
+    path("<uuid:post_id>/reject/", views.reject_post, name="post-reject"),
+    path("<uuid:post_id>/add-to-queue/", views.add_post_to_queue, name="post-add-to-queue"),
     path("bulk-actions/", views.bulk_post_actions, name="bulk-actions"),
     path("calendar/", views.calendar_view, name="calendar"),
     path("dashboard/", views.dashboard_stats, name="dashboard-stats"),
+    # Queue & Dynamic Scheduling
+    path("queue/", views.queue_posts_list, name="queue-posts-list"),
+    path("queue/next-slot/", views.get_next_queue_slot, name="queue-next-slot"),
+    path("schedule-slots/", views.PostingScheduleSlotListCreateView.as_view(), name="schedule-slots-list-create"),
+    path("schedule-slots/<uuid:pk>/", views.PostingScheduleSlotDetailView.as_view(), name="schedule-slots-detail"),
+    path("schedule-slots/bulk/", views.bulk_create_schedule_slots, name="schedule-slots-bulk"),
     # Scheduled Posts
     path("scheduled/", views.ScheduledPostListCreateView.as_view(), name="scheduled-list-create"),
     path("scheduled/<uuid:pk>/", views.ScheduledPostDetailView.as_view(), name="scheduled-detail"),

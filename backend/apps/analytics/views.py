@@ -53,16 +53,16 @@ def analytics_dashboard(request):
     # Initialize real analytics collector
     collector = RealAnalyticsCollector()
     
-    # Check if we should refresh data (only if last update was >1 hour ago)
+    # Check if we should refresh data
     should_refresh = request.GET.get('refresh', 'false').lower() == 'true'
     
     if should_refresh:
         try:
-            # Collect fresh analytics data
-            collection_results = collector.collect_all_user_analytics(user)
-            logger.info(f"Analytics collection results for user {user.id}: {collection_results}")
+            # Dispatch background analytics collection task to Celery
+            collect_analytics_data.delay(user.id)
+            logger.info(f"Dispatched background analytics collection task for user {user.id}")
         except Exception as e:
-            logger.error(f"Error collecting analytics for user {user.id}: {e}")
+            logger.error(f"Error queueing analytics refresh for user {user.id}: {e}")
     
     # Get recent analytics data (last 30 days)
     recent_data = AnalyticsData.objects.filter(

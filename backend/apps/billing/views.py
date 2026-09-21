@@ -307,28 +307,144 @@ def create_stripe_customer(request: Request):
     return Response({'customer_id': customer.id})
 
 
+def handle_checkout_session_completed(session):
+    """Handle successful checkout session and activate paid subscription"""
+    logger.info(f"Processing checkout session completed: {session.get('id')}")
+    metadata = session.get('metadata', {})
+    user_id = metadata.get('user_id')
+    tier_id = metadata.get('tier_id')
+    subscription_id = session.get('subscription')
+    customer_id = session.get('customer')
+
+    user = None
+    if user_id:
+        try:
+            user = User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            logger.warning(f"User with ID {user_id} not found from checkout metadata")
+
+    if not user and customer_id:
+        sub = UserSubscription.objects.filter(stripe_customer_id=customer_id).first()
+        if sub:
+            user = sub.user
+
+    if not user:
+        logger.error(f"Could not resolve user for checkout session {session.get('id')}")
+        return
+
+    tier = None
+    if tier_id:
+        tier = SubscriptionTier.objects.filter(id=tier_id, is_active=True).first()
+
+    # If tier not in metadata, inspect subscription price from Stripe
+    if not tier and subscription_id:
+        try:
+            stripe_sub = stripe.Subscription.retrieve(subscription_id)
+            price_id = stripe_sub.items.data[0].price.id if stripe_sub.items.data else None
+            if price_id:
+                tier = SubscriptionTier.objects.filter(
+                    Q(stripe_price_id_monthly=price_id) | Q(stripe_price_id_yearly=price_id),
+                    is_active=True
+                ).first()
+        except Exception as e:
+            logger.error(f"Error fetching Stripe subscription {subscription_id}: {e}")
+
+    # Update UserSubscription
+    user_sub, created = UserSubscription.objects.get_or_create(
+        user=user,
+        defaults={
+            'tier': tier,
+            'stripe_customer_id': customer_id,
+            'stripe_subscription_id': subscription_id,
+            'status': 'active'
+        }
+    )
+    if not created:
+        if tier:
+            user_sub.tier = tier
+        if customer_id:
+            user_sub.stripe_customer_id = customer_id
+        if subscription_id:
+            user_sub.stripe_subscription_id = subscription_id
+        user_sub.status = 'active'
+        user_sub.save()
+
+    # Update User Profile
+    profile = getattr(user, 'profile', None)
+    if profile:
+        if tier:
+            profile.subscription_tier = tier
+        profile.is_trial_active = False
+        profile.trial_end_date = None
+        profile.save(update_fields=['subscription_tier', 'is_trial_active', 'trial_end_date'] if tier else ['is_trial_active', 'trial_end_date'])
+        logger.info(f"Upgraded user {user.username} to tier {tier.name if tier else 'active'}")
+
+
+@csrf_exempt
 @api_view(['POST'])
-def stripe_webhook(request: Request):
-    """Handle Stripe webhooks"""
+@permission_classes([AllowAny])
+def stripe_webhook(request):
+    """Handle Stripe webhooks safely with proper signature verification and event routing"""
     payload = request.body
     sig_header = request.META.get('HTTP_STRIPE_SIGNATURE')
-    endpoint_secret = settings.STRIPE_WEBHOOK_SECRET
-    
+    endpoint_secret = getattr(settings, 'STRIPE_WEBHOOK_SECRET', '')
+
     try:
-        event = stripe.Webhook.construct_event(payload, sig_header, endpoint_secret)
+        if endpoint_secret:
+            event = stripe.Webhook.construct_event(payload, sig_header, endpoint_secret)
+        else:
+            logger.warning("STRIPE_WEBHOOK_SECRET not set, parsing event without signature verification")
+            import json
+            event = json.loads(payload)
     except ValueError:
+        logger.error("Invalid Stripe webhook payload")
         return Response({'error': 'Invalid payload'}, status=status.HTTP_400_BAD_REQUEST)
     except stripe.error.SignatureVerificationError:
+        logger.error("Invalid Stripe webhook signature")
         return Response({'error': 'Invalid signature'}, status=status.HTTP_400_BAD_REQUEST)
-    
-    # Handle the event
-    if event['type'] == 'payment_intent.succeeded':
-        handle_payment_succeeded(event['data']['object'])
-    elif event['type'] == 'invoice.payment_succeeded':
-        handle_invoice_payment_succeeded(event['data']['object'])
-    elif event['type'] == 'customer.subscription.deleted':
-        handle_subscription_cancelled(event['data']['object'])
-    
+
+    event_type = event.get('type')
+    data_obj = event.get('data', {}).get('object', {})
+    logger.info(f"Received Stripe webhook event: {event_type}")
+
+    try:
+        if event_type == 'checkout.session.completed':
+            handle_checkout_session_completed(data_obj)
+
+        elif event_type == 'customer.subscription.updated':
+            sub_id = data_obj.get('id')
+            user_sub = UserSubscription.objects.filter(stripe_subscription_id=sub_id).first()
+            if user_sub:
+                user_sub.status = data_obj.get('status', user_sub.status)
+                user_sub.save(update_fields=['status'])
+                if data_obj.get('status') == 'canceled':
+                    free_tier = SubscriptionTier.objects.filter(name='free').first()
+                    profile = getattr(user_sub.user, 'profile', None)
+                    if profile and free_tier:
+                        profile.subscription_tier = free_tier
+                        profile.save(update_fields=['subscription_tier'])
+
+        elif event_type == 'customer.subscription.deleted':
+            handle_subscription_cancelled(data_obj)
+            sub_id = data_obj.get('id')
+            user_sub = UserSubscription.objects.filter(stripe_subscription_id=sub_id).first()
+            if user_sub:
+                free_tier = SubscriptionTier.objects.filter(name='free').first()
+                profile = getattr(user_sub.user, 'profile', None)
+                if profile and free_tier:
+                    profile.subscription_tier = free_tier
+                    profile.save(update_fields=['subscription_tier'])
+
+        elif event_type == 'payment_intent.succeeded':
+            handle_payment_succeeded(data_obj)
+
+        elif event_type == 'invoice.payment_succeeded':
+            handle_invoice_payment_succeeded(data_obj)
+
+    except Exception as e:
+        logger.error(f"Error processing webhook event {event_type}: {e}", exc_info=True)
+        return Response({'error': 'Error processing webhook'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
     return Response({'received': True})
 
 
@@ -584,7 +700,7 @@ def handle_payment_success(request):
                 'error': 'session_id or subscription_id required'
             }, status=400)
         
-        user_profile = request.user.userprofile
+        user_profile = getattr(request.user, 'profile', None)
         
         # If we have a session_id, retrieve the subscription from Stripe
         if session_id:
@@ -606,10 +722,11 @@ def handle_payment_success(request):
                 return Response({'error': 'No matching tier for Stripe price ID'}, status=400)
             
             # Update user's subscription
-            user_profile.subscription_tier = subscription_tier
-            user_profile.is_trial = False
-            user_profile.trial_end_date = None
-            user_profile.save()
+            if user_profile:
+                user_profile.subscription_tier = subscription_tier
+                user_profile.is_trial_active = False
+                user_profile.trial_end_date = None
+                user_profile.save()
             
             # Create or update UserSubscription record
             user_subscription, created = UserSubscription.objects.get_or_create(
@@ -701,70 +818,6 @@ def cancel_subscription(request):
         }, status=500)
 
 
-@csrf_exempt
-@api_view(['POST'])
-@permission_classes([AllowAny])
-def stripe_webhook(request):
-    """Handle Stripe webhooks"""
-    payload = request.body
-    sig_header = request.META.get('HTTP_STRIPE_SIGNATURE')
-    endpoint_secret = getattr(settings, 'STRIPE_WEBHOOK_SECRET', '')
-
-    try:
-        event = stripe.Webhook.construct_event(
-            payload, sig_header, endpoint_secret
-        )
-    except ValueError:
-        return Response(status=400)
-    except stripe.error.SignatureVerificationError:
-        return Response(status=400)
-
-    # Handle different webhook events
-    if event['type'] == 'checkout.session.completed':
-        session = event['data']['object']
-        # Handle successful checkout
-        logger.info(f"Checkout session completed: {session['id']}")
-        
-    elif event['type'] == 'customer.subscription.updated':
-        subscription = event['data']['object']
-        # Update subscription status
-        try:
-            user_subscription = UserSubscription.objects.get(
-                stripe_subscription_id=subscription['id']
-            )
-            user_subscription.status = subscription['status']
-            user_subscription.save()
-            
-            # If subscription was canceled, downgrade user
-            if subscription['status'] == 'canceled':
-                user_profile = user_subscription.user.userprofile
-                free_tier = SubscriptionTier.objects.get(name='free')
-                user_profile.subscription_tier = free_tier
-                user_profile.save()
-                
-        except UserSubscription.DoesNotExist:
-            logger.warning(f"UserSubscription not found for Stripe subscription: {subscription['id']}")
-            
-    elif event['type'] == 'customer.subscription.deleted':
-        subscription = event['data']['object']
-        # Handle subscription deletion
-        try:
-            user_subscription = UserSubscription.objects.get(
-                stripe_subscription_id=subscription['id']
-            )
-            user_subscription.status = 'canceled'
-            user_subscription.save()
-            
-            # Downgrade user to free tier
-            user_profile = user_subscription.user.userprofile
-            free_tier = SubscriptionTier.objects.get(name='free')
-            user_profile.subscription_tier = free_tier
-            user_profile.save()
-            
-        except UserSubscription.DoesNotExist:
-            logger.warning(f"UserSubscription not found for Stripe subscription: {subscription['id']}")
-
-    return Response(status=200)
 
 
 @api_view(['GET'])

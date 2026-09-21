@@ -19,13 +19,16 @@ from apps.integrations.ai_service import get_ai_service
 # Import for analytics
 from apps.analytics.models import AnalyticsData
 
-from .models import Holiday, Post, PostSuggestion, PostTemplate, SocialSet
+from .models import Holiday, Post, PostSuggestion, PostTemplate, SocialSet, PostingScheduleSlot
 from .serializers import (
     HolidaySerializer,
     PostSerializer,
     PostSuggestionSerializer,
     PostTemplateSerializer,
     SocialSetSerializer,
+    PostingScheduleSlotSerializer,
+    BulkPostingScheduleSlotSerializer,
+    QueueNextSlotRequestSerializer,
 )
 from .tasks import bulk_post_operation, generate_post_suggestions, publish_scheduled_post
 
@@ -993,3 +996,211 @@ def batch_analyze_post_comments(request):
         return Response(
             {"error": "Failed to analyze comments sentiment", "details": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
+
+
+@api_view(["POST"])
+@permission_classes([permissions.IsAuthenticated])
+def submit_post_for_approval(request, post_id):
+    """Submit a draft post for review and approval"""
+    try:
+        post = get_object_or_404(Post, id=post_id, user=request.user)
+        if post.status not in ["draft", "rejected"]:
+            return Response(
+                {"error": f"Cannot submit post with status '{post.status}' for approval"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        post.submit_for_approval()
+        return Response({
+            "success": True,
+            "message": "Post submitted for approval successfully",
+            "post": PostSerializer(post).data
+        })
+    except Exception as e:
+        logger.error(f"Error submitting post {post_id} for approval: {e}")
+        return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(["POST"])
+@permission_classes([permissions.IsAuthenticated])
+def approve_post(request, post_id):
+    """Approve a post submitted for review"""
+    try:
+        post = get_object_or_404(Post, id=post_id)
+        if post.status != "pending_approval":
+            return Response(
+                {"error": f"Post is not pending approval (current status: '{post.status}')"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        post.approve(reviewer=request.user)
+        return Response({
+            "success": True,
+            "message": "Post approved successfully",
+            "post": PostSerializer(post).data
+        })
+    except Exception as e:
+        logger.error(f"Error approving post {post_id}: {e}")
+        return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(["POST"])
+@permission_classes([permissions.IsAuthenticated])
+def reject_post(request, post_id):
+    """Reject a post with feedback notes"""
+    try:
+        post = get_object_or_404(Post, id=post_id)
+        if post.status != "pending_approval":
+            return Response(
+                {"error": f"Post is not pending approval (current status: '{post.status}')"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        feedback = request.data.get("feedback", "")
+        post.reject(reviewer=request.user, feedback=feedback)
+        return Response({
+            "success": True,
+            "message": "Post rejected with feedback",
+            "post": PostSerializer(post).data
+        })
+    except Exception as e:
+        logger.error(f"Error rejecting post {post_id}: {e}")
+        return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class PostingScheduleSlotListCreateView(ListCreateAPIView):
+    """List or create recurring posting schedule slots for the authenticated user"""
+    serializer_class = PostingScheduleSlotSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        qs = PostingScheduleSlot.objects.filter(user=self.request.user)
+        platform = self.request.query_params.get("platform")
+        if platform:
+            qs = qs.filter(models.Q(platform__iexact=platform) | models.Q(platform=""))
+        return qs
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+
+
+class PostingScheduleSlotDetailView(RetrieveUpdateDestroyAPIView):
+    """Retrieve, update, or delete a posting schedule slot"""
+    serializer_class = PostingScheduleSlotSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return PostingScheduleSlot.objects.filter(user=self.request.user)
+
+
+@api_view(["POST"])
+@permission_classes([permissions.IsAuthenticated])
+def bulk_create_schedule_slots(request):
+    """
+    Bulk create posting schedule slots across multiple days and times.
+    Payload:
+    {
+        "days_of_week": [0, 2, 4],  # Mon, Wed, Fri
+        "times": ["09:00:00", "14:30:00", "18:00:00"],
+        "platform": "twitter",     # optional
+        "timezone": "UTC"          # optional
+    }
+    """
+    serializer = BulkPostingScheduleSlotSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    days = serializer.validated_data["days_of_week"]
+    times = serializer.validated_data["times"]
+    platform = serializer.validated_data.get("platform", "")
+    tz_name = serializer.validated_data.get("timezone", "UTC")
+
+    created_slots = []
+    for day in days:
+        for t in times:
+            slot, created = PostingScheduleSlot.objects.get_or_create(
+                user=request.user,
+                platform=platform,
+                day_of_week=day,
+                time=t,
+                defaults={"timezone": tz_name, "is_active": True}
+            )
+            if created:
+                created_slots.append(slot)
+
+    return Response({
+        "success": True,
+        "message": f"Successfully created {len(created_slots)} posting schedule slot(s).",
+        "created_count": len(created_slots),
+        "total_active_slots": PostingScheduleSlot.objects.filter(user=request.user, is_active=True).count()
+    }, status=status.HTTP_201_CREATED)
+
+
+@api_view(["POST", "GET"])
+@permission_classes([permissions.IsAuthenticated])
+def get_next_queue_slot(request):
+    """
+    Preview the next available posting queue slot for a given platform.
+    """
+    platform = request.data.get("platform") if request.method == "POST" else request.query_params.get("platform", "")
+    after_time_raw = request.data.get("after_time") if request.method == "POST" else request.query_params.get("after_time")
+    after_time = None
+    if after_time_raw:
+        try:
+            from django.utils.dateparse import parse_datetime
+            after_time = parse_datetime(after_time_raw)
+        except Exception:
+            pass
+
+    next_slot = PostingScheduleSlot.get_next_available_slot(
+        user=request.user,
+        platform=platform,
+        after_time=after_time
+    )
+
+    return Response({
+        "success": True,
+        "platform": platform or "all",
+        "next_available_slot": next_slot.isoformat(),
+    })
+
+
+@api_view(["POST"])
+@permission_classes([permissions.IsAuthenticated])
+def add_post_to_queue(request, post_id):
+    """
+    Assign an existing post to the next available queue slot and mark it as scheduled.
+    """
+    try:
+        post = get_object_or_404(Post, id=post_id, user=request.user)
+        next_slot = PostingScheduleSlot.get_next_available_slot(
+            user=request.user,
+            platform=post.platform
+        )
+        post.scheduled_time = next_slot
+        post.status = "scheduled"
+        post.save(update_fields=["scheduled_time", "status"])
+
+        return Response({
+            "success": True,
+            "message": "Post successfully scheduled in the next queue slot.",
+            "post": PostSerializer(post).data
+        })
+    except Exception as e:
+        logger.error(f"Error adding post {post_id} to queue: {e}")
+        return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(["GET"])
+@permission_classes([permissions.IsAuthenticated])
+def queue_posts_list(request):
+    """
+    List all pending and scheduled posts in chronological queue order.
+    """
+    posts = Post.objects.filter(
+        user=request.user,
+        status__in=["scheduled", "publishing"]
+    ).order_by("scheduled_time")
+
+    serializer = PostSerializer(posts, many=True)
+    return Response({
+        "success": True,
+        "queue_count": posts.count(),
+        "queue": serializer.data
+    })
+

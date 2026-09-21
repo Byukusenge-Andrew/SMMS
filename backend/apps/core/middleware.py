@@ -121,7 +121,10 @@ class RateLimitMiddleware(MiddlewareMixin):
             return "anonymous"
         elif request.user.is_staff or request.user.is_superuser:
             return "admin"
-        elif hasattr(request.user, "profile") and request.user.profile.is_premium:
+        elif hasattr(request.user, "profile") and (
+            getattr(request.user.profile, "is_premium", False) or
+            (request.user.profile.subscription_tier and request.user.profile.subscription_tier.name != "free")
+        ):
             return "premium"
         else:
             return "authenticated"
@@ -135,17 +138,16 @@ class RateLimitMiddleware(MiddlewareMixin):
 
     def _should_skip_throttling(self, request):
         """Check if throttling should be skipped for this request"""
-        # Skip for health checks
-        if request.path in ["/health/", "/api/health/"]:
+        # Skip for health checks, schema, and documentation
+        skip_prefixes = ["/health/", "/api/health/", "/api/schema/", "/api/docs/", "/api/redoc/", "/static/", "/favicon.ico"]
+        if any(request.path.startswith(prefix) for prefix in skip_prefixes):
             return True
 
-        # Skip for admin users on specific endpoints
+        # Skip for admin users on admin endpoints
         if hasattr(request, 'user') and request.user.is_authenticated and request.user.is_superuser and request.path.startswith("/admin/"):
             return True
 
         return False
-
-        return None
 
     def process_response(self, request, response):
         """Add rate limiting headers to response"""
@@ -269,8 +271,12 @@ class BurstProtectionMiddleware(MiddlewareMixin):
 
     def process_request(self, request):
         """Apply burst protection"""
+        # Skip for health checks, schema, and documentation
+        skip_prefixes = ["/health/", "/api/health/", "/api/schema/", "/api/docs/", "/api/redoc/", "/static/", "/favicon.ico"]
+        if any(request.path.startswith(prefix) for prefix in skip_prefixes):
+            return None
 
-        # Skip for authenticated staff users (safely check if user exists)
+        # Skip for authenticated staff users
         if hasattr(request, 'user') and request.user.is_authenticated and request.user.is_staff:
             return None
 
@@ -285,8 +291,8 @@ class BurstProtectionMiddleware(MiddlewareMixin):
         # Remove requests older than 10 seconds
         request_times = [t for t in request_times if current_time - t < 10]
 
-        # Check if too many requests in short time
-        if len(request_times) >= 5:  # 5 requests in 10 seconds
+        # Check if too many requests in short time (allow up to 35 requests in 10s for SPA burst loading)
+        if len(request_times) >= 35:
             self._log_burst_protection(request, ip_address)
 
             return JsonResponse(

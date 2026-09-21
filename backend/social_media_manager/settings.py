@@ -15,7 +15,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = config("SECRET_KEY", default=os.environ.get('SECRET_KEY', 'django-insecure-change-in-production'))
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = 'RENDER' not in os.environ and 'RAILWAY_ENVIRONMENT' not in os.environ
+DEBUG = config("DEBUG", default='RENDER' not in os.environ and 'RAILWAY_ENVIRONMENT' not in os.environ, cast=bool)
 
 ALLOWED_HOSTS = config("ALLOWED_HOSTS", default="localhost,127.0.0.1", cast=lambda v: [s.strip() for s in v.split(",")])
 
@@ -92,8 +92,8 @@ MIDDLEWARE = [
     "apps.core.middleware.data_isolation.SecurityAuditMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
-    # "apps.core.middleware.BurstProtectionMiddleware",  # TEMPORARILY DISABLED FOR DEBUGGING
-    # "apps.core.middleware.RateLimitMiddleware",  # TEMPORARILY DISABLED FOR DEBUGGING
+    "apps.core.middleware.BurstProtectionMiddleware",
+    "apps.core.middleware.RateLimitMiddleware",
 ]
 
 ROOT_URLCONF = "social_media_manager.urls"
@@ -371,6 +371,14 @@ CELERY_BEAT_SCHEDULE = {
         "task": "apps.core.tasks.generate_hourly_stats",
         "schedule": crontab(minute=5),  # Every hour at 5 minutes past
     },
+    "recycle-due-evergreen-posts": {
+        "task": "apps.posts.tasks.recycle_due_evergreen_posts",
+        "schedule": crontab(minute="*/30"),  # Every 30 minutes
+    },
+    "refresh-expiring-social-tokens": {
+        "task": "apps.integrations.tasks.refresh_expiring_social_tokens",
+        "schedule": crontab(hour="*/2", minute=0),  # Every 2 hours
+    },
 }
 
 # Cache configuration
@@ -499,6 +507,8 @@ if IS_PRODUCTION:
     }
 else:
     # Development logging - files and console
+    LOGS_DIR = BASE_DIR / "logs"
+    os.makedirs(LOGS_DIR, exist_ok=True)
     LOGGING = {
         "version": 1,
         "disable_existing_loggers": False,
@@ -506,7 +516,7 @@ else:
             "file": {
                 "level": "INFO",
                 "class": "logging.FileHandler",
-                "filename": "logs/django.log",
+                "filename": str(LOGS_DIR / "django.log"),
             },
             "console": {
                 "level": "INFO",
@@ -515,12 +525,12 @@ else:
             "security_file": {
                 "level": "INFO",
                 "class": "logging.FileHandler",
-                "filename": "logs/security.log",
+                "filename": str(LOGS_DIR / "security.log"),
             },
             "data_isolation_file": {
                 "level": "INFO",
                 "class": "logging.FileHandler", 
-                "filename": "logs/data_isolation.log",
+                "filename": str(LOGS_DIR / "data_isolation.log"),
             },
         },
         "loggers": {

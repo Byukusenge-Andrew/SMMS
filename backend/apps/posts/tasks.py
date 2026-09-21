@@ -1,9 +1,13 @@
 import logging
 import os
+import tempfile
+from contextlib import contextmanager
+import requests
 
 from django.contrib.auth.models import User
 from django.utils import timezone
 from django.conf import settings
+from django.db import transaction
 
 from celery import shared_task
 
@@ -16,230 +20,364 @@ from apps.integrations.models import SocialMediaAccount as IntegratedAccount, So
 logger = logging.getLogger(__name__)
 
 
+@contextmanager
+def resolve_media_file(field_file):
+    """
+    Downloads remote cloud storage (e.g. Supabase) file to a local temp file for API upload.
+    Yields local file path, and cleans up temporary file on exit.
+    """
+    if not field_file:
+        yield None
+        return
+
+    # Check if local file exists (development fallback)
+    try:
+        if hasattr(field_file, 'path') and os.path.exists(field_file.path):
+            yield field_file.path
+            return
+    except (AttributeError, NotImplementedError):
+        pass
+
+    # Remote cloud storage URL (Supabase)
+    url = getattr(field_file, 'url', None)
+    if not url:
+        yield None
+        return
+
+    suffix = os.path.splitext(field_file.name)[-1] if hasattr(field_file, 'name') else '.tmp'
+    tmp_path = None
+    try:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+            tmp_path = tmp.name
+            logger.info(f"Streaming remote media from {url} to temp file {tmp_path}")
+            resp = requests.get(url, stream=True, timeout=60)
+            resp.raise_for_status()
+            for chunk in resp.iter_content(chunk_size=8192):
+                tmp.write(chunk)
+
+        yield tmp_path
+    except Exception as e:
+        logger.error(f"Failed to stream remote media from {url}: {e}")
+        yield None
+    finally:
+        if tmp_path and os.path.exists(tmp_path):
+            try:
+                os.remove(tmp_path)
+            except OSError as e:
+                logger.warning(f"Could not remove temp media file {tmp_path}: {e}")
+
+
 def publish_to_twitter_accounts(post, accounts, errors, source_type):
-    """Helper function to publish to Twitter accounts"""
+    """Helper function to publish to Twitter accounts with remote media support"""
     success_count = 0
-    
-    for account in accounts:
-        try:
-            twitter_service = TwitterService()
-            
-            # Prepare media paths if there are attachments
-            media_paths = []
-            if post.image:
-                media_path = post.image.path if hasattr(post.image, 'path') else None
-                if media_path and os.path.exists(media_path):
-                    media_paths.append(media_path)
+
+    with resolve_media_file(post.image) as image_path, resolve_media_file(post.video) as video_path:
+        media_paths = []
+        if image_path:
+            media_paths.append(image_path)
+        if video_path:
+            media_paths.append(video_path)
+
+        for account in accounts:
+            try:
+                twitter_service = TwitterService()
+
+                # Post to Twitter
+                result = twitter_service.post_tweet(
+                    text=post.content,
+                    media_paths=media_paths if media_paths else None,
+                    account=account
+                )
+
+                if result.get('success'):
+                    success_count += 1
+                    logger.info(f"Successfully posted to {source_type} Twitter account {account.id}: {result.get('tweet_id')}")
                 else:
-                    # Try to handle Supabase storage
-                    if hasattr(post.image, 'url') and post.image.url:
-                        logger.info(f"Media stored in Supabase, URL: {post.image.url}")
-                        media_paths = []
-            
-            if post.video:
-                video_path = post.video.path if hasattr(post.video, 'path') else None
-                if video_path and os.path.exists(video_path):
-                    media_paths.append(video_path)
-            
-            # Post to Twitter
-            result = twitter_service.post_tweet(
-                text=post.content,
-                media_paths=media_paths if media_paths else None,
-                account=account
-            )
-            
-            if result.get('success'):
-                success_count += 1
-                logger.info(f"Successfully posted to {source_type} Twitter account {account.id}: {result.get('tweet_id')}")
-            else:
-                error_msg = result.get('error', 'Unknown error')
-                errors.append(f"{source_type} Twitter Account {account.id}: {error_msg}")
-                logger.error(f"Failed to post to {source_type} Twitter account {account.id}: {error_msg}")
-                
-        except Exception as e:
-            error_msg = f"{source_type} Twitter Account {account.id}: {str(e)}"
-            errors.append(error_msg)
-            logger.error(f"Error posting to {source_type} Twitter account {account.id}: {str(e)}")
-    
+                    error_msg = result.get('error', 'Unknown error')
+                    errors.append(f"{source_type} Twitter Account {account.id}: {error_msg}")
+                    logger.error(f"Failed to post to {source_type} Twitter account {account.id}: {error_msg}")
+
+            except Exception as e:
+                error_msg = f"{source_type} Twitter Account {account.id}: {str(e)}"
+                errors.append(error_msg)
+                logger.error(f"Error posting to {source_type} Twitter account {account.id}: {str(e)}")
+
     return success_count
 
 
 def publish_to_linkedin_accounts(post, accounts, errors):
     """Helper function to publish to LinkedIn accounts"""
     success_count = 0
-    
-    for account in accounts:
-        try:
-            linkedin_integrator = LinkedInIntegrator()
-            
-            # Post to LinkedIn
-            result = linkedin_integrator.publish_post(
-                content=post.content,
-                access_token=account.access_token
-            )
-            
-            if result.get('success'):
-                success_count += 1
-                logger.info(f"Successfully posted to LinkedIn account {account.id}: {result.get('post_id')}")
-            else:
-                error_msg = result.get('error', 'Unknown error')
-                errors.append(f"LinkedIn Account {account.id}: {error_msg}")
-                logger.error(f"Failed to post to LinkedIn account {account.id}: {error_msg}")
-                
-        except Exception as e:
-            error_msg = f"LinkedIn Account {account.id}: {str(e)}"
-            errors.append(error_msg)
-            logger.error(f"Error posting to LinkedIn account {account.id}: {str(e)}")
-    
+
+    with resolve_media_file(post.image) as image_path:
+        for account in accounts:
+            try:
+                linkedin_integrator = LinkedInIntegrator()
+
+                # Post to LinkedIn
+                result = linkedin_integrator.publish_post(
+                    content=post.content,
+                    access_token=account.access_token
+                )
+
+                if result.get('success'):
+                    success_count += 1
+                    logger.info(f"Successfully posted to LinkedIn account {account.id}: {result.get('post_id')}")
+                else:
+                    error_msg = result.get('error', 'Unknown error')
+                    errors.append(f"LinkedIn Account {account.id}: {error_msg}")
+                    logger.error(f"Failed to post to LinkedIn account {account.id}: {error_msg}")
+
+            except Exception as e:
+                error_msg = f"LinkedIn Account {account.id}: {str(e)}"
+                errors.append(error_msg)
+                logger.error(f"Error posting to LinkedIn account {account.id}: {str(e)}")
+
     return success_count
 
 
 def publish_to_facebook_accounts(post, accounts, errors):
     """Helper function to publish to Facebook accounts"""
     success_count = 0
-    
-    for account in accounts:
-        try:
-            facebook_integrator = FacebookIntegrator()
-            
-            # Prepare credentials for Facebook
-            credentials = {
-                'access_token': account.access_token
-            }
-            
-            # Post to Facebook
-            result = facebook_integrator.publish_post(
-                content=post.content,
-                credentials=credentials
-            )
-            
-            if result.get('success'):
-                success_count += 1
-                logger.info(f"Successfully posted to Facebook account {account.id}: {result.get('post_id')}")
-            else:
-                error_msg = result.get('error', 'Unknown error')
-                errors.append(f"Facebook Account {account.id}: {error_msg}")
-                logger.error(f"Failed to post to Facebook account {account.id}: {error_msg}")
-                
-        except Exception as e:
-            error_msg = f"Facebook Account {account.id}: {str(e)}"
-            errors.append(error_msg)
-            logger.error(f"Error posting to Facebook account {account.id}: {str(e)}")
-    
+
+    with resolve_media_file(post.image) as image_path:
+        for account in accounts:
+            try:
+                facebook_integrator = FacebookIntegrator()
+
+                credentials = {
+                    'access_token': account.access_token
+                }
+
+                result = facebook_integrator.publish_post(
+                    content=post.content,
+                    credentials=credentials
+                )
+
+                if result.get('success'):
+                    success_count += 1
+                    logger.info(f"Successfully posted to Facebook account {account.id}: {result.get('post_id')}")
+                else:
+                    error_msg = result.get('error', 'Unknown error')
+                    errors.append(f"Facebook Account {account.id}: {error_msg}")
+                    logger.error(f"Failed to post to Facebook account {account.id}: {error_msg}")
+
+            except Exception as e:
+                error_msg = f"Facebook Account {account.id}: {str(e)}"
+                errors.append(error_msg)
+                logger.error(f"Error posting to Facebook account {account.id}: {str(e)}")
+
     return success_count
+
+
+def get_target_accounts_for_post(post, platform_name):
+    """
+    Resolve the exact social accounts targeted by this post.
+    Prioritizes post.social_account, then post.social_set, and only falls back
+    to user-wide accounts if no target was specified.
+    """
+    platform_lower = platform_name.lower()
+
+    # 1. Post targets a specific account
+    if post.social_account:
+        acct = post.social_account
+        if acct.platform.lower() in [platform_lower, 'twitter/x', 'x'] if platform_lower == 'twitter' else acct.platform.lower() == platform_lower:
+            return [acct]
+        return []
+
+    # 2. Post targets a social set
+    if post.social_set:
+        return list(post.social_set.accounts.filter(
+            platform__iexact=platform_lower,
+            is_active=True
+        ))
+
+    # 3. Fallback to all connected accounts of that platform for this user
+    logger.warning(f"Post {post.id} has no target account or social set specified; resolving all active {platform_name} accounts for user {post.user_id}")
+    if platform_lower in ['twitter', 'x', 'twitter/x']:
+        auth_accounts = list(AuthSocialMediaAccount.objects.filter(
+            user=post.user,
+            platform__in=['twitter', 'Twitter/X', 'x'],
+            is_active=True
+        ))
+        integrated_accounts = list(IntegratedAccount.objects.filter(
+            user=post.user,
+            platform=SocialMediaPlatform.TWITTER,
+            is_active=True
+        ))
+        return auth_accounts + integrated_accounts
+    elif platform_lower == 'linkedin':
+        return list(IntegratedAccount.objects.filter(
+            user=post.user,
+            platform=SocialMediaPlatform.LINKEDIN,
+            is_active=True
+        ))
+    elif platform_lower == 'facebook':
+        return list(IntegratedAccount.objects.filter(
+            user=post.user,
+            platform=SocialMediaPlatform.FACEBOOK,
+            is_active=True
+        ))
+    return []
 
 
 @shared_task
 def publish_scheduled_post(post_id):
-    """Publish a scheduled post to social media platforms"""
+    """Publish a scheduled post to social media platforms with strict status check"""
     try:
-        post = Post.objects.get(id=post_id, status="scheduled")
+        # Atomic fetch: only process if status is 'publishing' or 'scheduled'
+        with transaction.atomic():
+            post = Post.objects.select_for_update().filter(
+                id=post_id,
+                status__in=["scheduled", "publishing"]
+            ).first()
 
-        # Check if it's time to publish
-        if post.scheduled_time > timezone.now():
-            logger.info(f"Post {post_id} not ready for publishing yet")
-            return
+            if not post:
+                logger.info(f"Post {post_id} not found or already processed (status is not scheduled/publishing)")
+                return
+
+            if post.status == "scheduled":
+                # Check if it's time to publish
+                if post.scheduled_time > timezone.now():
+                    logger.info(f"Post {post_id} not ready for publishing yet")
+                    return
+                post.status = "publishing"
+                post.save(update_fields=['status'])
 
         logger.info(f"Publishing post {post_id} for user {post.user.id} ({post.user.username}) to platform: {post.platform}")
 
-        # Get connected social media accounts for the specific platform chosen in the post
         success_count = 0
         errors = []
-        
-        # Normalize platform name for comparison
         platform_lower = post.platform.lower()
-        
+
+        target_accounts = get_target_accounts_for_post(post, post.platform)
+        logger.info(f"Post {post_id} targeting {len(target_accounts)} account(s) for platform {post.platform}")
+
+        if not target_accounts:
+            post.status = "failed"
+            post.error_message = f"No connected or matching {post.platform} accounts found for target"
+            post.save(update_fields=['status', 'error_message'])
+            return
+
         if platform_lower in ['twitter', 'x', 'twitter/x']:
-            # Handle Twitter posting
-            # Check authentication app for legacy Twitter accounts
-            auth_twitter_accounts = AuthSocialMediaAccount.objects.filter(
-                user=post.user,
-                platform__in=['twitter', 'Twitter/X', 'x'],
-                is_active=True
-            )
-            
-            # Check integrations app for newer Twitter accounts
-            integrated_twitter_accounts = IntegratedAccount.objects.filter(
-                user=post.user,
-                platform=SocialMediaPlatform.TWITTER,
-                is_active=True
-            )
-            
-            logger.info(f"Found {auth_twitter_accounts.count()} Twitter accounts in auth app")
-            logger.info(f"Found {integrated_twitter_accounts.count()} Twitter accounts in integrations app")
-            
-            # Post to Twitter accounts in auth app
-            success_count += publish_to_twitter_accounts(post, auth_twitter_accounts, errors, "auth")
-            
-            # Post to Twitter accounts in integrations app
-            success_count += publish_to_twitter_accounts(post, integrated_twitter_accounts, errors, "integrated")
-            
+            auth_accounts = [a for a in target_accounts if isinstance(a, AuthSocialMediaAccount)]
+            integrated_accounts = [a for a in target_accounts if isinstance(a, IntegratedAccount)]
+
+            if auth_accounts:
+                success_count += publish_to_twitter_accounts(post, auth_accounts, errors, "auth")
+            if integrated_accounts:
+                success_count += publish_to_twitter_accounts(post, integrated_accounts, errors, "integrated")
+
         elif platform_lower == 'linkedin':
-            # Handle LinkedIn posting
-            integrated_linkedin_accounts = IntegratedAccount.objects.filter(
-                user=post.user,
-                platform=SocialMediaPlatform.LINKEDIN,
-                is_active=True
-            )
-            
-            logger.info(f"Found {integrated_linkedin_accounts.count()} LinkedIn accounts in integrations app")
-            
-            # Post to LinkedIn accounts
-            success_count += publish_to_linkedin_accounts(post, integrated_linkedin_accounts, errors)
-            
+            success_count += publish_to_linkedin_accounts(post, target_accounts, errors)
+
         elif platform_lower == 'facebook':
-            # Handle Facebook posting
-            integrated_facebook_accounts = IntegratedAccount.objects.filter(
-                user=post.user,
-                platform=SocialMediaPlatform.FACEBOOK,
-                is_active=True
-            )
-            
-            logger.info(f"Found {integrated_facebook_accounts.count()} Facebook accounts in integrations app")
-            
-            # Post to Facebook accounts
-            success_count += publish_to_facebook_accounts(post, integrated_facebook_accounts, errors)
-            
+            success_count += publish_to_facebook_accounts(post, target_accounts, errors)
+
         else:
             error_msg = f"Unsupported platform: {post.platform}"
             logger.error(error_msg)
             errors.append(error_msg)
 
-        # Check if we have any accounts to post to
-        if success_count == 0 and not errors:
-            logger.warning(f"No connected {post.platform} accounts found for user {post.user.id}")
-            post.status = "failed"
-            post.error_message = f"No connected {post.platform} accounts found"
-            post.save()
-            return
-
         # Update post status based on results
         if success_count > 0:
             post.status = "published"
             post.published_at = timezone.now()
+            post.error_message = ""
+            post.save(update_fields=['status', 'published_at', 'error_message'])
             logger.info(f"Post {post_id} published successfully to {success_count} account(s)")
+
+            # Trigger evergreen recycling if configured
+            if post.is_evergreen:
+                try:
+                    recycled_post = post.recycle()
+                    if recycled_post:
+                        logger.info(
+                            f"Recycled evergreen post {post_id} into new scheduled post {recycled_post.id} "
+                            f"at {recycled_post.scheduled_time} (recycle #{recycled_post.recycle_count})"
+                        )
+                except Exception as recycle_err:
+                    logger.error(f"Failed to recycle evergreen post {post_id}: {recycle_err}")
         else:
             post.status = "failed"
-            logger.error(f"Post {post_id} failed to publish to any accounts. Errors: {'; '.join(errors)}")
-        
-        post.save()
+            post.error_message = f"Failed to publish: {'; '.join(errors)}"
+            post.save(update_fields=['status', 'error_message'])
+            logger.error(f"Post {post_id} failed to publish. Errors: {'; '.join(errors)}")
 
     except Post.DoesNotExist:
         logger.error(f"Post {post_id} not found")
     except Exception as e:
         logger.error(f"Error publishing post {post_id}: {str(e)}")
+        try:
+            Post.objects.filter(id=post_id).update(status="failed", error_message=str(e))
+        except Exception:
+            pass
 
 
 @shared_task
 def check_scheduled_posts():
-    """Check for posts that need to be published"""
+    """
+    Check for posts that need to be published.
+    Uses atomic select_for_update(skip_locked=True) to prevent duplicate
+    dispatch across concurrent or back-to-back Celery Beat runs.
+    """
     current_time = timezone.now()
-    scheduled_posts = Post.objects.filter(status="scheduled", scheduled_time__lte=current_time)
+    with transaction.atomic():
+        posts_to_process = list(
+            Post.objects.select_for_update(skip_locked=True)
+            .filter(status="scheduled", scheduled_time__lte=current_time)
+            .values_list('id', flat=True)
+        )
+        if posts_to_process:
+            Post.objects.filter(id__in=posts_to_process).update(status="publishing")
 
-    for post in scheduled_posts:
-        publish_scheduled_post.delay(post.id)
+    for post_id in posts_to_process:
+        publish_scheduled_post.delay(post_id)
 
-    logger.info(f"Queued {scheduled_posts.count()} posts for publishing")
+    if posts_to_process:
+        logger.info(f"Queued {len(posts_to_process)} posts for publishing")
+
+
+@shared_task
+def recycle_due_evergreen_posts():
+    """
+    Periodic safety worker to scan published evergreen posts whose recycling
+    interval has elapsed and re-queue them if no active scheduled instance exists.
+    """
+    from datetime import timedelta
+    from django.db.models import F, Q
+
+    now = timezone.now()
+    recycled_count = 0
+
+    evergreen_posts = Post.objects.filter(
+        status="published",
+        is_evergreen=True
+    ).exclude(
+        Q(max_recycle_count__isnull=False) & Q(recycle_count__gte=F('max_recycle_count'))
+    )
+
+    for post in evergreen_posts:
+        interval_days = post.recycle_interval_days or 30
+        last_event = post.last_recycled_at or post.published_at
+        if not last_event or (now - last_event) >= timedelta(days=interval_days):
+            # Verify if there is already an upcoming scheduled instance
+            root_post = post.original_post or post
+            has_pending = Post.objects.filter(
+                Q(id=root_post.id) | Q(original_post=root_post),
+                status__in=["scheduled", "publishing"]
+            ).exists()
+            if not has_pending:
+                try:
+                    cloned = post.recycle()
+                    if cloned:
+                        recycled_count += 1
+                        logger.info(f"Periodic worker recycled post {post.id} into {cloned.id}")
+                except Exception as e:
+                    logger.error(f"Error in periodic recycling for post {post.id}: {e}")
+
+    logger.info(f"Completed evergreen recycling check: {recycled_count} post(s) recycled")
+    return recycled_count
 
 
 @shared_task

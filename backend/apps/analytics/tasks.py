@@ -18,18 +18,22 @@ logger = logging.getLogger(__name__)
 
 @shared_task
 def collect_analytics_data(user_id, platform=None):
-    """Collect analytics data from social media platforms - simplified version"""
+    """Collect real analytics data from connected social media platforms for a user"""
     try:
-        user = User.objects.get(id=user_id)
-        # For now, just log that we would collect data
-        logger.info(f"Would collect analytics data for user {user.username}")
+        from .real_analytics_collector import RealAnalyticsCollector
 
-        # Return some mock data
-        return {"followers": 1250, "engagement": 4.5, "impressions": 3000, "reach": 2500}
+        user = User.objects.get(id=user_id)
+        logger.info(f"Starting real analytics collection for user {user.username}")
+        collector = RealAnalyticsCollector()
+        results = collector.collect_all_user_analytics(user)
+        logger.info(f"Completed analytics collection for user {user.username}")
+        return results
     except User.DoesNotExist:
-        logger.error(f"User {user_id} not found")
+        logger.error(f"User {user_id} not found for analytics collection")
+        return {"error": "User not found"}
     except Exception as e:
-        logger.error(f"Error collecting analytics data: {str(e)}")
+        logger.error(f"Error collecting analytics data for user {user_id}: {str(e)}", exc_info=True)
+        return {"error": str(e)}
 
 
 @shared_task
@@ -803,8 +807,11 @@ def predict_optimal_posting_times(user_id):
 
         user = User.objects.get(id=user_id)
 
-        # Get analytics data with timing information
-        analytics_data = AnalyticsData.objects.filter(user=user, date__gte=timezone.now().date() - timedelta(days=30))
+        # Get analytics data with timing information, prefetching related posts
+        analytics_data = AnalyticsData.objects.filter(
+            user=user, 
+            date__gte=timezone.now().date() - timedelta(days=30)
+        ).select_related('post')
 
         # Default times if no data or low data
         default_times = [
@@ -818,9 +825,17 @@ def predict_optimal_posting_times(user_id):
 
         slots = {}
         for data in analytics_data:
-            # Get weekday: Monday is 0, Sunday is 6
-            day_of_week = data.date.weekday()
-            hour = data.created_at.hour
+            # Use actual post published/scheduled timestamp if available, fallback to metric date
+            if data.post and data.post.published_at:
+                day_of_week = data.post.published_at.weekday()
+                hour = data.post.published_at.hour
+            elif data.post and data.post.scheduled_time:
+                day_of_week = data.post.scheduled_time.weekday()
+                hour = data.post.scheduled_time.hour
+            else:
+                day_of_week = data.date.weekday()
+                hour = data.created_at.hour
+
             key = (day_of_week, hour)
             if key not in slots:
                 slots[key] = {"engagement": [], "reach": []}
