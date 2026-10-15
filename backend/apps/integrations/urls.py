@@ -49,6 +49,11 @@ from .views_facebook import (
     post_facebook_share,
     facebook_disconnect,
 )
+from .views_instagram import (
+    instagram_connect,
+    instagram_verify,
+    instagram_disconnect,
+)
 from .views_facebook_management import (
     facebook_account_details,
     update_facebook_account,
@@ -178,6 +183,11 @@ urlpatterns = [
     # Facebook API endpoints
     path("facebook/verify/", verify_facebook_credentials, name="facebook-verify-credentials"),
     path("facebook/post/", post_facebook_share, name="facebook-post-share"),
+    
+    # Instagram endpoints
+    path("instagram/connect/", instagram_connect, name="instagram-connect"),
+    path("instagram/verify/", instagram_verify, name="instagram-verify"),
+    path("instagram/disconnect/", instagram_disconnect, name="instagram-disconnect"),
     
     # Facebook Account Management endpoints
     path("facebook/account/", facebook_account_details, name="facebook-account-details"),
