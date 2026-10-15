@@ -1,8 +1,10 @@
+import json
 import logging
 import secrets
 import uuid
 from django.conf import settings
-from django.http import JsonResponse, HttpResponseRedirect
+from django.core.cache import cache
+from django.http import JsonResponse, HttpResponseRedirect, HttpResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 from django.utils.decorators import method_decorator
@@ -12,7 +14,6 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.authentication import TokenAuthentication
 from rest_framework.response import Response
 from rest_framework import status
-from django.views.decorators.csrf import csrf_exempt
 import requests
 from apps.authentication.models import SocialMediaAccount as AuthSocialMediaAccount
 from apps.integrations.models import SocialMediaAccount, SocialMediaPlatform
@@ -58,12 +59,14 @@ def facebook_authorize(request):
         # Generate state for CSRF protection
         state = secrets.token_urlsafe(32)
         
-        # Store state in session
+        # Store state in session and cache
         request.session['facebook_oauth_state'] = state
         request.session['facebook_user_id'] = request.user.id
+        cache.set(f"fb_oauth_state_{state}", request.user.id, timeout=900)
         
-        # Facebook permissions for basic profile and pages
-        scope = 'email,public_profile,pages_show_list,pages_read_engagement,pages_manage_posts,publish_to_groups'
+        # Facebook permissions: default to standard valid scopes (email, public_profile)
+        # Note: 'publish_to_groups' was deprecated by Meta. Additional scopes can be passed via ?scope=
+        scope = request.GET.get('scope') or 'email,public_profile'
         
         auth_url = (
             f"{FACEBOOK_AUTH_URL}?"
@@ -80,6 +83,7 @@ def facebook_authorize(request):
         if request.GET.get('redirect') == 'false':
             return JsonResponse({
                 'authorization_url': auth_url,
+                'authorize_url': auth_url,
                 'state': state
             })
         
@@ -103,15 +107,22 @@ def facebook_callback(request):
         code = request.GET.get('code')
         state = request.GET.get('state')
         error = request.GET.get('error')
+        frontend_url = getattr(settings, 'FRONTEND_URL', 'https://keativapp.vercel.app').rstrip('/')
         
         logger.info(f"Facebook callback received - code: {'present' if code else 'missing'}, state: {state}, error: {error}")
         
         if error:
             logger.error(f"Facebook OAuth error: {error}")
-            return JsonResponse({
-                'error': f'Facebook authorization failed: {error}',
-                'success': False
-            }, status=400)
+            error_html = f"""<!DOCTYPE html><html><body style='background:#0f172a;color:#f87171;font-family:sans-serif;text-align:center;padding:40px;'>
+            <h3>Facebook Authorization Failed</h3>
+            <p>{error}</p>
+            <script>
+              if (window.opener && window.opener.postMessage) {{
+                window.opener.postMessage({{ source: 'facebook-oauth', data: JSON.stringify({{ success: false, error: '{error}' }}) }}, '*');
+                setTimeout(function() {{ window.close(); }}, 2000);
+              }}
+            </script></body></html>"""
+            return HttpResponse(error_html, status=400)
         
         if not code:
             logger.error("Facebook callback missing authorization code")
@@ -120,32 +131,32 @@ def facebook_callback(request):
                 'success': False
             }, status=400)
         
-        # Verify state for CSRF protection
-        expected_state = request.session.get('facebook_oauth_state')
-        logger.info(f"Facebook callback session data: state_expected={expected_state}, state_received={state}")
-        
-        # Get user ID from session with fallback strategies
-        user_id = request.session.get('facebook_user_id')
-        logger.info(f"Facebook callback user_id from session: {user_id}")
-        
         current_user = None
         
-        # Multi-tier user identification strategy
-        if user_id:
-            try:
-                current_user = User.objects.get(id=user_id)
-                logger.info(f"Facebook callback: Found user by session user_id: {current_user.email}")
-            except User.DoesNotExist:
-                logger.warning(f"Facebook callback: User {user_id} from session not found")
+        # Strategy 1: State cache lookup (immune to cross-site cookie loss)
+        if state:
+            cached_user_id = cache.get(f"fb_oauth_state_{state}")
+            if cached_user_id:
+                try:
+                    current_user = User.objects.get(id=cached_user_id)
+                    logger.info(f"Facebook callback: Found user from cache state: {current_user.email}")
+                except User.DoesNotExist:
+                    pass
         
-        # Fallback 1: Check if request has authenticated user
+        # Strategy 2: User ID from session
+        if not current_user:
+            user_id = request.session.get('facebook_user_id')
+            if user_id:
+                try:
+                    current_user = User.objects.get(id=user_id)
+                    logger.info(f"Facebook callback: Found user by session user_id: {current_user.email}")
+                except User.DoesNotExist:
+                    logger.warning(f"Facebook callback: User {user_id} from session not found")
+        
+        # Strategy 3: Check if request has authenticated user
         if not current_user and hasattr(request, 'user') and request.user.is_authenticated:
             current_user = request.user
             logger.info(f"Facebook callback: Found user by request.user: {current_user.email}")
-        
-        # Fallback 2: Try to find user by email if we can get it from Facebook
-        if not current_user:
-            logger.warning("Facebook callback: No user context found, will attempt email lookup after token exchange")
         
         # Exchange authorization code for access token
         app_id = settings.SOCIAL_MEDIA_CONFIGS['FACEBOOK']['APP_ID']
@@ -179,8 +190,6 @@ def facebook_callback(request):
                 'success': False
             }, status=400)
         
-        logger.info("Token exchange result: True")
-        
         # Get user information from Facebook
         user_response = requests.get(f"{FACEBOOK_USER_URL}?access_token={access_token}&fields=id,name,email")
         
@@ -196,65 +205,53 @@ def facebook_callback(request):
         facebook_email = user_data.get('email')
         facebook_name = user_data.get('name')
         
-        # Final fallback: Find user by email if we still don't have one
+        # Strategy 4: Find user by email if we still don't have one
         if not current_user and facebook_email:
             try:
                 current_user = User.objects.get(email=facebook_email)
                 logger.info(f"Facebook callback: Found user by email: {facebook_email}")
             except User.DoesNotExist:
                 logger.error(f"Facebook callback: No user found with email {facebook_email}")
-                return JsonResponse({
-                    'error': 'User account not found. Please ensure you are logged in.',
-                    'success': False
-                }, status=400)
         
-        if not current_user:
-            logger.error("Facebook callback: Unable to identify user after all fallback attempts")
-            return JsonResponse({
-                'error': 'Unable to identify user. Please ensure you are logged in.',
-                'success': False
-            }, status=400)
-        
-        # Save tokens to both models
-        try:
-            # Save to integrations SocialMediaAccount model
-            integrated_account, created = SocialMediaAccount.objects.update_or_create(
-                user=current_user,
-                platform=SocialMediaPlatform.FACEBOOK,
-                platform_user_id=facebook_user_id,
-                defaults={
-                    'username': facebook_name or facebook_email,
-                    'display_name': facebook_name,
-                    'access_token': access_token,
-                    'refresh_token': None,  # Facebook uses long-lived tokens
-                    'token_expires_at': None,  # Facebook tokens don't expire by default
-                    'is_active': True,
-                }
-            )
+        # If user found, save tokens to both models
+        if current_user:
+            try:
+                integrated_account, created = SocialMediaAccount.objects.update_or_create(
+                    user=current_user,
+                    platform=SocialMediaPlatform.FACEBOOK,
+                    platform_user_id=facebook_user_id,
+                    defaults={
+                        'username': facebook_name or facebook_email or str(facebook_user_id),
+                        'display_name': facebook_name,
+                        'access_token': access_token,
+                        'refresh_token': None,
+                        'token_expires_at': None,
+                        'is_active': True,
+                    }
+                )
+                logger.info(f"Facebook tokens saved successfully for user {current_user.email}, account_id: {integrated_account.id}")
+            except Exception as e:
+                logger.error(f"Failed to save Facebook SocialMediaAccount: {e}")
             
-            logger.info(f"Facebook tokens saved successfully for user {current_user.email}, account_id: {integrated_account.id}")
-            
-        except Exception as e:
-            logger.error(f"Failed to save Facebook SocialMediaAccount: {e}")
+            try:
+                auth_account, created = AuthSocialMediaAccount.objects.update_or_create(
+                    user=current_user,
+                    platform='facebook',
+                    platform_user_id=facebook_user_id,
+                    defaults={
+                        'username': facebook_name or facebook_email or str(facebook_user_id),
+                        'access_token': access_token,
+                        'refresh_token': None,
+                        'is_active': True,
+                    }
+                )
+                logger.info(f"Facebook auth SocialMediaAccount {'created' if created else 'updated'} for user {current_user.email}")
+            except Exception as e:
+                logger.error(f"Failed to sync auth SocialMediaAccount for Facebook: {e}")
         
-        # Save to authentication SocialMediaAccount model
-        try:
-            auth_account, created = AuthSocialMediaAccount.objects.update_or_create(
-                user=current_user,
-                platform='facebook',
-                platform_user_id=facebook_user_id,
-                defaults={
-                    'username': facebook_name or facebook_email,
-                    'access_token': access_token,
-                    'refresh_token': None,  # Facebook uses long-lived tokens
-                    'is_active': True,
-                }
-            )
-            logger.info(f"Facebook authentication account {'created' if created else 'updated'} for user {current_user.email}")
-        except Exception as e:
-            logger.error(f"Failed to sync auth SocialMediaAccount for Facebook: {e}")
-        
-        # Clear session data
+        # Clear session and cache
+        if state:
+            cache.delete(f"fb_oauth_state_{state}")
         try:
             del request.session['facebook_oauth_state']
             del request.session['facebook_user_id']
@@ -269,7 +266,7 @@ def facebook_callback(request):
                 'platform_user_id': facebook_user_id,
                 'username': facebook_name,
                 'email': facebook_email,
-                'is_verified': True,  # Facebook accounts are inherently verified
+                'is_verified': True,
             },
             'tokens': {
                 'access_token': access_token,
@@ -277,7 +274,77 @@ def facebook_callback(request):
             }
         }
         
-        return JsonResponse(response_data)
+        accept = request.META.get('HTTP_ACCEPT', '') or ''
+        if 'application/json' in accept and 'text/html' not in accept:
+            return JsonResponse(response_data)
+        
+        payload_json = json.dumps(response_data)
+        html = f"""<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Facebook Connected</title>
+  <style>
+    body {{
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: #0f172a;
+      color: #f8fafc;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      margin: 0;
+    }}
+    .card {{
+      background: #1e293b;
+      padding: 32px;
+      border-radius: 16px;
+      text-align: center;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4);
+      max-width: 420px;
+      border: 1px solid #334155;
+    }}
+    .icon {{
+      font-size: 48px;
+      margin-bottom: 16px;
+    }}
+    h2 {{
+      color: #38bdf8;
+      margin: 0 0 12px 0;
+      font-size: 20px;
+    }}
+    p {{
+      color: #94a3b8;
+      font-size: 14px;
+      line-height: 1.5;
+    }}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon">✅</div>
+    <h2>Facebook Connected!</h2>
+    <p>Your Facebook account has been connected successfully. Closing this window...</p>
+  </div>
+  <script>
+    (function() {{
+      try {{
+        var payload = {payload_json};
+        if (window.opener && window.opener.postMessage) {{
+          window.opener.postMessage({{ source: 'facebook-oauth', data: JSON.stringify(payload) }}, '*');
+          setTimeout(function() {{ window.close(); }}, 800);
+        }} else {{
+          window.location.href = '{frontend_url}/dashboard/integrations?facebook=success';
+        }}
+      }} catch(e) {{
+        console.error('Error posting message:', e);
+        window.location.href = '{frontend_url}/dashboard/integrations?facebook=success';
+      }}
+    }})();
+  </script>
+</body>
+</html>"""
+        return HttpResponse(html)
         
     except Exception as e:
         logger.error(f"Facebook callback error: {e}")
@@ -285,6 +352,42 @@ def facebook_callback(request):
             'error': 'Internal server error during Facebook authentication',
             'success': False
         }, status=500)
+
+
+@api_view(['POST'])
+@authentication_classes([TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def facebook_bind_tokens(request):
+    """
+    Bind Facebook tokens to user account
+    """
+    try:
+        data = request.data or {}
+        account_data = data.get('account') or {}
+        tokens = data.get('tokens') or {}
+        
+        platform_user_id = account_data.get('platform_user_id') or data.get('platform_user_id')
+        username = account_data.get('username') or data.get('username')
+        access_token = tokens.get('access_token') or data.get('access_token')
+        
+        if not access_token:
+            return JsonResponse({'success': False, 'error': 'Missing access token'}, status=400)
+            
+        integrated_account, created = SocialMediaAccount.objects.update_or_create(
+            user=request.user,
+            platform=SocialMediaPlatform.FACEBOOK,
+            platform_user_id=platform_user_id or f"fb_{request.user.id}",
+            defaults={
+                'username': username or request.user.email,
+                'display_name': username or request.user.get_full_name() or request.user.username,
+                'access_token': access_token,
+                'is_active': True,
+            }
+        )
+        return JsonResponse({'success': True, 'message': 'Facebook account bound successfully'})
+    except Exception as e:
+        logger.error(f"Error binding Facebook tokens: {e}")
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
 
 
 @api_view(['GET'])

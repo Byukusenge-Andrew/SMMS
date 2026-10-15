@@ -44,6 +44,7 @@ from .views_linkedin import (
 from .views_facebook import (
     facebook_authorize,
     facebook_callback,
+    facebook_bind_tokens,
     verify_facebook_credentials,
     post_facebook_share,
     facebook_disconnect,
@@ -163,6 +164,7 @@ urlpatterns = [
     # Facebook OAuth connect endpoints
     path("facebook/authorize/", facebook_authorize, name="facebook-authorize"),
     path("facebook/callback/", facebook_callback, name="facebook-callback"),
+    path("facebook/bind-tokens/", facebook_bind_tokens, name="facebook-bind-tokens"),
     path("facebook/disconnect/", facebook_disconnect, name="facebook-disconnect"),
 
     # New Facebook OAuth 2.0 endpoints (Graph API)
