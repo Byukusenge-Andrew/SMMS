@@ -52,17 +52,37 @@ def analytics_dashboard(request):
     
     # Initialize real analytics collector
     collector = RealAnalyticsCollector()
-    
-    # Check if we should refresh data
+
+    # Auto-sync strategy:
+    # 1. If explicit ?refresh=true is provided, sync immediately.
+    # 2. Or, if the accounts haven't been synced within the last 30 minutes, auto-sync automatically.
     should_refresh = request.GET.get('refresh', 'false').lower() == 'true'
-    
+
+    if not should_refresh:
+        # Check staleness: if any connected account has never synced or synced > 30 minutes ago, auto-sync
+        from apps.integrations.models import SocialMediaAccount
+        stale_threshold = timezone.now() - timedelta(minutes=30)
+        has_stale_account = SocialMediaAccount.objects.filter(
+            user=user,
+            is_active=True
+        ).filter(
+            models.Q(last_sync__isnull=True) | models.Q(last_sync__lt=stale_threshold)
+        ).exists()
+        if has_stale_account:
+            should_refresh = True
+            logger.info(f"Auto-sync triggered for user {user.id} due to stale/missing metrics (>30m)")
+
     if should_refresh:
         try:
-            # Dispatch background analytics collection task to Celery
-            collect_analytics_data.delay(user.id)
-            logger.info(f"Dispatched background analytics collection task for user {user.id}")
+            # First try synchronous collection so the user immediately gets fresh data even if Celery is offline
+            try:
+                collector.collect_all_user_analytics(user)
+                logger.info(f"Analytics collection completed synchronously for user {user.id}")
+            except Exception as direct_err:
+                logger.warning(f"Direct analytics collection failed, trying celery: {direct_err}")
+                collect_analytics_data.delay(user.id)
         except Exception as e:
-            logger.error(f"Error queueing analytics refresh for user {user.id}: {e}")
+            logger.error(f"Error refreshing analytics for user {user.id}: {e}")
     
     # Get recent analytics data (last 30 days)
     recent_data = AnalyticsData.objects.filter(

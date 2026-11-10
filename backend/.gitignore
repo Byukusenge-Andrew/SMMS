@@ -88,3 +88,7 @@ backend/test/
 # Ignore specific directories
 Requirements.pdf
 backend/prompt.txt
+
+
+# AIContext Cache Directory
+.aicontext/

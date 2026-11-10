@@ -128,3 +128,7 @@ secrets/
 # Uploads
 user_uploads/
 uploads/
+
+
+# AIContext Cache Directory
+.aicontext/

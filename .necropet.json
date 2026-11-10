@@ -1,0 +1,80 @@
+{
+  "petName": "Barty Crouch Jr.",
+  "audioEnabled": true,
+  "volume": 0.6,
+  "feedingRules": {
+    "onTestPass": {
+      "enabled": true,
+      "satietyBonus": 25,
+      "sanityBonus": 20,
+      "description": "Feed golden treat whenever test runs exit with status 0"
+    },
+    "onCleanCommit": {
+      "enabled": true,
+      "maxDiffLines": 250,
+      "requireConventionalCommit": true,
+      "satietyBonus": 30,
+      "sanityBonus": 15,
+      "description": "Feed nutritious meal on small, well-described Git commits"
+    },
+    "onLinterZeroErrors": {
+      "enabled": true,
+      "sanityBonus": 15,
+      "description": "Boost sanity when workspace diagnostics reach 0 errors"
+    },
+    "onRefactorShrink": {
+      "enabled": true,
+      "satietyBonus": 15,
+      "description": "Reward negative net lines when refactoring bloated code"
+    }
+  },
+  "starvingAndPoisonRules": {
+    "maxLineLength": {
+      "enabled": true,
+      "limit": 100,
+      "toxicityPenalty": 5,
+      "description": "Penalize excessively long lines"
+    },
+    "maxFileLines": {
+      "enabled": true,
+      "limit": 350,
+      "toxicityPenalty": 12,
+      "description": "Penalize god files exceeding line thresholds"
+    },
+    "forbiddenPatterns": {
+      "enabled": true,
+      "patterns": [
+        "console.log",
+        "any",
+        "TODO",
+        "FIXME",
+        "debugger",
+        "@ts-ignore"
+      ],
+      "toxicityPenalty": 8,
+      "description": "Penalize tech debt keywords left behind on save"
+    },
+    "messyCommitMessage": {
+      "enabled": true,
+      "minLength": 8,
+      "bannedWords": [
+        "wip",
+        "temp",
+        "fix",
+        "update",
+        "asdf",
+        "test",
+        "commit"
+      ],
+      "toxicityPenalty": 25,
+      "description": "Give food poisoning on lazy or uninformative git commits"
+    },
+    "onTestFail": {
+      "enabled": true,
+      "sanityPenalty": 35,
+      "description": "Severe mental anguish when tests fail"
+    },
+    "idleStarvationMinutes": 60,
+    "idleSatietyDecayPerHour": 15
+  }
+}

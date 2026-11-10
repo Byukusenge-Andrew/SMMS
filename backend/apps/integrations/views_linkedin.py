@@ -298,6 +298,8 @@ def linkedin_callback(request):
                     # Use email as username if available, otherwise use platform_user_id
                     username = email if email else f"linkedin_{platform_user_id}"
                     
+                    follower_count = profile.get('follower_count', 0) or profile.get('connection_count', 0)
+
                     # Store in IntegratedAccount
                     account, created = IntegratedAccount.objects.update_or_create(
                         user=current_user,
@@ -307,6 +309,7 @@ def linkedin_callback(request):
                             'username': username,
                             'display_name': display_name,
                             'profile_image_url': profile_image_url,
+                            'followers_count': follower_count,
                             'is_active': True,
                             'access_token': access_token,
                             'refresh_token': refresh_token,

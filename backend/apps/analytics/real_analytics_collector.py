@@ -414,13 +414,26 @@ class RealAnalyticsCollector:
     def _update_account_metrics(self, account, data):
         """Update the social media account with latest metrics"""
         try:
+            update_fields = []
             if 'followers_count' in data:
                 account.followers_count = data['followers_count']
+                update_fields.append('followers_count')
             if 'following_count' in data:
                 account.following_count = data['following_count']
-            
-            account.last_synced = timezone.now()
-            account.save(update_fields=['followers_count', 'following_count', 'last_synced'])
+                update_fields.append('following_count')
+            if 'posts_count' in data:
+                account.posts_count = data['posts_count']
+                update_fields.append('posts_count')
+
+            if hasattr(account, 'last_sync'):
+                account.last_sync = timezone.now()
+                update_fields.append('last_sync')
+            elif hasattr(account, 'last_synced'):
+                account.last_synced = timezone.now()
+                update_fields.append('last_synced')
+
+            if update_fields:
+                account.save(update_fields=update_fields)
             
         except Exception as e:
             logger.error(f"Error updating account metrics: {e}")
